@@ -1,0 +1,28 @@
+# NixAIOS: text is LF; Windows-only scripts may be CRLF.
+# This prevents CRLF from breaking Nix/bash builds (stdenv: $'\r').
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.nix text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.py text eol=lf
+*.slint text eol=lf
+*.lock text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.iso binary
+*.img binary
+*.gguf binary
