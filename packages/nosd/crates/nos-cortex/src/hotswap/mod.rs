@@ -17,7 +17,7 @@ use tracing::{info, warn};
 
 #[derive(Clone)]
 pub struct HotSwapController {
-    active: Arc<Mutex<Box<dyn InferenceBackend>>>,
+    active: Arc<Mutex<Arc<dyn InferenceBackend>>>,
     kind: Arc<Mutex<EngineKind>>,
     current_path: Arc<Mutex<Option<PathBuf>>>,
 }
@@ -25,7 +25,7 @@ pub struct HotSwapController {
 impl HotSwapController {
     pub fn new_cpu() -> Self {
         Self {
-            active: Arc::new(Mutex::new(Box::new(CpuEchoBackend))),
+            active: Arc::new(Mutex::new(Arc::new(CpuEchoBackend))),
             kind: Arc::new(Mutex::new(EngineKind::CpuEcho)),
             current_path: Arc::new(Mutex::new(None)),
         }
@@ -55,23 +55,44 @@ impl HotSwapController {
     }
 
     pub fn infer(&self, prompt: &str) -> Result<String, SwapError> {
-        self.active.lock().infer(prompt)
+        // E-02: não segurar o lock durante IO/subprocess.
+        let backend = self.active.lock().clone();
+        let start = std::time::Instant::now();
+        let out = backend.infer(prompt);
+        info!(
+            target: "nosd",
+            "infer engine={} latency_ms={} ok={}",
+            backend.name(),
+            start.elapsed().as_millis(),
+            out.is_ok()
+        );
+        out
     }
 
     /// Descarrega engine atual → CpuEcho (libera subprocess llama / VRAM do filho).
     pub fn unload(&self) {
         info!(target: "nosd", "hotswap unload → cpu-echo (was {})", self.engine_name());
-        *self.active.lock() = Box::new(CpuEchoBackend);
+        *self.active.lock() = Arc::new(CpuEchoBackend);
         *self.kind.lock() = EngineKind::CpuEcho;
         *self.current_path.lock() = None;
     }
 
-    /// Tenta anexar GGUF via `llama-server` (env) ou `llama-cli`. Falha → mantém CpuEcho.
+    /// Tenta anexar GGUF: `llama-server` externo (env), `llama-server` spawned
+    /// (0.6 default) ou `llama-cli` fallback. Falha → mantém CpuEcho.
     pub fn try_attach_llama(&self, model: PathBuf) -> Result<(), SwapError> {
-        let backend: Box<dyn InferenceBackend> = if llama_server_base().is_some() {
-            Box::new(LlamaServerBackend::try_new(model.clone())?)
+        let backend: Arc<dyn InferenceBackend> = if let Some(base) = llama_server_base() {
+            Arc::new(LlamaServerBackend::try_new_at(model.clone(), base)?)
         } else {
-            Box::new(LlamaCliBackend::try_new(model.clone())?)
+            match LlamaServerBackend::spawn(model.clone()) {
+                Ok(b) => Arc::new(b),
+                Err(e) => {
+                    info!(
+                        target: "nosd",
+                        "llama-server spawn unavailable ({e}) - llama-cli fallback"
+                    );
+                    Arc::new(LlamaCliBackend::try_new(model.clone())?)
+                }
+            }
         };
         info!(target: "nosd", "hotswap attach {}", backend.name());
         *self.active.lock() = backend;
@@ -92,8 +113,8 @@ impl HotSwapController {
         info!(target: "nosd", "hotswap freeze/drain kind={:?}", kind);
         info!(target: "nosd", "hotswap kv_serialize (stub session)");
         info!(target: "nosd", "hotswap vram_eviction");
-        let backend: Box<dyn InferenceBackend> = match kind {
-            EngineKind::CpuEcho => Box::new(CpuEchoBackend),
+        let backend: Arc<dyn InferenceBackend> = match kind {
+            EngineKind::CpuEcho => Arc::new(CpuEchoBackend),
             EngineKind::LlamaGguf => {
                 warn!(target: "nosd", "swap_to(LlamaGguf) requires try_attach_llama(path)");
                 return Err(SwapError::EngineAbsent("llama.cpp path required"));
@@ -151,5 +172,18 @@ mod tests {
         hs.unload();
         assert_eq!(hs.engine_name(), "cpu-echo");
         assert_eq!(hs.kind(), EngineKind::CpuEcho);
+    }
+
+    #[test]
+    fn concurrent_infer_does_not_hold_lock_across_io() {
+        let hs = std::sync::Arc::new(HotSwapController::new_cpu());
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let hs = hs.clone();
+            handles.push(std::thread::spawn(move || hs.infer("x").unwrap()));
+        }
+        for h in handles {
+            assert!(h.join().unwrap().contains('x'));
+        }
     }
 }

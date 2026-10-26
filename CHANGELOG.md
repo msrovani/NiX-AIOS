@@ -3,6 +3,35 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.1] — 2026-10-26 (Engine persistent)
+
+### Added
+
+- **E-01:** `llama-server` persistente como default quando há GGUF e o binário
+  existe (`NOSD_LLAMA_SERVER_BIN`/PATH); health `/health` (30s), sem modelo →
+  `cpu-echo`; `NOSD_LLAMA_SERVER` externo continua suportado; fallback
+  `llama-cli`.
+- **E-02:** `HotSwapController` usa `Arc<dyn InferenceBackend>` e não segura o
+  lock durante inferência/subprocess; log `latency_ms`.
+- **E-04:** validação de header GGUF (magic/versão/contadores) antes de attach.
+- **M-01:** `seg.bin` com `sync_data` e cap de 16 MiB por registo.
+- **J-01:** `scripts/accept-m3.sh` (health/route/chat/recall/voice-status/ui.card).
+
+### Changed
+
+- `llama_server_posture` distingue `managed+engine=llama-server-http`.
+- Testes de env em `nos-hermes` serializados (ENV_LOCK); S2 pending com espera.
+
+### Evidence
+
+- `cargo fmt/clippy/test` verdes (3 runs); `nix build .#nosd`.
+- VM test `.#checks.x86_64-linux.nixaios-vm` continua health+chat.
+
+### Residual
+
+- Chat com GGUF real/llama-server e2e, voz, cage/DRM e Wi-Fi não exercitados.
+- S-04 completo (legado admin), S-08/S-09, metal M4/M5.
+
 ## [0.5.6] — 2026-10-26 (QEMU green)
 
 ### Fixed

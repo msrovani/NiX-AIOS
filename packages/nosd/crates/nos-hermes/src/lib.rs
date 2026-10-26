@@ -929,6 +929,13 @@ fn lane_name(l: SystemLane) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Testes que mutam env não podem correr em paralelo (NOSD_SEEK_MOCK/NET).
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
     use nos_cortex::HotSwapController;
     use nos_memory::NosMemory;
     use tempfile::{tempdir, TempDir};
@@ -1047,6 +1054,7 @@ mod tests {
 
     #[test]
     fn spawn_agent() {
+        let _env = env_guard();
         let t = eng();
         let g = CapGate::new(CapBits::FULL, 1);
         // Mock público vazio → Seek miss rápido → synth path A (sem HTTP live).
@@ -1063,6 +1071,7 @@ mod tests {
 
     #[test]
     fn seek_before_spawn_net_absent() {
+        let _env = env_guard();
         let t = eng();
         std::env::set_var("NOSD_NET_DISABLED", "1");
         let r = t.eng.seek_before_spawn(&SkillNeed {
@@ -1077,6 +1086,7 @@ mod tests {
 
     #[test]
     fn seek_hit_skips_synth() {
+        let _env = env_guard();
         let t = eng();
         std::env::set_var("NOSD_SEEK_MOCK", r#"{"items":[]}"#);
         t.eng.push_mesh_offer(SkillCandidate {

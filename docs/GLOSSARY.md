@@ -22,5 +22,5 @@
 | **ADR-0113** | Taxonomia honesty: OBSERVED / VERIFIED / AWAITING |
 | **S1 / S2** | Inferência rápida local vs fila async mais pesada |
 | **cage** | Compositor Wayland kiosk (DRM tty7) |
-| **NIXAIOS051** | Volume ID da ISO release 0.5.x (workspace 0.5.6+) |
+| **NIXAIOS051** | Volume ID da ISO release 0.5.x (workspace 0.6.0+) |
 | **NIXAIOS050** | Volume ID legado da linha 0.5.0 (pré-ship Git) |

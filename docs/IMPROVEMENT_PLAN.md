@@ -39,6 +39,11 @@
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
 | R-05 NixOS VM test | **feito** | `checks.x86_64-linux.nixaios-vm` (health + chat, 61s) |
 | Q-03 CI GitHub | **criado** | `.github/workflows/ci.yml`; primeira execução no GitHub |
+| E-01 llama-server persistente | **feito (host)** | spawn/health/fallback, `llama_server.rs`; e2e GGUF pendente |
+| E-02 sem lock durante IO | **feito** | `Arc<dyn InferenceBackend>`, teste 8 threads |
+| E-04 validação GGUF | **feito** | `validate_gguf`, teste header |
+| M-01 seg.bin fsync/cap | **feito** | `nos-memory/src/seg.rs`, teste oversized |
+| J-01 accept-m3 | **criado** | `scripts/accept-m3.sh` |
 
 ---
 

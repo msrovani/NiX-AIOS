@@ -10,6 +10,8 @@ use tracing::info;
 
 pub const SEG_MAGIC: [u8; 4] = *b"NSGS";
 pub const SEG_VERSION: u32 = 1;
+/// M-01: cap de registo (evita vec![0; 4GiB] em ficheiro corrompido).
+pub const MAX_RECORD_BYTES: u32 = 16 * 1024 * 1024;
 /// L4+ stub file header only — recall skips L4 until CRDT wiring.
 pub const L4_STUB_MAGIC: [u8; 4] = *b"NSG4";
 pub const L4_STUB_VERSION: u32 = 0;
@@ -144,6 +146,7 @@ fn append_record(path: &Path, rec: &MemoryRecord) -> Result<(), MemoryError> {
     let mut f = OpenOptions::new().append(true).open(path)?;
     f.write_all(&len.to_le_bytes())?;
     f.write_all(&payload)?;
+    f.sync_data()?;
     Ok(())
 }
 
@@ -171,6 +174,13 @@ fn read_all_records(path: &Path) -> Result<Vec<MemoryRecord>, MemoryError> {
         };
         if len == 0 {
             continue;
+        }
+        if len > MAX_RECORD_BYTES {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "seg record exceeds cap",
+            )
+            .into());
         }
         let mut buf = vec![0u8; len as usize];
         f.read_exact(&mut buf)?;
@@ -214,6 +224,7 @@ fn rewrite_seg(path: &Path, kept: &[MemoryRecord]) -> Result<(), MemoryError> {
             f.write_all(&len.to_le_bytes())?;
             f.write_all(&payload)?;
         }
+        f.sync_data()?;
     }
     fs::rename(&tmp, path)?;
     Ok(())
@@ -223,6 +234,18 @@ fn rewrite_seg(path: &Path, kept: &[MemoryRecord]) -> Result<(), MemoryError> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn rejects_oversized_record_len() {
+        let d = tempdir().unwrap();
+        let p = d.path().join("seg.bin");
+        let mut f = File::create(&p).unwrap();
+        f.write_all(&SEG_MAGIC).unwrap();
+        f.write_all(&SEG_VERSION.to_le_bytes()).unwrap();
+        f.write_all(&u32::MAX.to_le_bytes()).unwrap();
+        drop(f);
+        assert!(read_all_records(&p).is_err());
+    }
 
     #[test]
     fn length_prefixed_not_jsonl() {

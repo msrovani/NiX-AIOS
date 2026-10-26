@@ -2,7 +2,7 @@
 //! Ausência do binário → EngineAbsent. `NOSD_LLAMA_NGL>0` só acelera builds CUDA;
 //! nixpkgs `llama-cpp` default = CPU (`system_info` sem CUDA) — slog `cuda_engine_absent`.
 
-use super::backend::{InferenceBackend, SwapError};
+use super::backend::{validate_gguf, InferenceBackend, SwapError};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::{info, warn};
@@ -65,6 +65,7 @@ impl LlamaCliBackend {
         if !model.is_file() {
             return Err(SwapError::Infer("gguf missing"));
         }
+        validate_gguf(&model)?;
         let cli = find_llama_cli().ok_or(SwapError::EngineAbsent("llama-cli"))?;
         let ngl = ngl_from_env();
         let n_predict = n_predict_from_env();
