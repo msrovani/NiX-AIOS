@@ -1,0 +1,7 @@
+//! Biblioteca do daemon — testes unitários + API interna.
+
+pub mod actuators;
+pub mod landlock;
+pub mod nix_managed;
+pub mod transmute;
+pub mod wifi_nm;

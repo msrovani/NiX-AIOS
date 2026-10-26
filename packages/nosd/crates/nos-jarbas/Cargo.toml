@@ -1,0 +1,28 @@
+[package]
+name = "nos-jarbas"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "nos-jarbas"
+path = "src/main.rs"
+
+[features]
+default = []
+# Pixels HUD (cage/Wayland). Lab: cargo build -p nos-jarbas --features slint-ui
+slint-ui = ["dep:slint", "dep:slint-build"]
+
+[dependencies]
+nos-ipc = { path = "../nos-ipc" }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+slint = { version = "1.9", optional = true, default-features = true }
+
+[build-dependencies]
+slint-build = { version = "1.9", optional = true }

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Neural AIOS — App de Conversão & Hotswap</title>
+<style>
+  :root { --bg:#070b14; --panel:#0f172a; --acc:#00d4ff; --ok:#22c55e; --warn:#f59e0b; --txt:#e2e8f0; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--txt); font-family:system-ui,-apple-system,sans-serif; padding:24px; }
+  .wrap { max-width:920px; margin:0 auto; display:flex; flex-direction:column; gap:18px; }
+  header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:14px; }
+  h1 { font-size:24px; letter-spacing:.06em; color:var(--acc); }
+  .badge { padding:6px 12px; border-radius:999px; font-size:12px; font-weight:700; background:#1e293b; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .card { background:var(--panel); border:1px solid #1e293b; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:10px; }
+  .card h2 { font-size:15px; color:var(--acc); text-transform:uppercase; letter-spacing:.05em; }
+  .kv { display:flex; justify-content:space-between; font-size:14px; border-bottom:1px solid #1e293b66; padding:6px 0; }
+  .kv span:first-child { color:#94a3b8; }
+  .kv span:last-child { font-weight:600; }
+  input, select { background:#020617; color:#fff; border:1px solid #334155; border-radius:8px; padding:9px 12px; font-size:14px; width:100%; }
+  .row { display:flex; gap:10px; align-items:center; }
+  button { background:#0284c7; color:#fff; border:0; border-radius:10px; padding:11px 18px; font-weight:700; cursor:pointer; font-size:14px; }
+  button.primary { background:linear-gradient(90deg,#00d4ff,#0284c7); color:#020617; font-size:16px; padding:15px 22px; }
+  button.secondary { background:#1e293b; color:var(--txt); border:1px solid #334155; }
+  button:disabled { opacity:.5; cursor:wait; }
+  #log { background:#020617; border:1px solid #1e293b; border-radius:10px; padding:14px; font-family:monospace; font-size:13px; min-height:110px; white-space:pre-wrap; color:#38bdf8; }
+  ul.models { list-style:none; padding:0; display:flex; flex-direction:column; gap:6px; font-size:13px; }
+  ul.models li { background:#020617; padding:8px 10px; border-radius:8px; border-left:3px solid var(--acc); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>NEURAL AIOS · TRANSMUTAÇÃO RAIZ</h1>
+      <div style="font-size:13px;color:#94a3b8">Configurar NixOS Gráfico → Baixar MoE + Whisper + Piper → Hotswap para JARBAS</div>
+    </div>
+    <div class="badge" id="modeBadge">A LER ESTADO…</div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1. Ambiente & Idioma (GUI Inicial)</h2>
+      <div class="kv"><span>Idioma Detectado</span><span id="locRaw">—</span></div>
+      <div class="kv"><span>Fuso Horário</span><span id="tz">—</span></div>
+      <div class="kv"><span>Whisper STT Lang</span><span id="wLang">—</span></div>
+      <div class="kv"><span>Voz Piper TTS</span><span id="pVoice">—</span></div>
+      <label style="font-size:12px;color:#94a3b8;margin-top:4px">Forçar Idioma (opcional):</label>
+      <select id="locSelect">
+        <option value="">Automático (usar idioma do NixOS)</option>
+        <option value="pt_BR.UTF-8">Português (Brasil) — pt_BR</option>
+        <option value="pt_PT.UTF-8">Português (Portugal) — pt_PT</option>
+        <option value="en_US.UTF-8">English (US) — en_US</option>
+        <option value="es_ES.UTF-8">Español — es_ES</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>2. Rede Wi‑Fi & Persistência USB</h2>
+      <div class="kv"><span>Wi‑Fi Conectado</span><span id="wifiNow">—</span></div>
+      <div class="kv"><span>Partição Persistente RW</span><span id="persistSt">—</span></div>
+      <div class="kv"><span>Diretório Modelos</span><span id="modelsDir" style="font-size:12px">—</span></div>
+      <div class="row" style="margin-top:6px">
+        <input id="ssid" placeholder="SSID da rede Wi‑Fi"/>
+        <input id="pw" type="password" placeholder="Senha"/>
+      </div>
+      <div class="row">
+        <button class="secondary" id="btnScan">Scan Wi‑Fi</button>
+        <button id="btnWifi">Conectar Wi‑Fi</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3. Capacidade & dGPU (MoE)</h2>
+      <div class="kv"><span>RAM Disponível</span><span id="ramMb">—</span></div>
+      <div class="kv"><span>Vendor GPU</span><span id="gpuVendor">—</span></div>
+      <div class="kv"><span>VRAM Livre (dGPU)</span><span id="vramMb">—</span></div>
+      <div class="kv"><span>Quantização / Offload</span><span id="quantNgl">—</span></div>
+      <div class="kv"><span>STT / TTS Prontos</span><span id="voiceReady">—</span></div>
+    </div>
+
+    <div class="card">
+      <h2>4. Modelos Propostos (HF → Local)</h2>
+      <ul class="models" id="modelList">
+        <li>A calcular catálogo MoE + Voz…</li>
+      </ul>
+      <div class="row" style="margin-top:auto">
+        <button class="secondary" id="btnVoiceTest">Testar STT → MoE → TTS (4s mic)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>5. Conversão Completa & Hotswap (Desinstalar GUI Antiga → Subir JARBAS)</h2>
+    <p style="font-size:13px;color:#94a3b8">
+      Baixa os modelos GGUF MoE + Whisper + Piper na partição persistente, valida a voz no idioma escolhido,
+      encerra o Desktop Gráfico inicial e faz o <b>Hotswap imediato</b> para o JARBAS Kiosk (Webcam + Voz + Orb).
+    </p>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="btnTransmute">INSTALAR AIOS FULL + HOTSWAP AGORA</button>
+      <button class="secondary" id="btnHotswapOnly">Só Hotswap (sem re-baixar)</button>
+      <a href="/" style="margin-left:auto;color:var(--acc);font-weight:700;text-decoration:none">Abrir Orb Lab →</a>
+    </div>
+  </div>
+
+  <div id="log">Pronto. Aguardando comando…</div>
+</div>
+
+<script>
+let rpcId=1;
+const CAPS_ALL = 0xFFFFFFFF;
+function log(msg){
+  const el=document.getElementById("log");
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent;
+}
+async function rpc(method, params={}){
+  const r=await fetch("/rpc",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:rpcId++, method, caps:CAPS_ALL, cap_gen:1, params})
+  });
+  return await r.json();
+}
+async function refresh(){
+  const j=await rpc("transmute.status");
+  if(!j.ok||!j.result) return;
+  const s=j.result;
+  document.getElementById("modeBadge").textContent = s.mode.toUpperCase();
+  document.getElementById("locRaw").textContent = s.locale.raw_locale;
+  document.getElementById("tz").textContent = s.timezone;
+  document.getElementById("wLang").textContent = s.locale.whisper_lang;
+  document.getElementById("pVoice").textContent = s.locale.piper_voice;
+  document.getElementById("wifiNow").textContent = s.wifi_ssid || "Não conectado";
+  document.getElementById("persistSt").textContent = s.persist_mounted ? "MONTADA (RW)" : "RAM / Local";
+  document.getElementById("modelsDir").textContent = s.models_dir;
+  document.getElementById("ramMb").textContent = s.capacity.ram_avail_mb + " MiB";
+  document.getElementById("gpuVendor").textContent = `${s.capacity.vendor_hint} (${(s.capacity.dri_cards||[]).join(",")})`;
+  document.getElementById("vramMb").textContent = s.capacity.vram_free_mb + " MiB";
+  document.getElementById("quantNgl").textContent = `${s.quant_suggest.quant} · ngl=${s.quant_suggest.suggest_ngl}`;
+  document.getElementById("voiceReady").textContent = `STT=${s.voice.stt_ready?"OK":"Falta"} · TTS=${s.voice.tts_ready?"OK":"Falta"}`;
+
+  const ul=document.getElementById("modelList");
+  ul.innerHTML="";
+  for(const m of (s.recommended_moe||[])){
+    const li=document.createElement("li");
+    li.textContent=`[MoE ${m.slot}] ${m.repo} → ${m.local_filename}`;
+    ul.appendChild(li);
+  }
+  const liW=document.createElement("li");
+  liW.textContent=`[STT Whisper] ${s.locale.whisper_model_file} (lang=${s.locale.whisper_lang})`;
+  ul.appendChild(liW);
+  const liP=document.createElement("li");
+  liP.textContent=`[TTS Piper] ${s.locale.piper_voice}.onnx`;
+  ul.appendChild(liP);
+}
+
+document.getElementById("btnScan").onclick=async()=>{
+  log("A procurar redes Wi‑Fi (nmcli)…");
+  const j=await rpc("wifi.scan");
+  if(j.ok && j.result && j.result.aps){
+    const names=j.result.aps.map(a=>`${a.ssid} (${a.signal}%)`).join(", ");
+    log("Redes encontradas: " + (names||"nenhuma"));
+    if(j.result.aps[0] && !document.getElementById("ssid").value){
+      document.getElementById("ssid").value = j.result.aps[0].ssid;
+    }
+  } else {
+    log("Erro scan Wi‑Fi: " + (j.error||"desconhecido"));
+  }
+};
+
+document.getElementById("btnWifi").onclick=async()=>{
+  const ssid=document.getElementById("ssid").value.trim();
+  const password=document.getElementById("pw").value;
+  if(!ssid){ log("Informe o SSID."); return; }
+  log(`A conectar ao Wi‑Fi '${ssid}'…`);
+  const j=await rpc("wifi.connect",{ssid,password});
+  log(j.ok ? `Wi‑Fi '${ssid}' conectado com sucesso!` : `Falha Wi‑Fi: ${j.error}`);
+  refresh();
+};
+
+document.getElementById("btnVoiceTest").onclick=async()=>{
+  log("Gravando 4s do microfone → Whisper STT → Cortex MoE → Piper TTS… Fale agora!");
+  const j=await rpc("voice.turn",{record_secs:4, play:true});
+  if(j.ok && j.result){
+    log(`Você disse (${j.result.locale}): "${j.result.transcript}"\nJARBAS [${j.result.slot}]: "${j.result.reply}"`);
+  } else {
+    log("Teste de voz falhou: " + (j.error||"verifique se os modelos já foram baixados"));
+  }
+};
+
+async function runTransmute(download_models){
+  const btn=document.getElementById("btnTransmute");
+  btn.disabled=true;
+  const loc=document.getElementById("locSelect").value || null;
+  log(`Iniciando transmutação (download_models=${download_models}, locale=${loc||"auto"})…`);
+  const j=await rpc("transmute.run",{
+    download_models,
+    speak_greeting:true,
+    hotswap_now:true,
+    locale_override:loc
+  });
+  btn.disabled=false;
+  if(j.result){
+    log(`Resultado: ok=${j.ok}\nBaixados: ${(j.result.downloaded||[]).join(", ")}\nErros: ${(j.result.errors||[]).join("; ")}\n${j.result.note}`);
+  } else {
+    log("Erro: " + (j.error||"falha RPC"));
+  }
+  refresh();
+}
+
+document.getElementById("btnTransmute").onclick=()=>runTransmute(true);
+document.getElementById("btnHotswapOnly").onclick=()=>runTransmute(false);
+
+refresh();
+</script>
+</body>
+</html>

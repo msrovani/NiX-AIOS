@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>JARBAS</title>
+<style>
+  :root { --acc:#00d4ff; }
+  * { box-sizing:border-box; margin:0; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#000; color:#e8f1ff;
+    font-family: ui-sans-serif, system-ui, sans-serif; user-select:none; }
+  #stage { position:fixed; inset:0; }
+  #vid {
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; transform:scaleX(-1);
+    opacity:.42; filter:saturate(1.15) contrast(1.08) brightness(.85);
+  }
+  #vid.off { opacity:0; }
+  #orb { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #hud {
+    position:absolute; left:0; right:0; top:0; padding:22px 28px;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);
+    pointer-events:none;
+  }
+  #hud h1 { font-size:42px; font-weight:800; letter-spacing:.12em; text-shadow:0 0 24px var(--acc); }
+  #hud .meta { font-size:15px; color:var(--acc); font-weight:600; }
+  #hud .sub { font-size:13px; color:#9fb4d9; }
+  #dock {
+    position:absolute; left:50%; bottom:28px; transform:translateX(-50%);
+    width:min(720px,92vw); display:flex; gap:10px; align-items:center;
+    padding:12px 14px; border-radius:14px; background:rgba(8,14,28,.82);
+    border:1px solid rgba(0,212,255,.35); backdrop-filter:blur(8px);
+  }
+  #dock input {
+    flex:1; background:transparent; border:0; outline:0; color:#fff; font-size:16px;
+  }
+  #dock button {
+    background:#0a3a4a; color:var(--acc); border:1px solid var(--acc);
+    border-radius:10px; padding:10px 14px; cursor:pointer; font-weight:600;
+  }
+  #reply {
+    position:absolute; left:50%; bottom:100px; transform:translateX(-50%);
+    width:min(720px,92vw); text-align:center; font-size:17px; color:#dce7ff;
+    text-shadow:0 2px 12px #000; pointer-events:none; min-height:1.4em;
+  }
+  #camBadge {
+    position:absolute; top:22px; right:22px; font-size:12px; padding:6px 10px;
+    border-radius:999px; background:rgba(0,0,0,.5); border:1px solid #334;
+  }
+  #camBadge.on { border-color:#0f0; color:#8f8; }
+  #camBadge.off { border-color:#f66; color:#f88; }
+  .eq { display:flex; gap:4px; height:28px; align-items:flex-end; }
+  .eq i { display:block; width:5px; background:var(--acc); border-radius:2px; opacity:.85; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="vid" class="off" playsinline muted autoplay></video>
+  <canvas id="orb"></canvas>
+  <div id="hud">
+    <h1>JARBAS</h1>
+    <div class="meta" id="meta">idle · sphere</div>
+    <div class="sub" id="sub">a ligar webcam + microfone…</div>
+  </div>
+  <div id="camBadge" class="off">CAM —</div>
+  <div id="reply">JARBAS online</div>
+  <div id="dock">
+    <div class="eq" id="eq"></div>
+    <input id="prompt" placeholder="falar com Hermes (MoE + Piper TTS local)…" autocomplete="off"/>
+    <button id="send">Enviar</button>
+    <button id="voiceBtn" title="Ouvir 4s via Whisper STT local → MoE → Piper TTS">Falar (STT)</button>
+    <button id="recam" title="Reiniciar câmara">Cam</button>
+  </div>
+</div>
+<script>
+const STATES=["idle","connecting","listening","thinking","speaking","dreaming","alert","error"];
+const PATTERNS=["sphere","ring","helix","spiral","galaxy","wave","cluster"];
+const ACCENT={
+  idle:[0,212,255],listening:[0,255,255],thinking:[255,148,48],speaking:[34,211,238],
+  dreaming:[167,139,250],alert:[255,48,56],error:[255,48,56],connecting:[100,180,255]
+};
+let state="connecting", pattern="sphere", speed=1, particles=220, agitation=.2, links=.35, rings=4;
+let level=0, motion=0, audioOn=false, videoOn=false;
+let stream=null, audioCtx=null, analyser=null, dataArr=null, prevGray=null, rpcId=1;
+const canvas=document.getElementById("orb");
+const ctx=canvas.getContext("2d",{alpha:true});
+const vid=document.getElementById("vid");
+const eq=document.getElementById("eq");
+for(let i=0;i<12;i++){ const el=document.createElement("i"); el.style.height="4px"; eq.appendChild(el); }
+
+function tone(freq, dur=0.08, type="sine", gain=0.04){
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type=type; o.frequency.value=freq; g.gain.value=gain;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+dur);
+    o.stop(audioCtx.currentTime+dur+0.02);
+  }catch(_){}
+}
+function setAccentCss(){
+  const a=ACCENT[state]||ACCENT.idle;
+  document.documentElement.style.setProperty("--acc",`rgb(${a[0]},${a[1]},${a[2]})`);
+  document.getElementById("meta").textContent=`${state} · ${pattern}`;
+}
+async function rpc(method, params){
+  const body={id:rpcId++, method, caps:0, cap_gen:1, params:params||{}};
+  try{
+    const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(j.ok&&j.result){
+      if(j.result.state) state=j.result.state;
+      if(j.result.pattern) pattern=j.result.pattern;
+      if(j.result.speed!=null) speed=j.result.speed;
+      if(j.result.particles!=null) particles=j.result.particles;
+      if(j.result.agitation!=null) agitation=j.result.agitation;
+      if(j.result.links!=null) links=j.result.links;
+      if(j.result.rings!=null) rings=j.result.rings;
+      setAccentCss();
+    }
+    return j;
+  }catch(e){ return null; }
+}
+
+async function startAV(){
+  document.getElementById("sub").textContent="a pedir webcam + microfone…";
+  try{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:"user", width:{ideal:1280}, height:{ideal:720} },
+      audio:{ echoCancellation:true, noiseSuppression:true }
+    });
+    vid.srcObject=stream;
+    await vid.play();
+    vid.classList.remove("off");
+    videoOn=true; audioOn=true;
+    document.getElementById("camBadge").className="on";
+    document.getElementById("camBadge").textContent="CAM ON";
+    document.getElementById("sub").textContent="webcam + mic activos · iGPU / compositor";
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended") await audioCtx.resume();
+    const src=audioCtx.createMediaStreamSource(stream);
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=512;
+    src.connect(analyser);
+    dataArr=new Uint8Array(analyser.frequencyBinCount);
+    tone(660,0.1); tone(880,0.12);
+    await rpc("orb.set",{state:"listening",presets:true,particles:260,rings:5});
+  }catch(e){
+    videoOn=false; audioOn=false;
+    vid.classList.add("off");
+    document.getElementById("camBadge").className="off";
+    document.getElementById("camBadge").textContent="CAM OFF";
+    document.getElementById("sub").textContent="webcam indisponível: "+e.message;
+    await rpc("orb.set",{state:"idle",presets:true});
+  }
+}
+
+function sampleAudio(){
+  if(!analyser||!dataArr){ level=0; return {level:0,bass:0,mid:0,treble:0}; }
+  analyser.getByteFrequencyData(dataArr);
+  let sum=0,bass=0,mid=0,tre=0,n=dataArr.length;
+  for(let i=0;i<n;i++){
+    const v=dataArr[i]/255; sum+=v;
+    if(i<n/8) bass+=v; else if(i<n/2) mid+=v; else tre+=v;
+  }
+  level=Math.min(1,(sum/n)*2.4);
+  const bars=eq.children;
+  for(let i=0;i<bars.length;i++){
+    const idx=Math.floor(i*(n/bars.length));
+    bars[i].style.height=Math.max(3, (dataArr[idx]/255)*28)+"px";
+  }
+  return {level, bass:bass/(n/8||1), mid:mid/(n/3||1), treble:tre/(n/2||1)};
+}
+function sampleMotion(){
+  if(!vid.videoWidth){ motion=0; return; }
+  const w=48,h=27, t=document.createElement("canvas");
+  t.width=w; t.height=h;
+  const c=t.getContext("2d");
+  c.drawImage(vid,0,0,w,h);
+  const img=c.getImageData(0,0,w,h).data;
+  const gray=new Float32Array(w*h);
+  for(let i=0,j=0;i<img.length;i+=4,j++) gray[j]=(img[i]+img[i+1]+img[i+2])/765;
+  if(prevGray){ let d=0; for(let i=0;i<gray.length;i++) d+=Math.abs(gray[i]-prevGray[i]); motion=Math.min(1,d/gray.length*10); }
+  prevGray=gray;
+}
+
+let pts=[];
+function ensurePts(n){ while(pts.length<n) pts.push({a:Math.random()*Math.PI*2,b:Math.acos(2*Math.random()-1),p:Math.random()}); while(pts.length>n) pts.pop(); }
+function project(a,b,R,cx,cy){
+  const x=R*Math.sin(b)*Math.cos(a), y=R*Math.cos(b), z=R*Math.sin(b)*Math.sin(a);
+  const s=1.7/(2.15+z/R); return {x:cx+x*s,y:cy+y*s*.9,z,s};
+}
+function morph(a,b,t){
+  switch(pattern){
+    case "ring": return .72+.28*Math.sin(b*2+t);
+    case "helix": return .65+.35*Math.sin(a*3+b+t);
+    case "spiral": return .5+.5*((a/Math.PI/2)%1);
+    case "galaxy": return .35+.65*Math.abs(Math.sin(b))*(.5+.5*Math.sin(a*2+t));
+    case "wave": return .82+.22*Math.sin(a*5+t*2)*Math.sin(b*3);
+    case "cluster": return .55+.45*Math.sin(a*7+t)+.1*agitation;
+    default: return 1;
+  }
+}
+function draw(){
+  const dpr=devicePixelRatio||1, w=canvas.clientWidth, h=canvas.clientHeight;
+  if(canvas.width!==w*dpr||canvas.height!==h*dpr){ canvas.width=w*dpr; canvas.height=h*dpr; }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  const cx=w/2, cy=h/2*.92, R=Math.min(w,h)*(.26+.06*level);
+  const t=performance.now()/1000*speed, rgb=ACCENT[state]||ACCENT.idle;
+  const spin=t*(.45+agitation+level*.5);
+  const n=Math.max(80, Math.floor(particles*(.75+.6*level)));
+  ensurePts(n);
+  const projected=[];
+  for(const p of pts){
+    const a=p.a+spin*(.25+p.p*.5), b=p.b;
+    const rad=R*morph(a,b,t)*(1+agitation*.18*Math.sin(t*4+p.p*8)+motion*.15);
+    projected.push(project(a,b,rad,cx,cy));
+  }
+  // bloom soft
+  ctx.globalCompositeOperation="lighter";
+  ctx.beginPath();
+  ctx.fillStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.06+level*0.08})`;
+  ctx.arc(cx,cy,R*1.55,0,Math.PI*2); ctx.fill();
+  const linkN=Math.floor(projected.length*links*0.1);
+  ctx.strokeStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.22)`;
+  ctx.lineWidth=1;
+  for(let i=0;i<linkN;i++){
+    const A=projected[i%projected.length], B=projected[(i*11+5)%projected.length];
+    if(Math.abs(A.z-B.z)<R*.55){ ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); }
+  }
+  for(let r=0;r<rings;r++){
+    ctx.beginPath();
+    ctx.strokeStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.14+0.1*level})`;
+    ctx.lineWidth=2;
+    ctx.ellipse(cx,cy, R*(.75+r*.16)*(1+level*.05), R*(.48+r*.09)*(1+level*.05), spin*.15+r*.4, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  for(const q of projected){
+    const alpha=.3+.6*((q.z+R)/(2*R));
+    const sz=1.4+q.s*2.8*(.55+level);
+    ctx.fillStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+    ctx.beginPath(); ctx.arc(q.x,q.y,sz,0,Math.PI*2); ctx.fill();
+  }
+  // core
+  const grd=ctx.createRadialGradient(cx,cy,0,cx,cy,R*.35);
+  grd.addColorStop(0,`rgba(255,255,255,${0.55+level*.35})`);
+  grd.addColorStop(.45,`rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.85)`);
+  grd.addColorStop(1,"rgba(0,0,0,0)");
+  ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(cx,cy,R*.38*(1+level*.08),0,Math.PI*2); ctx.fill();
+  ctx.globalCompositeOperation="source-over";
+}
+
+async function senseTick(){
+  const bands=sampleAudio();
+  sampleMotion();
+  let frame_b64=null;
+  if(videoOn && vid.videoWidth && rpcId%24===0){
+    const t=document.createElement("canvas"); t.width=320; t.height=180;
+    t.getContext("2d").drawImage(vid,0,0,320,180);
+    frame_b64=t.toDataURL("image/jpeg",0.55).split(",")[1];
+  }
+  await rpc("orb.sense",{
+    level:bands.level, bass:bands.bass, mid:bands.mid, treble:bands.treble,
+    motion, video_on:videoOn, audio_on:audioOn, frame_b64
+  });
+}
+
+async function playWavB64(b64){
+  if(!b64) return;
+  try{
+    const bin=atob(b64);
+    const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended") await audioCtx.resume();
+    const buf=await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+    const src=audioCtx.createBufferSource();
+    src.buffer=buf;
+    if(analyser) src.connect(analyser);
+    src.connect(audioCtx.destination);
+    src.start();
+  }catch(_){}
+}
+
+async function chat(prompt){
+  if(!prompt.trim()) return;
+  tone(440,0.05); await rpc("orb.set",{state:"thinking",presets:true});
+  document.getElementById("reply").textContent="a pensar (MoE dGPU)…";
+  let text="", wav_b64=null;
+  try{
+    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, params:{prompt, play:true}};
+    const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const jj=await r.json();
+    if(jj.ok && jj.result){
+      text = `[${jj.result.slot}] ${jj.result.reply}`;
+      wav_b64 = jj.result.wav_b64;
+    } else {
+      text = jj.error || "";
+    }
+  }catch(e){ text=""+e; }
+  await rpc("orb.set",{state:"speaking",presets:true});
+  if(wav_b64) await playWavB64(wav_b64); else { tone(520,0.06); tone(780,0.1); }
+  document.getElementById("reply").textContent=String(text).slice(0,500);
+  setTimeout(()=>rpc("orb.set",{state:videoOn?"listening":"idle",presets:true}), 2800);
+}
+
+async function voiceTurnMic(){
+  tone(600,0.05); await rpc("orb.set",{state:"listening",presets:true});
+  document.getElementById("reply").textContent="a ouvir microfone (Whisper local 4s)…";
+  try{
+    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, params:{record_secs:4, play:true}};
+    const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const jj=await r.json();
+    if(jj.ok && jj.result){
+      await rpc("orb.set",{state:"speaking",presets:true});
+      document.getElementById("reply").textContent=`"${jj.result.transcript}" → [${jj.result.slot}] ${jj.result.reply}`;
+      if(jj.result.wav_b64) await playWavB64(jj.result.wav_b64);
+    } else {
+      document.getElementById("reply").textContent="STT: "+(jj.error||"sem fala");
+    }
+  }catch(e){ document.getElementById("reply").textContent=""+e; }
+  setTimeout(()=>rpc("orb.set",{state:videoOn?"listening":"idle",presets:true}), 2800);
+}
+
+document.getElementById("send").onclick=()=>{
+  const p=document.getElementById("prompt"); chat(p.value); p.value="";
+};
+document.getElementById("prompt").addEventListener("keydown",e=>{ if(e.key==="Enter") document.getElementById("send").click(); });
+document.getElementById("voiceBtn").onclick=()=>voiceTurnMic();
+document.getElementById("recam").onclick=()=>startAV();
+
+// voz → padrões
+if("webkitSpeechRecognition" in window || "SpeechRecognition" in window){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const rec=new SR(); rec.lang="pt-BR"; rec.continuous=true; rec.interimResults=false;
+  rec.onresult=ev=>{
+    const t=ev.results[ev.results.length-1][0].transcript.toLowerCase();
+    for(const p of PATTERNS){ if(t.includes(p)){ pattern=p; rpc("orb.set",{pattern:p}); tone(600,0.05);} }
+  };
+  try{ rec.start(); }catch(_){}
+}
+
+function loop(){ draw(); requestAnimationFrame(loop); }
+setAccentCss(); loop();
+rpc("orb.set",{state:"connecting",presets:true}).then(()=>startAV());
+setInterval(senseTick, 200);
+// re-pedir A/V se o browser bloquear até gesto
+window.addEventListener("pointerdown",()=>{ if(!videoOn) startAV(); },{once:true});
+</script>
+</body>
+</html>

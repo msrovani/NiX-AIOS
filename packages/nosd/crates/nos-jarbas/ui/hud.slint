@@ -1,0 +1,241 @@
+// JARBAS kiosk Slint — orb sólido + HUD (cage/iGPU). Sem Chromium.
+// Pintura opaca de alto contraste; sem radial-gradient (software renderer OK).
+
+import { Button, LineEdit } from "std-widgets.slint";
+
+component Spark inherits Rectangle {
+    in property <int> index;
+    in property <float> energy;
+    in property <brush> glow;
+    in property <length> field;
+    in property <float> speed-mul;
+
+    width: 7px + self.energy * 5px;
+    height: self.width;
+    border-radius: self.width / 2;
+    background: root.glow;
+    opacity: 0.50 + 0.45 * self.energy;
+
+    property <angle> spin: (self.index * 27deg) + 360deg * mod(animation-tick() * root.speed-mul, 8s) / 8s;
+    property <float> orbit: 0.30 + 0.10 * abs(sin(self.index * 40deg));
+    x: root.field / 2 + cos(self.spin) * root.field * self.orbit - self.width / 2;
+    y: root.field / 2 + sin(self.spin) * root.field * self.orbit * 0.88 - self.height / 2;
+}
+
+export component HudWindow inherits Window {
+    in-out property <string> engine: "—";
+    in-out property <string> health_line: "a ligar nosd…";
+    in-out property <string> score_line: "";
+    in-out property <string> tick_line: "";
+    in-out property <int> s2_pending: 0;
+    in-out property <int> hub_loaded: 0;
+    in-out property <int> mesh_peers: 0;
+    in-out property <string> last_reply: "JARBAS · Slint HUD — diga oi ou peça estado.";
+    in-out property <string> status: "BOOT";
+    in-out property <int> hitl_window_id: 0;
+    in-out property <string> hitl_kind: "";
+    in-out property <string> orb_state: "idle";
+    in-out property <string> orb_pattern: "sphere";
+    in-out property <int> orb_level_pct: 14;
+    in-out property <int> orb_motion_pct: 0;
+    in-out property <string> orb_lab_url: "http://127.0.0.1:7701/";
+    in-out property <bool> hub_ok: false;
+
+    callback submit-chat(string);
+    callback hitl-submit(int, string);
+    callback hitl-cancel(int);
+    callback open-orb-lab();
+
+    title: "JARBAS";
+    // Cage maximiza o client — sem Window.fullscreen (bug ecrã preto em alguns compositors)
+    no-frame: true;
+    preferred-width: 1280px;
+    preferred-height: 720px;
+    background: #020617;
+
+    property <float> energy: max(0.12, root.orb_level_pct / 100);
+    property <float> speed-mul:
+        root.orb_state == "thinking" ? 1.6 :
+        root.orb_state == "speaking" ? 1.35 :
+        root.orb_state == "listening" ? 1.15 :
+        root.orb_state == "alert" || root.orb_state == "error" ? 1.9 : 0.85;
+
+    property <brush> accent:
+        root.orb_state == "listening" ? #00ffff :
+        root.orb_state == "thinking" ? #ff9430 :
+        root.orb_state == "speaking" ? #22d3ee :
+        root.orb_state == "dreaming" ? #a78bfa :
+        root.orb_state == "alert" || root.orb_state == "error" ? #ff3038 :
+        root.orb_state == "degraded" ? #ffb020 :
+        #00d4ff;
+
+    property <float> breathe: 1.0
+        + 0.07 * sin(360deg * animation-tick() / (1.25s / root.speed-mul))
+        + root.energy * 0.12;
+
+    Rectangle { width: 100%; height: 100%; background: #020617; }
+    Rectangle {
+        width: 100%; height: 100%;
+        background: root.accent;
+        opacity: 0.10 + root.energy * 0.12;
+    }
+
+    stage := Rectangle {
+        width: min(root.width, root.height) * 0.62;
+        height: self.width;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2 - 36px;
+        background: transparent;
+
+        Rectangle {
+            width: parent.width * 1.06 * root.breathe;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: transparent;
+            border-width: 5px;
+            border-color: root.accent;
+            opacity: 0.50;
+        }
+        Rectangle {
+            width: parent.width * 0.76 * root.breathe;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: transparent;
+            border-width: 4px;
+            border-color: #e2e8f0;
+            opacity: 0.40;
+        }
+        Rectangle {
+            width: parent.width * 0.40 * root.breathe;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: root.accent;
+        }
+        Rectangle {
+            width: parent.width * 0.20 * root.breathe;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: #ffffff;
+            opacity: 0.88;
+        }
+
+        for i in 14: Spark {
+            index: i;
+            energy: root.energy;
+            glow: root.accent;
+            field: stage.width;
+            speed-mul: root.speed-mul;
+        }
+    }
+
+    // Header
+    VerticalLayout {
+        padding-top: 20px;
+        padding-left: 28px;
+        padding-right: 28px;
+        spacing: 2px;
+        Text {
+            text: "JARBAS";
+            color: #ffffff;
+            font-size: 44px;
+            font-weight: 800;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: root.orb_state + "  ·  " + root.status;
+            color: root.accent;
+            font-size: 20px;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: root.hub_ok
+                ? ("nosd  " + root.engine + "  ·  modelos " + root.hub_loaded + "  ·  peers " + root.mesh_peers)
+                : root.health_line;
+            color: #94a3b8;
+            font-size: 14px;
+            horizontal-alignment: center;
+        }
+        if root.score_line != "": Text {
+            text: root.score_line;
+            color: #64748b;
+            font-size: 12px;
+            horizontal-alignment: center;
+        }
+    }
+
+    // Dock inferior
+    VerticalLayout {
+        y: root.height - 168px;
+        width: 100%;
+        height: 168px;
+        padding: 14px 20px;
+        spacing: 8px;
+
+        if root.hitl_window_id > 0: Rectangle {
+            height: 44px;
+            border-radius: 10px;
+            background: #1c1917;
+            border-width: 1px;
+            border-color: #ffcc66;
+            HorizontalLayout {
+                padding: 6px;
+                spacing: 8px;
+                Text { text: "HITL"; color: #ffcc66; font-size: 14px; font-weight: 700; vertical-alignment: center; }
+                hitl-ssid := LineEdit { horizontal-stretch: 1; placeholder-text: "SSID"; }
+                hitl-pw := LineEdit { horizontal-stretch: 1; placeholder-text: "senha"; input-type: password; }
+                Button {
+                    text: "OK";
+                    clicked => {
+                        root.hitl-submit(root.hitl_window_id, hitl-ssid.text + "\n" + hitl-pw.text);
+                        hitl-ssid.text = "";
+                        hitl-pw.text = "";
+                    }
+                }
+                Button { text: "Cancelar"; clicked => { root.hitl-cancel(root.hitl_window_id); } }
+            }
+        }
+
+        Rectangle {
+            height: 52px;
+            border-radius: 12px;
+            background: #0f172a;
+            border-width: 2px;
+            border-color: root.accent;
+            HorizontalLayout {
+                padding: 8px;
+                spacing: 10px;
+                prompt := LineEdit {
+                    horizontal-stretch: 1;
+                    placeholder-text: "falar com Hermes (Enter)…";
+                    accepted => {
+                        root.submit-chat(self.text);
+                        self.text = "";
+                    }
+                }
+                Button {
+                    text: "Enviar";
+                    clicked => {
+                        root.submit-chat(prompt.text);
+                        prompt.text = "";
+                    }
+                }
+            }
+        }
+        Text {
+            text: root.last_reply;
+            color: #f1f5f9;
+            font-size: 17px;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+        }
+    }
+}

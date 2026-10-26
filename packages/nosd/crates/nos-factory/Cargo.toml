@@ -1,0 +1,23 @@
+[package]
+name = "nos-factory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nos-core = { path = "../nos-core" }
+nos-wasm = { path = "../nos-wasm" }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+ureq = { workspace = true, optional = true }
+ed25519-compact = { workspace = true }
+
+[features]
+# net ON by default — Seek GH/GL/crates live (F.3); mock ainda para testes offline.
+default = ["net"]
+net = ["dep:ureq"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
