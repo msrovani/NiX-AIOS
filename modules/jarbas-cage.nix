@@ -1,7 +1,7 @@
-# JARBAS Wayland kiosk ‚Äî ADR-0118
-# s527/s528: default Slint HUD (iGPU cage); Chromium = opt-in cinematic.
-# dGPU llama-server ‚â† este unit ‚Äî ver services.nosdEngine (nosd-engine@.service).
-# s520: conflicts display-manager (hotswap DRM).
+# JARBAS Wayland kiosk ó ADR-0118
+# 0.5.x: default Slint HUD (iGPU cage); Chromium = opt-in cinematic.
+# dGPU llama-server ? este unit ó ver services.nosdEngine (nosd-engine@.service).
+# 0.5.x: conflicts display-manager (hotswap DRM).
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.jarbasCage;
@@ -9,7 +9,7 @@ let
   waitScript = pkgs.writeShellScript "jarbas-wait-deps" ''
     set -euo pipefail
     # Root ExecStartPre (+): runtime dirs + seatd sock stale
-    # 0.5.0: NAO apertar 750 ‚Äî ISO live precisa 1777 para firstboot+nosd (EACCES p√≥s-Q5).
+    # 0.5.0: NAO apertar 750 ó ISO live precisa 1777 para firstboot+nosd (EACCES pÛs-Q5).
     mkdir -p /run/user/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb
     chown nosd:nosd /run/user/nosd || true
     chown -R nosd:nosd /var/lib/nosd 2>/dev/null || chown nosd:nosd /var/lib/nosd || true
@@ -64,8 +64,8 @@ let
   cinematicWrap = pkgs.writeShellScript "jarbas-cinematic-wrap" ''
     set -euo pipefail
     CURL="${pkgs.curl}/bin/curl"
-    # User=nosd: NUNCA /run/*.log (root-only) ‚Äî tee Permission denied derruba o unit (metal s529).
-    # s529: s√≥ /var/lib/nosd (FAT OFF)
+    # User=nosd: NUNCA /run/*.log (root-only) ó tee Permission denied derruba o unit (metal s529).
+    # s529: sÛ /var/lib/nosd (FAT OFF)
     LOG=/var/lib/nosd/jarbas-cage.log
     touch "$LOG" 2>/dev/null || LOG=/run/user/nosd/jarbas-cage.log
     touch "$LOG" 2>/dev/null || LOG=/tmp/jarbas-cage-$UID.log
@@ -100,7 +100,7 @@ let
       export LIBSEAT_BACKEND=seatd
       CAGE_BIN="${pkgs.cage}/bin/cage"
       SEAT_WRAP="${pkgs.seatd}/bin/seatd-launch"
-      # Preferir seatd.service j√° activo (After=seatd). seatd-launch em cima = "Socket file found" (metal).
+      # Preferir seatd.service j· activo (After=seatd). seatd-launch em cima = "Socket file found" (metal).
       run_cage() {
         if [ -S /run/seatd.sock ]; then
           echo "jarbas-slint: using system seatd.sock"
@@ -120,7 +120,7 @@ let
       unset SLINT_BACKEND || true
       unset LIBGL_ALWAYS_SOFTWARE || true
       if run_slint; then exit 0; fi
-      echo "jarbas-slint: GL/cage falhou ‚Äî retry winit-software" >&2
+      echo "jarbas-slint: GL/cage falhou ó retry winit-software" >&2
       export JARBAS_FORCE_SOFTWARE=1
       export SLINT_BACKEND=winit-software
       export LIBGL_ALWAYS_SOFTWARE=1
@@ -165,7 +165,7 @@ let
     sleep 2
     ${pkgs.kbd}/bin/chvt "$(echo ${cfg.tty} | tr -dc '0-9')" || true
     MODE="${cfg.uiMode}"
-    printf '\n*** JARBAS %s = %s ‚Äî Alt+F%s ***\n' "$MODE" "${cfg.tty}" "$(echo ${cfg.tty} | tr -dc '0-9')" > /dev/tty1 || true
+    printf '\n*** JARBAS %s = %s ó Alt+F%s ***\n' "$MODE" "${cfg.tty}" "$(echo ${cfg.tty} | tr -dc '0-9')" > /dev/tty1 || true
   '';
 in
 {
@@ -284,7 +284,7 @@ in
         StandardError = "journal";
         ExecStartPre = "+${waitScript}";
         ExecStart = "${cinematicWrap}";
-        # Anti-loop: Chromium reiniciava em spam (prompt+mouse sem UI est√°vel)
+        # Anti-loop: Chromium reiniciava em spam (prompt+mouse sem UI est·vel)
         Restart = "on-failure";
         RestartSec = "10s";
         StartLimitIntervalSec = 180;
@@ -293,12 +293,12 @@ in
         # seat = libseat/seatd; sem isto DRM master falha mesmo com DeviceAllow.
         SupplementaryGroups = "video audio render input seat";
         # Confinamento host thin (I.3): Preferir cage vivo a ProtectSystem=strict
-        # (quebra seatd/DRM no metal ‚Äî li√ß√£o PAMName/seat). Landlock syscall = nosd bin.
+        # (quebra seatd/DRM no metal ó liÁ„o PAMName/seat). Landlock syscall = nosd bin.
         ProtectHome = true;
         NoNewPrivileges = true;
         DeviceAllow = [ "char-drm rw" "char-input rw" ];
         OOMScoreAdjust = -500;
-        # PATH: wrap usa paths absolutos; curl bare no PATH evita regress√£o
+        # PATH: wrap usa paths absolutos; curl bare no PATH evita regress„o
         Environment = [
           "XDG_RUNTIME_DIR=/run/user/nosd"
           "NOSD_SOCKET=/run/nosd/nosd.sock"

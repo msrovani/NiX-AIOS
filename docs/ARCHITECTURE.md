@@ -1,4 +1,4 @@
-# Arquitectura — NixAIOS 0.5.1
+# Arquitectura — NixAIOS 0.5.2
 
 ## Posicionamento
 
@@ -79,11 +79,12 @@ Detalhe: [`adr-addenda/0118-portability-layers.md`](adr-addenda/0118-portability
 | `nosd-engine.nix` | dGPU cgroup separado do cage |
 | `log-fat32.nix` | FAT NIXAIOSLOG (default **OFF** na ISO 0.5.0) |
 
-## Persistência 0.5.0
+## Persistência 0.5.x
 
 - Default: `/var/lib/nosd` (models, nsgdb, firstboot, hotswap).
 - FAT `/mnt/nixaios-log` só com `NIXAIOS_USE_FAT_PERSIST=1` + mount gravável.
 - Live ISO: estado volátil entre reboots até instalação/overlay.
+- **Permissões ISO:** `tmpfiles`/`activation` usam `1777` em `/var/lib/nosd` (override `mkAfter` sobre `0750` de `neural-os.nix`) para firstboot+nosd na live — intencional.
 
 ## Anti-claims
 

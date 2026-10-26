@@ -98,6 +98,8 @@ pub struct MeshEngine {
     peer_fleet: Arc<Mutex<HashMap<u32, MachineHealth>>>,
     /// Último LayaIntent recebido ou emitido (lab).
     last_laya: Arc<Mutex<Option<LayaIntent>>>,
+    /// CRDT thin local (SoulMirror / M.2) — sync P2P residual.
+    crdt: Arc<Mutex<CrdtStore>>,
 }
 
 impl Default for MeshEngine {
@@ -126,11 +128,21 @@ impl MeshEngine {
             local_fleet: Arc::new(Mutex::new(None)),
             peer_fleet: Arc::new(Mutex::new(HashMap::new())),
             last_laya: Arc::new(Mutex::new(None)),
+            crdt: Arc::new(Mutex::new(CrdtStore::new())),
         }
     }
 
     pub fn local_id(&self) -> u32 {
         self.local_id
+    }
+
+    pub fn crdt_put_soul(&self, snap: &SoulMirrorSnapshot) {
+        let mut store = self.crdt.lock();
+        snap.into_crdt(&mut store);
+    }
+
+    pub fn crdt_get(&self, key: &str) -> Option<CrdtEntry> {
+        self.crdt.lock().get(key).cloned()
     }
 
     pub fn on_heartbeat(&self, peer_id: u32, has_pk: bool) {

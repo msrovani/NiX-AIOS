@@ -1,4 +1,4 @@
-# Getting started — NixAIOS 0.5.1
+# Getting started — NixAIOS 0.5.2
 
 Três bancadas, três níveis de honestidade (ADR-0113):
 
@@ -41,12 +41,14 @@ bash scripts/smoke-cognitive-loop.sh
 bash scripts/smoke-transmute-paths.sh
 ```
 
-ISO 0.5.1:
+ISO 0.5.x (volid `NIXAIOS051`):
 
 ```bash
-bash scripts/build-iso-050.sh
+bash scripts/build-iso.sh
 # Artefactos típicos: Downloads/nixaios-minimal-051*.iso — volid NIXAIOS051
 ```
+
+Seek/AutoLearn no tick contínuo: só com `NOSD_AUTOLEARN=1` (default off).
 
 ## 3) Metal (USB)
 

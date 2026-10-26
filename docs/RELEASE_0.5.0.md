@@ -1,7 +1,7 @@
 # NixAIOS 0.5.0 — Release notes
 
-**Volid ISO:** `NIXAIOS050`  
-**Workspace:** `packages/nosd` 0.5.0  
+**Volid ISO (histórico):** `NIXAIOS050` (pré-ship)  
+**Workspace na altura:** `0.5.0` — **ship Git unificado em 0.5.1+** com volid **`NIXAIOS051`** ([`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.2.md`](RELEASE_0.5.2.md)).  
 **Foco:** migração metal pós-Q5 (persistência Linux-first) + fecho honesty da remigração.
 
 ## Garantias desta release

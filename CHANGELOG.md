@@ -3,6 +3,26 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.5.2] — 2026-10-25
+
+### Added
+
+- `HermesEngine::boot(BootConfig)` + `tick_mesh_hints` / `tick_soul_mirror`.
+- RPC fatiado: `crates/nosd/src/rpc/{health,model,chat,nix_wifi,ui_orb,voice_transmute,factory_store,http_lab}.rs`.
+- Scripts externos: `modules/transmute/{firstboot,hotswap-aios}.sh`.
+- `self.heal.evaluate` RPC; teste IPC registry; `nos-core::fnv1a64`.
+- [`docs/RELEASE_0.5.2.md`](docs/RELEASE_0.5.2.md); canónico `scripts/build-iso.sh`.
+
+### Changed
+
+- Workspace / flake → `0.5.2` (volid ISO permanece `NIXAIOS051`).
+- `NOSD_AUTOLEARN` default **off**; ModelHub só via `state.hermes.hub`.
+- Scripts s5xx/FAT lab → `scripts/archive/`.
+
+### Removed
+
+- Stub IPC `mesh.skillsync` (sem wire útil).
+
 ## [0.5.1] — 2026-10-25
 
 ### Added

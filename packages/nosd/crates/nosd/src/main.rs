@@ -3,15 +3,9 @@
 mod server;
 
 use clap::Parser;
-use nos_bei::BeiRuntime;
-use nos_bus::EventBus;
-use nos_cortex::{
-    CapacityProber, HotSwapController, ModelHub, S2Queue, scan_path, slot_from_path,
-};
-use nos_core::{ModelSlot, NosScore, Sev};
-use nos_factory::AppFactory;
-use nos_hermes::HermesEngine;
-use nos_memory::NosMemory;
+use nos_cortex::CapacityProber;
+use nos_core::{NosScore, Sev};
+use nos_hermes::{BootConfig, HermesEngine};
 use nos_mesh::MeshEngine;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -100,89 +94,20 @@ async fn main() -> anyhow::Result<()> {
         vec![models_dir.clone()]
     };
 
-    let hub = ModelHub::new();
-    let mut first_gguf: Option<std::path::PathBuf> = None;
-    for dir in scan_dirs {
-        for meta in scan_path(&dir, 64) {
-            if meta.kind != "gguf" {
-                continue;
-            }
-            let len = std::fs::metadata(&meta.path).map(|m| m.len()).unwrap_or(0);
-            let slot = slot_from_path(&meta.path);
-            hub.register_path(slot, meta.path.clone(), len);
-            info!(
-                target: "nosd",
-                "hub register {} {}",
-                slot.name(),
-                meta.path.display()
-            );
-            if first_gguf.is_none() {
-                first_gguf = Some(meta.path.clone());
-            }
-        }
-    }
-
-    let hotswap = HotSwapController::new_cpu();
-    let attach = hub.path_of(ModelSlot::Active).or(first_gguf);
-    if let Some(path) = attach {
-        match hotswap.try_attach_llama(path) {
-            Ok(()) => info!(target: "nosd", "engine={}", hotswap.engine_name()),
-            Err(e) => info!(
-                target: "nosd",
-                "engine=cpu-echo ({e}) — set NOSD_LLAMA_CLI + models/*.gguf for GGUF"
-            ),
-        }
-    } else {
-        info!(target: "nosd", "engine=cpu-echo (no gguf in {})", models_dir.display());
-    }
-
-    let hs_s2 = hotswap.clone();
-    let s2 = S2Queue::start(std::sync::Arc::new(move |p| {
-        hs_s2.infer(p).map_err(|e| e.to_string())
-    }));
-
-    let memory = NosMemory::open(&mem_dir)?;
-    let bus = EventBus::new(64);
-    let hermes = HermesEngine {
-        hub: hub.clone(),
-        hotswap,
-        s2,
-        memory: memory.clone(),
-        bei: BeiRuntime::new(10_000),
-        windows: nos_hermes::WindowBroker::new(bus.clone()),
-        orb: nos_hermes::OrbBroker::new(bus.clone()),
-        latent: nos_bus::LatentBus::new(),
-        agency: parking_lot::Mutex::new(nos_hermes::AgencyFleet::new()),
-        skill_observer: nos_hermes::SkillObserver::new(),
-        mesh_offers: parking_lot::Mutex::new(Vec::new()),
-        federated_index: parking_lot::Mutex::new(nos_factory::FederatedIndex::new()),
-        autolearn_rot: std::sync::atomic::AtomicU64::new(0),
-        bus,
-        factory: AppFactory::new(),
+    let hermes = HermesEngine::boot(BootConfig {
+        models_dir: models_dir.clone(),
+        scan_dirs,
+        mem_dir,
         cap_gen: 1,
-        chat_budget: parking_lot::Mutex::new(nos_core::IterationBudget::new(256)),
-        persona: parking_lot::Mutex::new(nos_bei::PersonaState::default()),
-        idle_ticks: std::sync::atomic::AtomicU64::new(0),
-    };
-    // Seed cinematic: orb + janela Info (HUD nunca “vazio” de significado)
-    let _ = hermes.orb.set_state(nos_core::OrbState::Connecting, true);
-    let gate_boot = nos_core::CapGate::new(nos_core::CapBits::FULL, 1);
-    let _ = hermes.ui_open(
-        &gate_boot,
-        nos_core::WindowKind::Info,
-        nos_core::UiSource::Hermes,
-        Some("JARBAS".into()),
-        Some("Sistema online — orb cinemático · diga oi ou peça Wi‑Fi.".into()),
-    );
-    let _ = hermes.orb.set_state(nos_core::OrbState::Idle, true);
+    })?;
     let mesh = MeshEngine::new(args.node_id);
 
     let score = NosScore {
         phase: "ready".into(),
         sev: Sev::Ok,
         msg: "nosd scaffold up".into(),
-        hub_slots: hub.loaded_count(),
-        memory_ok: memory.health(),
+        hub_slots: hermes.hub.loaded_count(),
+        memory_ok: hermes.memory.health(),
         mesh_peers: mesh.peer_count(),
         fleet_verdict: None,
         summary: String::new(),
@@ -200,7 +125,6 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(server::AppState {
         hermes,
         mesh,
-        hub,
         data_dir: args.data_dir.clone(),
         cap_gen: 1,
         caps: nos_core::CapRegistry::new(),
@@ -330,26 +254,7 @@ async fn hermes_runtime_loop(
             );
         }
         if let Some(ref u) = mesh_udp {
-            // M.2/M.4: LayaIntent outbound + S2 offload peer hint
-            if n % 5 == 0 {
-                use nos_mesh::{content_fingerprint, LayaIntent};
-                state.mesh.queue_laya_intent(LayaIntent {
-                    node_id: state.mesh.local_id(),
-                    clock: n,
-                    intent_arm: if state.hermes.s2.pending() > 0 { 2 } else { 1 },
-                    confidence_q8: 160,
-                    margin_q8: 16,
-                    text_fnv: content_fingerprint("hermes_tick"),
-                });
-                if let Some(peer) =
-                    nos_cortex::assign_from_mesh_tuples(&state.mesh.peers_for_offload())
-                {
-                    state.hermes.bus.publish(
-                        "MESH_OFFLOAD_HINT",
-                        serde_json::json!({ "peer_id": peer, "s2_pending": state.hermes.s2.pending() }),
-                    );
-                }
-            }
+            state.hermes.tick_mesh_hints(&state.mesh, n);
             u.tick_tx().await;
             u.poll_rx(8).await;
             if n % 15 == 0 {
@@ -374,26 +279,7 @@ async fn hermes_runtime_loop(
                 state.mesh.peer_count(),
                 state.mesh.fleet_machines().len() as u32,
             );
-            // M.3 SoulMirror thin — EventBus + slog (lab 2-nó e2e residual)
-            if n % 30 == 0 {
-                let machines = state.mesh.fleet_machines();
-                let snap = nos_mesh::SoulMirrorSnapshot::from_fleet(
-                    state.mesh.local_id(),
-                    "jarbas",
-                    "tick",
-                    &machines,
-                    n,
-                );
-                state.hermes.bus.publish(
-                    "SOUL_MIRROR",
-                    serde_json::json!({
-                        "slog": snap.slog_line,
-                        "fleet": snap.fleet_verdict,
-                        "peers": snap.peer_count,
-                    }),
-                );
-                info!(target: "nosd", "{}", snap.slog_line);
-            }
+            state.hermes.tick_soul_mirror(&state.mesh, n);
         }
         if n == 1 || n % 30 == 0 {
             info!(

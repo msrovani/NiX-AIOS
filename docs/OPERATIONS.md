@@ -1,9 +1,9 @@
 # Operações — ISO, firstboot, metal
 
-## Build ISO 0.5.1
+## Build ISO 0.5.x (volid NIXAIOS051)
 
 ```bash
-bash scripts/build-iso-050.sh
+bash scripts/build-iso.sh
 ```
 
 - Volid: `NIXAIOS051`
@@ -11,7 +11,8 @@ bash scripts/build-iso-050.sh
 - Guard S1.2 corre após copy
 - Persistência na live: `/var/lib/nosd` (volátil até install/overlay)
 
-Alias legado: `scripts/build-iso-s529.sh` → redirecciona para 050.
+Aliases: `build-iso-050.sh`, `build-iso-s529.sh` → `build-iso.sh`.  
+Scripts s5xx/FAT: [`scripts/archive/`](../scripts/archive/README.md).
 
 ## Firstboot (tty1)
 

@@ -83,7 +83,7 @@ Mesh CRDT (M.2) e Orb (P.2) **não** entram nas ondas W1–W6; ficam no backlog 
 
 | # | Tarefa | Artefato | Aceite |
 |---|--------|----------|--------|
-| 1.1 | Rebuild ISO/IMG (script s529 vigente) | `Downloads/nixaios-*-s529*.{iso,img}` + sha256 | build exit 0 |
+| 1.1 | Rebuild ISO/IMG (`scripts/build-iso.sh`) | `Downloads/nixaios-minimal-051*.{iso,img}` + sha256 | build exit 0 |
 | 1.2 | Boot metal/QEMU NixAIOS | journal `nosd-early-score` | `observe.snapshot OK` + `BOOT_SCORE …` |
 | 1.3 | Confirmar mirror FAT se montado | `/mnt/nixaios-log/{observe-early,boot-score}.json` | ficheiros não vazios **ou** slog honesto “FAT absent” |
 | 1.4 | Atualizar ledger B.1 | `REMIGRATION_PLAN_LEDGER.md` | PARTIAL↑ → **DONE** (host+metal) **ou** manter PARTIAL com log gap |

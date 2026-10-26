@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+nos-core = { path = "../nos-core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 parking_lot = { workspace = true }

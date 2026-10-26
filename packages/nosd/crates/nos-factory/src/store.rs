@@ -206,18 +206,7 @@ impl FederatedIndex {
     }
 }
 
-pub fn fnv1a64(data: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in data {
-        h ^= u64::from(*b);
-        h = h.wrapping_mul(0x100000001b3);
-    }
-    h
-}
-
-pub fn fnv1a64_hex16(data: &[u8]) -> String {
-    format!("{:016x}", fnv1a64(data))
-}
+pub use nos_core::{fnv1a64, fnv1a64_hex16};
 
 fn parse_hash_hex16(s: &str) -> Option<u64> {
     let s = s.trim().trim_start_matches("0x");

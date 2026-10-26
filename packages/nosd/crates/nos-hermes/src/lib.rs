@@ -96,7 +96,149 @@ pub struct HermesEngine {
     pub idle_ticks: AtomicU64,
 }
 
+/// Config de boot do composition root (hub scan + hotswap + S2 + brokers).
+pub struct BootConfig {
+    pub models_dir: std::path::PathBuf,
+    pub scan_dirs: Vec<std::path::PathBuf>,
+    pub mem_dir: std::path::PathBuf,
+    pub cap_gen: u64,
+}
+
 impl HermesEngine {
+    /// Composition root: hub/gguf attach + S2 + memory/bus/brokers (sem mesh).
+    pub fn boot(cfg: BootConfig) -> Result<Self, HermesError> {
+        let hub = ModelHub::new();
+        let mut first_gguf: Option<std::path::PathBuf> = None;
+        for dir in &cfg.scan_dirs {
+            for meta in nos_cortex::scan_path(dir, 64) {
+                if meta.kind != "gguf" {
+                    continue;
+                }
+                let len = std::fs::metadata(&meta.path).map(|m| m.len()).unwrap_or(0);
+                let slot = nos_cortex::slot_from_path(&meta.path);
+                hub.register_path(slot, meta.path.clone(), len);
+                info!(
+                    target: "nosd",
+                    "hub register {} {}",
+                    slot.name(),
+                    meta.path.display()
+                );
+                if first_gguf.is_none() {
+                    first_gguf = Some(meta.path.clone());
+                }
+            }
+        }
+
+        let hotswap = HotSwapController::new_cpu();
+        let attach = hub.path_of(ModelSlot::Active).or(first_gguf);
+        if let Some(path) = attach {
+            match hotswap.try_attach_llama(path) {
+                Ok(()) => info!(target: "nosd", "engine={}", hotswap.engine_name()),
+                Err(e) => info!(
+                    target: "nosd",
+                    "engine=cpu-echo ({e}) — set NOSD_LLAMA_CLI + models/*.gguf for GGUF"
+                ),
+            }
+        } else {
+            info!(
+                target: "nosd",
+                "engine=cpu-echo (no gguf in {})",
+                cfg.models_dir.display()
+            );
+        }
+
+        let hs_s2 = hotswap.clone();
+        let s2 = S2Queue::start(std::sync::Arc::new(move |p| {
+            hs_s2.infer(p).map_err(|e| e.to_string())
+        }));
+        let memory = NosMemory::open(&cfg.mem_dir).map_err(|e| HermesError::Memory(e.to_string()))?;
+        let bus = EventBus::new(64);
+        let eng = Self {
+            hub,
+            hotswap,
+            s2,
+            memory,
+            bei: BeiRuntime::new(10_000),
+            windows: WindowBroker::new(bus.clone()),
+            orb: OrbBroker::new(bus.clone()),
+            latent: LatentBus::new(),
+            agency: Mutex::new(AgencyFleet::new()),
+            skill_observer: SkillObserver::new(),
+            mesh_offers: Mutex::new(Vec::new()),
+            federated_index: Mutex::new(FederatedIndex::new()),
+            autolearn_rot: AtomicU64::new(0),
+            bus,
+            factory: AppFactory::new(),
+            cap_gen: cfg.cap_gen,
+            chat_budget: Mutex::new(IterationBudget::new(256)),
+            persona: Mutex::new(PersonaState::default()),
+            idle_ticks: AtomicU64::new(0),
+        };
+        eng.seed_cinematic_boot();
+        Ok(eng)
+    }
+
+    /// Boot UI cinemático (composition root) — orb + janela Info.
+    pub fn seed_cinematic_boot(&self) {
+        let _ = self.orb.set_state(OrbState::Connecting, true);
+        let gate = CapGate::new(CapBits::FULL, self.cap_gen);
+        let _ = self.ui_open(
+            &gate,
+            WindowKind::Info,
+            UiSource::Hermes,
+            Some("JARBAS".into()),
+            Some("Sistema online — orb cinemático · diga oi ou peça Wi‑Fi.".into()),
+        );
+        let _ = self.orb.set_state(OrbState::Idle, true);
+    }
+
+    /// Mesh continuous: LayaIntent + offload hint (M.2/M.4) — chama o bin a cada N ticks.
+    pub fn tick_mesh_hints(&self, mesh: &nos_mesh::MeshEngine, tick: u64) {
+        if tick % 5 != 0 {
+            return;
+        }
+        use nos_mesh::{content_fingerprint, LayaIntent};
+        mesh.queue_laya_intent(LayaIntent {
+            node_id: mesh.local_id(),
+            clock: tick,
+            intent_arm: if self.s2.pending() > 0 { 2 } else { 1 },
+            confidence_q8: 160,
+            margin_q8: 16,
+            text_fnv: content_fingerprint("hermes_tick"),
+        });
+        if let Some(peer) = nos_cortex::assign_from_mesh_tuples(&mesh.peers_for_offload()) {
+            self.bus.publish(
+                "MESH_OFFLOAD_HINT",
+                json!({ "peer_id": peer, "s2_pending": self.s2.pending() }),
+            );
+        }
+    }
+
+    /// SoulMirror + CRDT local (M.3) — a cada 30 ticks com peers.
+    pub fn tick_soul_mirror(&self, mesh: &nos_mesh::MeshEngine, tick: u64) {
+        if mesh.peer_count() == 0 || tick % 30 != 0 {
+            return;
+        }
+        let machines = mesh.fleet_machines();
+        let snap = nos_mesh::SoulMirrorSnapshot::from_fleet(
+            mesh.local_id(),
+            "jarbas",
+            "tick",
+            &machines,
+            tick,
+        );
+        mesh.crdt_put_soul(&snap);
+        self.bus.publish(
+            "SOUL_MIRROR",
+            json!({
+                "slog": snap.slog_line,
+                "fleet": snap.fleet_verdict,
+                "peers": snap.peer_count,
+            }),
+        );
+        info!(target: "nosd", "{}", snap.slog_line);
+    }
+
     /// Ciclo cognitivo chat com roteamento MoE.
     pub fn chat(&self, gate: &CapGate, prompt: &str) -> Result<String, HermesError> {
         gate.allow(CapBits::INFER, self.cap_gen)
@@ -647,7 +789,15 @@ impl HermesEngine {
     pub fn cognitive_tick(&self) -> serde_json::Value {
         let gate = CapGate::new(CapBits::MEMORY, self.cap_gen);
         self.tick_agency();
-        self.tick_autolearn(&gate);
+        // 0.5.2: Seek/AutoLearn fora do hot path — opt-in NOSD_AUTOLEARN=1
+        let autolearn = std::env::var("NOSD_AUTOLEARN")
+            .ok()
+            .as_deref()
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        if autolearn {
+            self.tick_autolearn(&gate);
+        }
 
         let idle = self.idle_ticks.fetch_add(1, Ordering::Relaxed);
         {

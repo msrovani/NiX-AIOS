@@ -5,6 +5,7 @@
 
 pub mod cap;
 pub mod decision;
+pub mod hash;
 pub mod iteration;
 pub mod safety_trust;
 pub mod gguf;
@@ -25,6 +26,7 @@ pub use safety_trust::{
     violation_count,
 };
 pub use gguf::{GgufHeaderInfo, parse_gguf_header};
+pub use hash::{fnv1a64, fnv1a64_hex16};
 pub use model_slot::ModelSlot;
 pub use orb::{OrbPattern, OrbSense, OrbSnapshot, OrbState};
 pub use policy::{

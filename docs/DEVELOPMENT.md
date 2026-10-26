@@ -57,7 +57,7 @@ Smokes (Linux/WSL):
 ## ISO
 
 ```bash
-bash scripts/build-iso-050.sh
+bash scripts/build-iso.sh
 bash scripts/guard-iso-no-s1-blob.sh /path/to.iso
 ```
 

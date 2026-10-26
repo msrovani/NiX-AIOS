@@ -14,6 +14,8 @@
 Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 · REJECT 1**.  
 **0.5.0/0.5.1 (2026-10-25):** P0 metal pós-Q5 Linux-first + Landlock FAT allow + CRDT/SoulMirror thin + llama_server_posture + SelfHeal deny stub + docs modernas — ship Git [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md). Ondas = host-OK; metal/lab e2e = residual AWAITING_HW (sem overclaim).
 
+**0.5.2 (2026-10-25):** Revisão estrutural A+B+C — archive s5xx, IPC registry, autolearn off, hub único, self.heal RPC, HermesEngine::boot, rpc/ fatiado, firstboot/hotswap externos — [`RELEASE_0.5.2.md`](RELEASE_0.5.2.md). Volid permanece `NIXAIOS051`.
+
 ---
 
 ## Tema 0 — Isolamento
@@ -80,7 +82,7 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 |----|------|--------|-----------------|
 | U.2 | k_ai Safety/Trust/Audit/SelfHeal/HWExpert nosd | **PARTIAL**↑ | 0.5.0: `evaluate_self_heal` Deny-by-default; `safety_trust` thin; HWExpert port **NOT** |
 | U.3 | nos-bei budget/affect/sleep + SoulMirror | **PARTIAL** | BEI+Sleep; `tick_sleep_consolidate`→memória; SoulMirror cluster **NOT** |
-| B.1 | nosd-early + BOOT SCORE + firstboot Slint | **PARTIAL**↑ | 0.5.0: early só `/var/lib/nosd`; firstboot save_file fail-loud + erros transmute tty; ISO `NIXAIOS050`; metal journal AWAITING_HW |
+| B.1 | nosd-early + BOOT SCORE + firstboot Slint | **PARTIAL**↑ | 0.5.x: early só `/var/lib/nosd`; firstboot fail-loud; ISO `NIXAIOS051`; metal journal AWAITING_HW |
 | N.1 | /etc/nixos/ai-ring + generation-guard | **PARTIAL** | = NX.1 cortex-nix-ring |
 | J.1 | nos-voice PipeWire full-duplex | **PARTIAL** / PREEXIST | 0.5.0: locale/piper paths Linux-first (sem FAT); EngineAbsent sem bins; duplex **thin** |
 | J.2 | Generative Cards + Orb skill/hub | **PARTIAL** | `CardSpec` parse + WindowBroker; Slint generative rich widgets **NOT** |
@@ -117,7 +119,7 @@ Próxima onda: só fechar item com (1) teste host ou (2) log runtime + linha nes
 
 ## Próxima onda sugerida (pós-0.5.0, prioridade honesty)
 
-1. Metal stick `NIXAIOS050`: Q5→transmute sem EACCES; cage tty7 (AWAITING_HW).  
+1. Metal stick `NIXAIOS051`: Q5→transmute sem EACCES; cage tty7 (AWAITING_HW).  
 2. Lab 2-nó fleet e2e + SoulMirror wire (M.3 residual).  
 3. CRDT → sync P2P NSGDB (M.2 residual além do LWW in-process).  
 4. AgentJev/BGE/Vision blobs via `blob_deliberate` LOO.  

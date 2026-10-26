@@ -5,7 +5,7 @@ Reporte vulnerabilidades de forma responsável. Não abra issues públicas com e
 ## Contacto
 
 - Preferência: contacto privado com o maintainer do repositório / organização.
-- Inclua: versão (`0.5.1`+), ambiente (host TCP / WSL / ISO metal), passos mínimos, impacto.
+- Inclua: versão (`0.5.2`+), ambiente (host TCP / WSL / ISO metal), passos mínimos, impacto.
 
 ## Modelo de ameaça (resumo)
 
@@ -22,5 +22,5 @@ Pontos críticos:
 
 | Versão | Suporte |
 |--------|---------|
-| 0.5.1+ | Actual |
+| 0.5.2+ | Actual |
 | anterior a 0.5 | Best-effort (scaffold) |

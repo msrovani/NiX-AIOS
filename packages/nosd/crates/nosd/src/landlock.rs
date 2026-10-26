@@ -45,14 +45,21 @@ pub fn status_from_env() -> LandlockStatus {
 }
 
 /// Paths NIX_WRITE / FS must stay inside (soft check — always).
+/// `/etc/nixos` só ficheiros de staging conhecidos (não RW soft da árvore inteira).
 pub fn path_allowed(path: &Path, data_dir: &Path) -> bool {
     if path.starts_with(data_dir) {
         return true;
     }
     if path.starts_with("/var/lib/nosd")
-        || path.starts_with("/etc/nixos")
-        || path.starts_with("/mnt/nixaios-log")
         || path.starts_with("/tmp")
+        || path.starts_with("/mnt/nixaios-log")
+    {
+        return true;
+    }
+    // Staging Nix ring — RO/HITL paths (não “toda /etc/nixos”)
+    if path == Path::new("/etc/nixos/ai-managed.nix")
+        || path == Path::new("/etc/nixos/host-configuration.nix")
+        || path.starts_with("/etc/nixos/ai-managed")
     {
         return true;
     }
@@ -69,7 +76,7 @@ pub fn path_allowed(path: &Path, data_dir: &Path) -> bool {
         return false;
     };
     canon.starts_with(&root)
-        || canon.starts_with("/etc/nixos/ai-managed.nix")
+        || canon.ends_with("ai-managed.nix")
         || canon.starts_with("/mnt/nixaios-log")
 }
 

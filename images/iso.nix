@@ -1,5 +1,5 @@
 # Offline ISO — firstboot + Slint HUD refinado (cage/iGPU, sem Chromium default).
-# Build: scripts/build-iso-050.sh (volid NIXAIOS051 = release 0.5.1 Linux-first + docs)
+# Build: scripts/build-iso.sh (volid NIXAIOS051 = release 0.5.x; workspace 0.5.2+)
 # POLICY: NÃO embutir modelos/firmware/voice blobs — runtime fetch deliberado
 # Cortex→Hermes→JARBAS (nos-hermes::blob_deliberate / model.fetch|firmware.fetch).
 { pkgs, lib, modulesPath, ... }:

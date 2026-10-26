@@ -25,7 +25,7 @@ pub const SIDE_EFFECT_METHODS: &[&str] = &[
     "audio.volume",
     "gpu.plan",
     "device.recipe",
-    "mesh.skillsync",
+    "self.heal.evaluate",
 ];
 
 pub fn is_side_effect(method: &str) -> bool {

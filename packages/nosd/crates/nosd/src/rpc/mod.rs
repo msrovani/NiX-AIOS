@@ -1,0 +1,297 @@
+//! RPC surface do nosd (0.5.2) — dispatch fatiado por domínio.
+mod health;
+mod model;
+mod chat;
+mod nix_wifi;
+mod ui_orb;
+mod voice_transmute;
+mod factory_store;
+mod http_lab;
+
+pub use http_lab::serve_orb_lab;
+
+use crate::{actuators, nix_managed, transmute, wifi_nm};
+use nos_core::{
+    CapBits, CapRegistry, NosScore, SafetyViolation, Sev, ActDomain, ActDisposition,
+    disposition, lab_auto_switch_from_env, note_violation, s1_backend_from_env, s1_backend_label,
+    S1Backend, UiSource, WindowSpec,
+};
+use nos_factory::{
+    ImportMeta, ImportProvenance, PackageStore, SandboxStatus, StoreError,
+};
+use parking_lot::Mutex;
+use nos_cortex::CapacityProber;
+use nos_hermes::{
+    deliberate_blob_fetch, iso_must_not_ship_blobs, remember_deliberation, BlobKind, BlobNeed,
+    HermesEngine,
+};
+use nos_ipc::{Request, Response, decode_body, encode, take_frame};
+use nos_mesh::{fleet_worst, HealthVerdict, MachineHealth, MeshEngine};
+use serde_json::json;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing::{info, warn};
+
+pub struct AppState {
+    pub hermes: HermesEngine,
+    pub mesh: MeshEngine,
+    pub data_dir: PathBuf,
+    pub cap_gen: u64,
+    /// CapGate server-authored (I.1) - nunca confiar em req.caps.
+    pub caps: CapRegistry,
+    pub package_store: Mutex<PackageStore>,
+    pub shutting_down: AtomicBool,
+    /// Contador do loop Continuous Hermes (0 = ainda não tickou / desligado).
+    pub hermes_ticks: std::sync::atomic::AtomicU64,
+}
+
+fn opar_after_ok(state: &AppState, method: &str, ok: bool, observe: &str, plan: &str, act: &str, verify: &str) {
+    if ok && nos_hermes::is_side_effect(method) {
+        let _ = state.hermes.opar_side_effect(method, observe, plan, act, verify);
+    }
+}
+
+fn note_capgate_deny(agent: &str, method: &str, detail: &str) {
+    let _ = note_violation(SafetyViolation {
+        invariant: "capgate".into(),
+        agent: agent.to_string(),
+        skill: method.to_string(),
+        detail: detail.to_string(),
+    });
+}
+
+/// W4/W5 - score honesto: S1 label, llama-server posture, landlock, early boot JSON.
+fn build_runtime_score(state: &AppState, phase: &str, msg: &str) -> NosScore {
+    let fleet_verdict = state
+        .mesh
+        .fleet_verdict()
+        .map(|v| v.as_str().to_string());
+    let llama = nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name());
+    let early_boot = {
+        let p = state.data_dir.join("boot-score.json");
+        std::fs::read_to_string(&p)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+    };
+    NosScore {
+        phase: phase.into(),
+        sev: Sev::Ok,
+        msg: msg.into(),
+        hub_slots: state.hermes.hub.loaded_count(),
+        memory_ok: state.hermes.memory.health(),
+        mesh_peers: state.mesh.peer_count(),
+        fleet_verdict,
+        summary: String::new(),
+        s1_backend: s1_backend_label().into(),
+        llama_server: llama,
+        landlock: format!("{:?}", crate::landlock::applied_status()),
+        early_boot,
+    }
+    .with_summary()
+}
+
+pub async fn serve_tcp(addr: String, state: Arc<AppState>) -> anyhow::Result<()> {
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    loop {
+        if state.shutting_down.load(Ordering::Relaxed) {
+            break;
+        }
+        let (sock, _) = listener.accept().await?;
+        let st = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = handle_stream(sock, st).await {
+                warn!(target: "nosd", "conn err: {e}");
+            }
+        });
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+pub async fn serve_unix(path: String, state: Arc<AppState>) -> anyhow::Result<()> {
+    let listener = tokio::net::UnixListener::bind(&path)?;
+    loop {
+        if state.shutting_down.load(Ordering::Relaxed) {
+            break;
+        }
+        let (sock, _) = listener.accept().await?;
+        let st = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = handle_stream(sock, st).await {
+                warn!(target: "nosd", "conn err: {e}");
+            }
+        });
+    }
+    Ok(())
+}
+
+fn method_domain(method: &str) -> Option<ActDomain> {
+    Some(match method {
+        "chat" | "chat.submit" | "route.explain" => ActDomain::ChatRoute,
+        "model.plan" | "model.suggest" => ActDomain::ModelPlanSuggest,
+        "model.fetch" | "model.search" | "blob.deliberate" => ActDomain::ModelFetch,
+        "firmware.fetch" => ActDomain::DeviceFirmware,
+        "model.load" => ActDomain::HotSwapKnownHash,
+        "wifi.scan" => ActDomain::WifiScan,
+        "wifi.connect" => ActDomain::WifiConnect,
+        "nix.propose" => ActDomain::NixPropose,
+        "nix.apply" | "nix.confirm" | "nix.build_vm" => ActDomain::NixSwitch,
+        "nix.rollback" => ActDomain::NixRollback,
+        "agent.spawn" | "factory.promote" => ActDomain::AgentSpawnSigned,
+        "factory.seek" | "store.search" => ActDomain::FactorySeekScan,
+        "store.install" => ActDomain::FactorySeekInstall,
+        "factory.synthesize" => ActDomain::FactorySynthesize,
+        "systemctl.scoped" => ActDomain::SystemctlScoped,
+        "audio.volume" => ActDomain::PipeWireVolume,
+        "gpu.plan" => ActDomain::ModelPlanSuggest, // flake/ngl plan = Auto; power-limit = Deny domain
+        "gpu.power_limit" => ActDomain::GpuPowerLimit,
+        "device.recipe" => ActDomain::NixPropose,
+        "self.heal.evaluate" => ActDomain::NixPropose,
+        _ => return None,
+    })
+}
+
+async fn handle_stream<S>(mut sock: S, state: Arc<AppState>) -> anyhow::Result<()>
+where
+    S: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    let mut acc = Vec::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = sock.read(&mut buf).await?;
+        if n == 0 {
+            break;
+        }
+        acc.extend_from_slice(&buf[..n]);
+        while let Some((body, consumed)) = take_frame(&acc)? {
+            acc.drain(..consumed);
+            let req: Request = decode_body(&body)?;
+            let resp = dispatch(&state, req);
+            sock.write_all(&encode(&resp)?).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Atualiza MCH local a partir de sinais runtime (honest partial - não substitui observe.snapshot).
+pub fn sync_local_fleet_health(state: &AppState) {
+    let ticks = state
+        .hermes_ticks
+        .load(std::sync::atomic::Ordering::Relaxed);
+    let sys = if ticks > 0 {
+        HealthVerdict::Go
+    } else {
+        HealthVerdict::Unknown
+    };
+    let hub = if state.hermes.hub.loaded_count() > 0 {
+        HealthVerdict::Go
+    } else {
+        HealthVerdict::Unknown
+    };
+    state.mesh.set_local_fleet_health(MachineHealth {
+        node_id: state.mesh.local_id().min(255) as u8,
+        sys,
+        audio: HealthVerdict::Unknown,
+        hub,
+        reason: format!("hermes_ticks={} hub_loaded={}", ticks, state.hermes.hub.loaded_count()),
+    });
+}
+
+fn dispatch(state: &AppState, req: Request) -> Response {
+    // I.1: caps server-authored by agent identity; client bitmask ignored.
+    let gate = match state.caps.gate_for(&req.agent, req.caps, state.cap_gen) {
+        Ok(g) => g,
+        Err(e) => {
+            note_capgate_deny(&req.agent, &req.method, &e.to_string());
+            return Response {
+                id: req.id,
+                ok: false,
+                error: Some(e.into()),
+                result: json!({ "capgate": "server_authored" }),
+            };
+        }
+    };
+    let need = req.required_cap();
+    if need.0 != 0 {
+        if let Err(e) = gate.allow(need, state.cap_gen) {
+            note_capgate_deny(&req.agent, &req.method, e);
+            return Response {
+                id: req.id,
+                ok: false,
+                error: Some(format!("{e} [server-authored agent={}]", req.agent)),
+                result: json!({ "need": need.0, "held": gate.held.0 }),
+            };
+        }
+    }
+    // NX.0: policy gate for destructive domains (before side-effects).
+    if let Some(dom) = method_domain(&req.method) {
+        let lab = lab_auto_switch_from_env();
+        let disp = disposition(dom, lab);
+        if disp == ActDisposition::Deny {
+            return Response {
+                id: req.id,
+                ok: false,
+                error: Some(format!("SITE_POLICY deny domain={dom:?}")),
+                result: json!({ "disposition": "deny" }),
+            };
+        }
+        // ModelFetch / DeviceFirmware: HITL via blob_deliberate (abre card JARBAS) - não short-circuit.
+        let blob_domain = matches!(dom, ActDomain::ModelFetch | ActDomain::DeviceFirmware);
+        if disp == ActDisposition::Escalate
+            && !blob_domain
+            && req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) != Some(true)
+        {
+            return Response {
+                id: req.id,
+                ok: false,
+                error: Some(format!("SITE_POLICY escalate domain={dom:?} - HITL required")),
+                result: json!({ "disposition": "escalate", "need_hitl": true }),
+            };
+        }
+        if disp == ActDisposition::Confirm
+            && matches!(
+                dom,
+                ActDomain::NixSwitch | ActDomain::WifiConnect | ActDomain::FactorySeekInstall
+            )
+            && req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) != Some(true)
+            && !(lab && matches!(dom, ActDomain::NixSwitch))
+        {
+            return Response {
+                id: req.id,
+                ok: false,
+                error: Some(format!("SITE_POLICY confirm domain={dom:?}")),
+                result: json!({ "disposition": "confirm", "need_hitl": true }),
+            };
+        }
+    }
+
+    if let Some(r) = health::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = model::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = chat::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = nix_wifi::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = voice_transmute::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = ui_orb::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = factory_store::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    Response {
+        id: req.id,
+        ok: false,
+        error: Some(format!("unknown method {}", req.method)),
+        result: json!(null),
+    }
+}

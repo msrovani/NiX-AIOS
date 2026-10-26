@@ -11,7 +11,7 @@ Release notes: [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md).
 
 ## Próxima onda (prioridade honesty)
 
-1. **Metal** stick `NIXAIOS050`: Q5 → transmute → cage sem cascata permissão (AWAITING_HW).  
+1. **Metal** stick `NIXAIOS051` (`scripts/build-iso.sh`): Q5 → transmute → cage sem cascata permissão (AWAITING_HW).  
 2. **Lab 2-nó** mesh e2e + SoulMirror wire.  
 3. **CRDT → P2P NSGDB** (além do LWW in-process).  
 4. Blobs AgentJev/BGE/Vision via `blob_deliberate` + LOO (sem seed ISO).  

@@ -92,8 +92,10 @@ in
         NoNewPrivileges = true;
         ProtectSystem = "strict";
         ProtectHome = true;
-        # Landlock allowlist (nosd binary): future NOSD_LANDLOCK=1 — ai-managed path only via CapGate
-        ReadWritePaths = [ cfg.dataDir "/run/nosd" "/mnt/nixaios-log" "/tmp" ];
+        # 0.5.x: Landlock activo (NOSD_LANDLOCK=1). FAT mount só se nixaiosLogFat.enable.
+        ReadWritePaths =
+          [ cfg.dataDir "/run/nosd" "/tmp" ]
+          ++ lib.optionals (config.services.nixaiosLogFat.enable or false) [ "/mnt/nixaios-log" ];
         Environment = [
           "NOSD_ENGINE_DIR=${cfg.package}/lib/nosd/engines"
           "CUDA_VISIBLE_DEVICES=${cfg.cudaVisibleDevices}"
@@ -101,8 +103,10 @@ in
           "NOSD_MESH_BIND=${cfg.meshBind}"
           "NOSD_MESH_BROADCAST=${cfg.meshBroadcast}"
           "NOSD_ORB_LAB=127.0.0.1:7701"
-          # I.3 / W2: Landlock real no Linux (Absent/Failed honesto se kernel sem ABI)
+          # I.3: Landlock no Linux (Absent/Failed honesto se kernel sem ABI)
           "NOSD_LANDLOCK=1"
+          # AutoLearn/Seek fora do tick default (0.5.2); lab: NOSD_AUTOLEARN=1
+          "NOSD_AUTOLEARN=0"
           # S1.2: early/ISO keyword; AgentJev só via LOO + NOSD_S1_BLOB
           "NOSD_S1_BACKEND=keyword"
           "RUST_LOG=info"

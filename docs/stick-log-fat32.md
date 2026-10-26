@@ -1,4 +1,9 @@
-# Log persistente FAT32 (s516+)
+# Log persistente FAT32 (s516+) — LEGADO / LAB ONLY
+
+> **0.5.x:** ISO canónica **não** usa FAT (`nixaiosLogFat.enable = false`).  
+> Persistência = `/var/lib/nosd`. Opt-in runtime: `NIXAIOS_USE_FAT_PERSIST=1`.  
+> Scripts `pack-usb-logfat` → [`scripts/archive/`](../scripts/archive/README.md).  
+> Operações actuais: [`OPERATIONS.md`](OPERATIONS.md).
 
 ## Imagem
 

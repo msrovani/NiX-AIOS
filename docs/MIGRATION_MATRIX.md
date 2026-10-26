@@ -78,7 +78,7 @@ Plano Cursor `nixaios_remigração_34e29087` → status item-a-item; ship [`RELE
 | Marco | Status | Nota |
 |-------|--------|------|
 | CapGate server-authored (I.1) | **host VERIFIED** | `CapRegistry`; client ALL ignored |
-| SITE_POLICY + ISO autoSwitch=false (NX.0) | **host VERIFIED** | NIXAIOS529 + policy.matrix |
+| SITE_POLICY + ISO autoSwitch=false (NX.0) | **host VERIFIED** | NIXAIOS051 + policy.matrix |
 | NX.1–NX.6 Tema NX (ecacc3de) | **host VERIFIED** / PARTIAL NX.5 | ver `REMIGRATION_NX_ACCEPTANCE.md` |
 | Seek-Before-Generate (F.3) | **PARTIAL** | GH/GL/crates HTTP + allowlist |
 | Landlock syscall (Linux) / SkillOpt / AirLLM plan | **PARTIAL** | ver ledger — metal AWAITING |
@@ -101,8 +101,8 @@ Plano Cursor `nixaios_remigração_34e29087` → status item-a-item; ship [`RELE
 
 | Item | Disposition | Evidência | Status |
 |------|-------------|-----------|--------|
-| CapGate NIX server-authored | PORT 0041 | `nosd-nix-apply` root + HITL env | **fazendo** |
-| Seek-Before-Generate (F.3) | PORT | `nos-factory` seek + plan IPC | **fazendo** |
+| CapGate NIX server-authored | PORT 0041 | `nosd-nix-apply` root + HITL env | **DONE** (host; I.1) |
+| Seek-Before-Generate (F.3) | PORT | `nos-factory` seek + plan IPC | **DONE** (host; rate-limit residual) |
 | Nix ring rollback oneshot | ADAPT 0086 | `nix-rollback.request` + generation file | IMPLEMENTED (module) |
 | nosd-engine@ dGPU | ADAPT F2 | template llama-server ≠ cage iGPU | IMPLEMENTED (module) |
 

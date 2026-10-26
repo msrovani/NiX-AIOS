@@ -52,8 +52,8 @@ pub struct Response {
 impl Request {
     pub fn required_cap(&self) -> CapBits {
         match self.method.as_str() {
-            "health" | "score" | "model.list" | "model.suggest" | "model.plan" | "route.explain"
-            | "cognitive.tick" | "artifact.validate" | "ui.list" | "wifi.scan"
+            "health" | "score" | "fleet.health" | "model.list" | "model.suggest" | "model.plan"
+            | "route.explain" | "cognitive.tick" | "artifact.validate" | "ui.list" | "wifi.scan"
             | "voice.status" | "transmute.status"
             | "orb.get" | "orb.set" | "orb.sense" => CapBits::NONE,
             "infer.submit" | "chat" | "chat.submit" | "chat.poll" | "model.unload"
@@ -68,6 +68,7 @@ impl Request {
             "nix.propose" | "nix.apply" | "nix.rollback" | "nix.confirm" => CapBits::NIX_WRITE,
             "hw.act" | "audio.act" | "audio.volume" | "gpu.plan" | "observe.snapshot"
             | "policy.matrix" | "device.recipe" => CapBits::OBSERVE,
+            "self.heal.evaluate" => CapBits::NIX_WRITE.union(CapBits::HITL),
             "systemctl.scoped" => CapBits::HITL,
             "nix.build_vm" => CapBits::NIX_WRITE,
             "wifi.connect" => CapBits::HITL,
