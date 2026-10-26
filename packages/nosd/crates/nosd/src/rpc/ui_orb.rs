@@ -38,6 +38,54 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             error: None,
             result: serde_json::to_value(state.hermes.ui_list()).unwrap_or(json!([])),
         },
+        // ADR-0058 thin: CardSpec JSON → generative window (HITL card).
+        "ui.card" => {
+            let title = req
+                .params
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("HITL")
+                .to_string();
+            let mut kv = Vec::new();
+            if let Some(arr) = req.params.get("kv").and_then(|v| v.as_array()) {
+                for item in arr {
+                    if let (Some(k), Some(v)) = (
+                        item.get("key").and_then(|x| x.as_str()),
+                        item.get("value").and_then(|x| x.as_str()),
+                    ) {
+                        kv.push(nos_hermes::CardKv {
+                            key: k.to_string(),
+                            value: v.to_string(),
+                        });
+                    }
+                }
+            }
+            let spec = nos_hermes::CardSpec { title, kv };
+            match state.hermes.open_generative_card(
+                gate,
+                state.cap_gen,
+                &spec,
+                nos_core::UiSource::Hermes,
+            ) {
+                Ok(w) => Response {
+                    id: req.id,
+                    ok: true,
+                    error: None,
+                    result: json!({
+                        "window": w,
+                        "card": spec,
+                        "adr": "0058",
+                        "honesty": "thin CardSpec; Slint rich residual",
+                    }),
+                },
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(e.to_string()),
+                    result: json!(null),
+                },
+            }
+        }
         "ui.open" => {
             let kind_s = req
                 .params

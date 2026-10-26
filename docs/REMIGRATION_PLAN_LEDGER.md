@@ -16,6 +16,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.5.2 (2026-10-25):** Revisão estrutural A+B+C — archive s5xx, IPC registry, autolearn off, hub único, self.heal RPC, HermesEngine::boot, rpc/ fatiado, firstboot/hotswap externos — [`RELEASE_0.5.2.md`](RELEASE_0.5.2.md). Volid permanece `NIXAIOS051`.
 
+**Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
+
 ---
 
 ## Tema 0 — Isolamento
@@ -119,17 +121,19 @@ Próxima onda: só fechar item com (1) teste host ou (2) log runtime + linha nes
 
 ## Próxima onda sugerida (pós-0.5.0, prioridade honesty)
 
-1. Metal stick `NIXAIOS051`: Q5→transmute sem EACCES; cage tty7 (AWAITING_HW).  
-2. Lab 2-nó fleet e2e + SoulMirror wire (M.3 residual).  
+1. Metal stick `NIXAIOS051`: campanha [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) — Q5→transmute sem EACCES; cage tty7 (**AWAITING_HW** até journal anexado).  
+2. Lab 2-nó fleet: [`FLEET_LAB.md`](FLEET_LAB.md) 0081 A/B + SoulMirror (M.3 residual).  
 3. CRDT → sync P2P NSGDB (M.2 residual além do LWW in-process).  
 4. AgentJev/BGE/Vision blobs via `blob_deliberate` LOO.  
 5. llama-server e2e + AirLLM mmap real (S2.2).  
 6. **S1.2 REJECT:** nunca seed ISO.  
-7. Remote S2 infer no peer (M.4 hint só).
+7. Remote S2 infer no peer (M.4 hint só).  
+8. Gate objectivo: `bash scripts/gate-boot-to-jarbas.sh` (stdout = ground truth IA).
 
 ## Referências
 
 - Plano Cursor: `~/.cursor/plans/nixaios_remigração_34e29087.plan.md`  
+- Playbook Boot→JARBAS: [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md)  
 - `docs/memory/SESSION_529.md`  
 - `nixaios/docs/adr-addenda/0118-remigration-nx.md`  
 - `nixaios/docs/TECNOLOGIAS_NIXAIOS.md` (N.3*)  

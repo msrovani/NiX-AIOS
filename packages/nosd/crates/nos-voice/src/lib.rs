@@ -214,6 +214,10 @@ pub struct VoiceStatus {
     pub piper_model: Option<String>,
     pub stt_ready: bool,
     pub tts_ready: bool,
+    /// Estágios honesty (ADR-0045 ADAPT): mic→vad→wake→stt→handle→tts→out.
+    pub pipeline_stages: Vec<String>,
+    /// Ready = STT+TTS; Absent = engines em falta (OK honesty, não capability).
+    pub posture: String,
 }
 
 #[derive(Clone)]
@@ -240,14 +244,27 @@ impl VoicePipeline {
         let p_cli = find_piper_cli().or_else(find_espeak_cli);
         let w_model = self.find_whisper_model(&locale);
         let p_model = self.find_piper_model(&locale);
+        let stt_ready = w_cli.is_some() && w_model.is_some();
+        let tts_ready =
+            (find_piper_cli().is_some() && p_model.is_some()) || find_espeak_cli().is_some();
+        let posture = if stt_ready && tts_ready {
+            "Ready".into()
+        } else {
+            format!("{:?}", self.engine_posture())
+        };
         VoiceStatus {
-            stt_ready: w_cli.is_some() && w_model.is_some(),
-            tts_ready: (find_piper_cli().is_some() && p_model.is_some()) || find_espeak_cli().is_some(),
+            stt_ready,
+            tts_ready,
             locale,
             whisper_cli: w_cli.map(|p| p.display().to_string()),
             whisper_model: w_model.map(|p| p.display().to_string()),
             piper_cli: p_cli.map(|p| p.display().to_string()),
             piper_model: p_model.map(|p| p.display().to_string()),
+            pipeline_stages: ["mic", "vad", "wake", "stt", "handle", "tts", "out"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            posture,
         }
     }
 

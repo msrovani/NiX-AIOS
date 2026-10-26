@@ -76,6 +76,14 @@ enum Cmd {
     /// Janelas JARBAS (conector HITL).
     #[command(name = "ui-list")]
     UiList,
+    /// Card HITL thin (ADR-0058): title + kv opcional `k=v,k2=v2`.
+    #[command(name = "ui-card")]
+    UiCard {
+        #[arg(default_value = "HITL")]
+        title: String,
+        #[arg(long, default_value = "")]
+        kv: String,
+    },
     #[command(name = "ui-open")]
     UiOpen {
         #[arg(default_value = "hitl_wifi")]
@@ -218,6 +226,19 @@ async fn main() -> anyhow::Result<()> {
             0,
         ),
         Cmd::UiList => ("ui.list", serde_json::json!({}), 0),
+        Cmd::UiCard { title, kv } => {
+            let mut pairs = Vec::new();
+            for part in kv.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+                if let Some((k, v)) = part.split_once('=') {
+                    pairs.push(serde_json::json!({ "key": k.trim(), "value": v.trim() }));
+                }
+            }
+            (
+                "ui.card",
+                serde_json::json!({ "title": title, "kv": pairs }),
+                0,
+            )
+        }
         Cmd::UiOpen { kind, title, body } => {
             let mut p = serde_json::json!({ "kind": kind, "source": "hermes" });
             if let Some(t) = title {

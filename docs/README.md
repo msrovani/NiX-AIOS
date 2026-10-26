@@ -17,6 +17,9 @@ Versão corrente: **0.5.2** — [`RELEASE_0.5.2.md`](RELEASE_0.5.2.md) (base [`R
 | [OPERATIONS.md](OPERATIONS.md) | ISO, metal, journal, firstboot |
 | [GLOSSARY.md](GLOSSARY.md) | Termos (Hermes, JARBAS, Frugal, …) |
 | [ROADMAP.md](ROADMAP.md) | Residuals pós-0.5.0 e honesty |
+| [BOOT_TO_JARBAS.md](BOOT_TO_JARBAS.md) | Playbook M0–M5 boot→JARBAS Jarvis-like + rings + AI_GATE |
+| [METAL_CAMPAIGN.md](METAL_CAMPAIGN.md) | Campanha M4 stick NIXAIOS051 (Ring3_Linux/metal) |
+| [FLEET_LAB.md](FLEET_LAB.md) | Campanha M5 mesh 2-nó (0081 A/B) |
 
 ## Honesty e remigração
 

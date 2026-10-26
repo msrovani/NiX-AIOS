@@ -53,8 +53,8 @@ impl Request {
     pub fn required_cap(&self) -> CapBits {
         match self.method.as_str() {
             "health" | "score" | "fleet.health" | "model.list" | "model.suggest" | "model.plan"
-            | "route.explain" | "cognitive.tick" | "artifact.validate" | "ui.list" | "wifi.scan"
-            | "voice.status" | "transmute.status"
+            | "route.explain" | "cognitive.tick" | "artifact.validate" | "ui.list" | "ui.card"
+            | "wifi.scan" | "voice.status" | "transmute.status"
             | "orb.get" | "orb.set" | "orb.sense" => CapBits::NONE,
             "infer.submit" | "chat" | "chat.submit" | "chat.poll" | "model.unload"
             | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,

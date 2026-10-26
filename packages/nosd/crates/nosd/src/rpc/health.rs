@@ -112,6 +112,28 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                 .unwrap_or("");
             let d = state.hermes.explain_route(prompt);
             let sc = nos_cortex::score_intent(prompt);
+            // ADR-0106 thin + AgentJev LOO honesty (S1.2: blob runtime, nunca ISO).
+            let s1_want = nos_core::s1_backend_from_env();
+            let s1_eff = nos_core::s1_backend_effective();
+            let blob = nos_core::s1_blob_present()
+                || state.hermes.hub.path_of(nos_core::ModelSlot::Agent).is_some();
+            let decision = if matches!(
+                s1_want,
+                nos_core::S1Backend::AgentJev | nos_core::S1Backend::DestilledLaya
+            ) && !blob
+            {
+                nos_core::Decision::<String>::abstain(
+                    nos_core::AbstainReason::ScorerAbsent,
+                    "s1_loo_blob_deliberate",
+                )
+            } else {
+                nos_core::Decision::decide(
+                    d.slot.name().to_string(),
+                    160,
+                    16,
+                    d.reason,
+                )
+            };
             Response {
                 id: req.id,
                 ok: true,
@@ -128,6 +150,47 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                         "rust": sc.rust,
                         "complex": sc.complex,
                         "greet": sc.greet,
+                    },
+                    "trinity": {
+                        "kind": "score_v0",
+                        "honesty": "≠ ROUTER.BITNET / Trinity neural bare; hub 8 slots + route_intent",
+                        "idea": "#535",
+                        "adr": "0078",
+                    },
+                    "s1": {
+                        "backend_wanted": format!("{s1_want:?}"),
+                        "backend_effective": format!("{s1_eff:?}"),
+                        "backend_label": nos_core::s1_backend_label(),
+                        "blob_present": blob,
+                        "loo": if !blob { "blob_deliberate" } else { "ready" },
+                    },
+                    "decision": decision,
+                    "hitl_cards": {
+                        "adr": "0058",
+                        "kinds": [
+                            "hitl_wifi", "hitl_confirm", "hitl_text",
+                            "info", "custom", "status"
+                        ],
+                        "prompt_prefix": "card:",
+                        "rpc": ["ui.open", "ui.list", "ui.card", "ui.action"],
+                        "open_windows": state.hermes.ui_list().len(),
+                        "honesty": "thin CardSpec→WindowBroker; Slint rich widgets residual",
+                    },
+                    "m3_close": {
+                        "engine": state.hermes.hotswap.engine_name(),
+                        "cpu_echo_documented": state
+                            .hermes
+                            .hotswap
+                            .engine_name()
+                            .contains("cpu-echo")
+                            || state
+                                .hermes
+                                .hotswap
+                                .engine_name()
+                                .contains("echo"),
+                        "hub_loaded": state.hermes.hub.loaded_count(),
+                        "s1_loo": if !blob { "blob_deliberate" } else { "ready" },
+                        "jarvis_like": "M3b cage + (GGUF|cpu-echo) + voice Ready|Absent + M3c remember",
                     },
                 }),
             }
