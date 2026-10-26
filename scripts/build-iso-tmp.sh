@@ -3,7 +3,16 @@
 set -euo pipefail
 source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 
-SRC="${SRC:-~/src/nix-aios}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SRC="${SRC:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# Fallback Linux clone / Windows mount
+if [[ ! -f "$SRC/flake.nix" ]]; then
+  if [[ -f "$HOME/src/nix-aios/flake.nix" ]]; then
+    SRC="$HOME/src/nix-aios"
+  elif [[ -f /mnt/c/DEV/nix-aios/flake.nix ]]; then
+    SRC="/mnt/c/DEV/nix-aios"
+  fi
+fi
 WORK="${WORK:-/tmp/nixaios-flake}"
 LOG="${LOG:-/tmp/nixaios-iso-build.log}"
 

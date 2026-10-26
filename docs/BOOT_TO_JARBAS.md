@@ -1,6 +1,6 @@
 # Boot → JARBAS Jarvis-like — playbook NixAIOS
 
-**Produto:** IDEA **#707** / ADR-0118 · workspace **0.5.2+** · volid ISO **`NIXAIOS051`**.  
+**Produto:** IDEA **#707** / ADR-0118 · workspace **0.5.4+** · volid ISO **`NIXAIOS051`**.  
 **Aceite primário Jarvis-like:** **M3** (host/WSL + ISO live). **M4 metal** e **M5 frota** = continuidade honesty (nunca Ring0).  
 **Doctrine:** JARBAS → Hermes → Cortex · CapGate server-authored · S1.2 sem seed GGUF/AgentJev na ISO · `autoSwitch=false` · Frugal wasmi path A · taxonomia ADR-0113.
 
@@ -129,7 +129,7 @@ Anti-alucinação: UI completed ≠ aceite; `cargo test` ≠ metal; `cpu-echo` �
 | | |
 |--|--|
 | GOAL | Slint tty7; chat Hermes; orb `:7701` |
-| SEEK | `jarbas-cage` active; `hotswap.log`; `firstboot.done` |
+| SEEK | `jarbas-cage` active; `hotswap.log`; `firstboot.done`; `nosd` health (socket) |
 | OK | cage up; chat round-trip; sem X11 |
 | LOST | `.failed`; DRM vazio |
 | refs | #310/#315, #0090, ADR-0036/0058 |

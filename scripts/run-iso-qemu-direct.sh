@@ -5,7 +5,7 @@ set -euo pipefail
 [[ -f /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]] && \
   . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 
-ISO="${ISO:-/mnt/c/Users/msrov/Downloads/nixaios-minimal-onda3-26.11.iso}"
+ISO="${ISO:-/mnt/c/Users/msrov/Downloads/nixaios-minimal-s529-remig.iso}"
 WORK="${WORK:-/tmp/nixaios-iso-boot}"
 MEM="${MEM:-3G}"
 SMP="${SMP:-2}"

@@ -8,7 +8,8 @@ mod rpc;
 mod slint_app;
 
 use clap::Parser;
-use rpc::{Endpoint, next_req};
+use rpc::{next_req, Endpoint};
+use std::path::PathBuf;
 use tracing::{info, warn};
 
 #[derive(Parser, Debug)]
@@ -17,6 +18,12 @@ struct Args {
     socket: String,
     #[arg(long)]
     tcp: Option<String>,
+    /// Token IPC para TCP (env NOSD_IPC_TOKEN).
+    #[arg(long, env = "NOSD_IPC_TOKEN", hide_env_values = true)]
+    token: Option<String>,
+    /// Ficheiro do token IPC (default: /run/nosd/ipc.token, /var/lib/nosd/ipc.token ou ./data/ipc.token).
+    #[arg(long, env = "NOSD_IPC_TOKEN_FILE")]
+    token_file: Option<PathBuf>,
     /// One-shot chat then exit (lab).
     #[arg(long)]
     once: bool,
@@ -33,12 +40,21 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
     let args = Args::parse();
-    let endpoint = Endpoint::from_parts(&args.socket, args.tcp.as_deref());
+    let token = if args.tcp.is_some() {
+        rpc::load_token(args.token.clone(), args.token_file.clone())
+    } else {
+        None
+    };
+    if args.tcp.is_some() && token.is_none() {
+        anyhow::bail!(
+            "--tcp requires --token/--token-file (or NOSD_IPC_TOKEN/NOSD_IPC_TOKEN_FILE)"
+        );
+    }
+    let endpoint = Endpoint::from_parts(&args.socket, args.tcp.as_deref(), token);
 
     if args.once {
         let mut id = 1u64;

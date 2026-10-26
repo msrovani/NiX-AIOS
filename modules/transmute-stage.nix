@@ -11,6 +11,7 @@ let
     isExecutable = true;
     curl = pkgs.curl;
     kbd = pkgs.kbd;
+    nosd = pkgs.nosd;
   };
 
   revertGuiScript = pkgs.writeShellScript "nosd-revert-gui" ''
@@ -68,6 +69,8 @@ let
   transmuteCli = pkgs.writeShellScriptBin "nos-transmute" ''
     set -euo pipefail
     CMD="''${1:-run}"
+    SUDO=/run/wrappers/bin/sudo
+    [ -x "$SUDO" ] || SUDO=sudo
     case "$CMD" in
       gui|firstboot)
         exec ${firstbootScript}/bin/nos-firstboot
@@ -77,10 +80,11 @@ let
         ;;
       run|auto)
         shift || true
-        exec ${pkgs.nosd}/bin/nosctl --socket /run/nosd/nosd.sock transmute "$@"
+        # S-01: transmute exige NIX_WRITE; user nixos não é admin do daemon.
+        exec $SUDO ${pkgs.nosd}/bin/nosctl --socket /run/nosd/nosd.sock transmute "$@"
         ;;
       hotswap)
-        exec ${pkgs.nosd}/bin/nosctl --socket /run/nosd/nosd.sock transmute --no-download
+        exec $SUDO ${pkgs.nosd}/bin/nosctl --socket /run/nosd/nosd.sock transmute --no-download
         ;;
       revert-gui)
         exec sudo ${revertGuiScript}

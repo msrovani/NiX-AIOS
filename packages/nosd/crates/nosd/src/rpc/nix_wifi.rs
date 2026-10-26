@@ -5,6 +5,23 @@ use nos_ipc::{Request, Response};
 use serde_json::json;
 
 pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option<Response> {
+    // S-06: nenhum caminho root (apply/confirm/build-vm/rollback) sem opt-in.
+    if matches!(
+        req.method.as_str(),
+        "nix.apply" | "nix.confirm" | "nix.build_vm" | "nix.rollback"
+    ) && !state.nix_ring_armed
+    {
+        return Some(Response {
+            id: req.id,
+            ok: false,
+            error: Some(
+                "NIX_RING_DISABLED (S-06): set NOSD_NIX_RING=1 only after HITL nonce + VM test"
+                    .into(),
+            ),
+            result: json!({ "ring": "disarmed", "need": "NOSD_NIX_RING=1" }),
+        });
+    }
+
     Some(match req.method.as_str() {
         "nix.propose" => {
             let text = req
@@ -102,14 +119,18 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             },
         },
         "systemctl.scoped" => {
-            let unit = req.params.get("unit").and_then(|v| v.as_str()).unwrap_or("");
+            let unit = req
+                .params
+                .get("unit")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let verb = req
                 .params
                 .get("verb")
                 .and_then(|v| v.as_str())
                 .unwrap_or("status");
             let hitl = req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) == Some(true);
-            match actuators::systemctl_scoped(&gate, state.cap_gen, unit, verb, hitl) {
+            match actuators::systemctl_scoped(gate, state.ipc_generation(), unit, verb, hitl) {
                 Ok(intent) => {
                     let ran = if intent.would_run {
                         actuators::systemctl_run_stub(&intent).is_ok()
@@ -152,7 +173,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .and_then(|v| v.as_u64())
                 .unwrap_or(50) as u32;
             let hitl = req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) == Some(true);
-            match actuators::pipewire_volume_plan(&gate, state.cap_gen, pct, hitl) {
+            match actuators::pipewire_volume_plan(gate, state.ipc_generation(), pct, hitl) {
                 Ok(plan) => {
                     let applied = if plan.would_run {
                         actuators::pipewire_volume_apply(&plan).is_ok()
@@ -185,11 +206,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("enable_cuda")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
-            let drm = req
-                .params
-                .get("drm")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let drm = req.params.get("drm").and_then(|v| v.as_str()).unwrap_or("");
             match actuators::gpu_flake_plan(cuda, drm) {
                 Ok(p) => Response {
                     id: req.id,
@@ -265,7 +282,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .unwrap_or(false);
             let gate = CapGate::new(
                 CapBits::NIX_WRITE.union(CapBits::HITL),
-                state.cap_gen,
+                state.ipc_generation(),
             );
             let d = nos_hermes::evaluate_self_heal(&gate, &recipe, hitl);
             opar_after_ok(
@@ -312,7 +329,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 error: Some(e.to_string()),
                 result: json!(null),
             },
-        }
+        },
         "wifi.scan" => match wifi_nm::scan(24) {
             Ok(aps) => Response {
                 id: req.id,
@@ -326,7 +343,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 error: Some(e.to_string()),
                 result: json!({ "aps": [] }),
             },
-        }
+        },
         "wifi.connect" => {
             let ssid = req
                 .params

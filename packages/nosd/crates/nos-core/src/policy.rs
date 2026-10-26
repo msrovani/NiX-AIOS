@@ -171,7 +171,9 @@ mod tests {
         let m = policy_matrix_prod();
         assert!(m.len() >= 20);
         assert_eq!(
-            m.iter().find(|(d, _)| *d == ActDomain::NixSwitch).map(|(_, x)| *x),
+            m.iter()
+                .find(|(d, _)| *d == ActDomain::NixSwitch)
+                .map(|(_, x)| *x),
             Some(ActDisposition::Confirm)
         );
         assert_eq!(

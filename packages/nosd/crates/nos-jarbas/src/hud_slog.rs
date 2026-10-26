@@ -1,6 +1,6 @@
 //! Fallback HUD — slog no journal (sem pixels). Sempre disponível.
 
-use crate::rpc::{Endpoint, next_req};
+use crate::rpc::{next_req, Endpoint};
 use std::time::Duration;
 use tracing::{info, warn};
 
@@ -10,12 +10,7 @@ pub async fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
     let mut fail_streak = 0u32;
     loop {
         match endpoint
-            .rpc(next_req(
-                &mut id,
-                "health",
-                0,
-                serde_json::json!({}),
-            ))
+            .rpc(next_req(&mut id, "health", 0, serde_json::json!({})))
             .await
         {
             Ok(r) if r.ok => {

@@ -3,7 +3,7 @@
 # Honesty: QEMU PASS ≠ metal PASS (ADR-0113).
 set -euo pipefail
 
-ISO="${ISO:-/mnt/c/Users/msrov/Downloads/nixaios-minimal-s507-hotswap-26.11.iso}"
+ISO="${ISO:-/mnt/c/Users/msrov/Downloads/nixaios-minimal-s529-remig.iso}"
 MEM="${MEM:-4G}"
 SMP="${SMP:-2}"
 # serial console (headless) by default; set DISPLAY_MODE=gtk for WSLg window

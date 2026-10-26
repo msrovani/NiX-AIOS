@@ -21,15 +21,17 @@ pub struct CapacityProber;
 
 impl CapacityProber {
     pub fn probe() -> NodeCapacity {
-        let mut c = NodeCapacity::default();
-        c.ram_total_mb = read_meminfo_kb("MemTotal").unwrap_or(0) / 1024;
-        c.ram_avail_mb = read_meminfo_kb("MemAvailable")
-            .or_else(|| read_meminfo_kb("MemFree"))
-            .unwrap_or(0)
-            / 1024;
-        c.dri_cards = list_dri("card");
-        c.dri_render = list_dri("renderD");
-        c.vendor_hint = detect_vendor_hint();
+        let mut c = NodeCapacity {
+            ram_total_mb: read_meminfo_kb("MemTotal").unwrap_or(0) / 1024,
+            ram_avail_mb: read_meminfo_kb("MemAvailable")
+                .or_else(|| read_meminfo_kb("MemFree"))
+                .unwrap_or(0)
+                / 1024,
+            dri_cards: list_dri("card"),
+            dri_render: list_dri("renderD"),
+            vendor_hint: detect_vendor_hint(),
+            ..Default::default()
+        };
         if Path::new("/proc/driver/nvidia/gpus").exists() {
             c.vendor_hint = "nvidia".into();
         }
@@ -62,10 +64,7 @@ impl CapacityProber {
 /// `nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits`
 fn probe_nvidia_smi_free_mb() -> Option<u64> {
     let out = Command::new("nvidia-smi")
-        .args([
-            "--query-gpu=memory.free",
-            "--format=csv,noheader,nounits",
-        ])
+        .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"])
         .output()
         .ok()?;
     if !out.status.success() {

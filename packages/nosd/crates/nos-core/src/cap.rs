@@ -1,9 +1,12 @@
 //! CapGate bitmask — server-authored (ADR-0118 / remigração I.1).
-//! Cliente NÃO escolhe caps: o daemon resolve por `agent` (+ geração).
+//!
+//! A identidade NÃO vem do payload. O transporte resolve o perfil:
+//! - Unix: `SO_PEERCRED` (uid/gid) no `nosd`
+//! - TCP/HTTP: token de processo, rotacionável
+//!
+//! `req.caps` e `req.agent` são legado e nunca elevam permissão.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::RwLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapBits(pub u32);
@@ -16,7 +19,7 @@ impl CapBits {
     pub const AGENT_SPAWN: Self = Self(1 << 3);
     pub const MEMORY: Self = Self(1 << 4);
     pub const NIX_WRITE: Self = Self(1 << 5);
-    /// HITL / janelas JARBAS (abrir Escalate, submeter acção).
+    /// HITL / janelas JARBAS (abrir Escalate, submeter ação).
     pub const HITL: Self = Self(1 << 6);
     /// Observe-only (journal/udev/hwmon) — sem side-effects.
     pub const OBSERVE: Self = Self(1 << 7);
@@ -33,10 +36,6 @@ impl CapBits {
 
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
-    }
-
-    pub fn is_client_all(bits: u32) -> bool {
-        bits == 0xFFFF_FFFF || bits == u32::MAX
     }
 }
 
@@ -62,12 +61,14 @@ impl CapGate {
     }
 }
 
-/// Perfis server-authored. `req.caps` do cliente é ignorado (I.1).
+/// Perfis server-authored. A resolução é feita pelo transporte, não pelo cliente.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PeerProfile {
-    /// CLI local / operador (nosctl).
+    /// Root ou membro do grupo admin (CLI/operador).
     LocalAdmin,
-    /// HUD JARBAS / cage.
+    /// Utilizador local comum (chat/leitura; sem HITL/NIX_WRITE/spawn).
+    LocalUser,
+    /// HUD JARBAS / cage (uid do daemon).
     Jarbas,
     /// Loop Continuous Hermes interno (não IPC).
     HermesInternal,
@@ -80,29 +81,27 @@ pub enum PeerProfile {
 }
 
 impl PeerProfile {
-    pub fn from_agent(agent: &str) -> Self {
-        match agent.trim().to_ascii_lowercase().as_str() {
-            "" | "nosctl" | "local" | "admin" | "local.admin" => Self::LocalAdmin,
-            "jarbas" | "nos-jarbas" | "cage" => Self::Jarbas,
-            "hermes" | "hermes.internal" => Self::HermesInternal,
-            "wasm" | "wasm.skill" | "skill" => Self::WasmSkill,
-            "observe" | "nos-observe" => Self::Observe,
-            _ => Self::Unknown,
+    /// Mapeia credenciais Unix (`SO_PEERCRED`) para perfil.
+    ///
+    /// `uid == 0` → admin; `uid == daemon_uid` → kiosk JARBAS; `gid == admin_gid`
+    /// (quando `admin_gid != 0`) → admin. O resto é utilizador local.
+    pub fn from_unix_cred(uid: u32, gid: u32, daemon_uid: u32, admin_gid: u32) -> Self {
+        if uid == 0 {
+            return Self::LocalAdmin;
         }
+        if uid == daemon_uid {
+            return Self::Jarbas;
+        }
+        if admin_gid != 0 && gid == admin_gid {
+            return Self::LocalAdmin;
+        }
+        Self::LocalUser
     }
 
     pub fn caps(self) -> CapBits {
         match self {
-            Self::LocalAdmin => CapBits(
-                CapBits::INFER.0
-                    | CapBits::NET.0
-                    | CapBits::FS.0
-                    | CapBits::AGENT_SPAWN.0
-                    | CapBits::MEMORY.0
-                    | CapBits::NIX_WRITE.0
-                    | CapBits::HITL.0
-                    | CapBits::OBSERVE.0,
-            ),
+            Self::LocalAdmin => CapBits(CapBits::LEGIT_MASK),
+            Self::LocalUser => CapBits(CapBits::INFER.0 | CapBits::MEMORY.0 | CapBits::OBSERVE.0),
             Self::Jarbas => CapBits(
                 CapBits::INFER.0
                     | CapBits::MEMORY.0
@@ -119,53 +118,17 @@ impl PeerProfile {
     }
 }
 
-/// Registo de overrides por agent string (tests / runtime grant).
+/// Registo de perfis server-authored. Não há overrides por `agent` string.
 #[derive(Debug, Default)]
-pub struct CapRegistry {
-    overrides: RwLock<HashMap<String, CapBits>>,
-}
+pub struct CapRegistry;
 
 impl CapRegistry {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 
-    pub fn grant(&self, agent: &str, caps: CapBits) {
-        if let Ok(mut g) = self.overrides.write() {
-            g.insert(agent.to_ascii_lowercase(), caps);
-        }
-    }
-
-    pub fn revoke_override(&self, agent: &str) {
-        if let Ok(mut g) = self.overrides.write() {
-            g.remove(&agent.to_ascii_lowercase());
-        }
-    }
-
-    /// Resolve caps server-authored. `client_claimed` is never trusted (I.1).
-    pub fn resolve(&self, agent: &str, client_claimed: u32) -> Result<CapBits, &'static str> {
-        // ALL / raw client bits never elevate — profile or override only.
-        let _client_ignored = client_claimed;
-        if let Ok(g) = self.overrides.read() {
-            if let Some(c) = g.get(&agent.to_ascii_lowercase()) {
-                return Ok(*c);
-            }
-        }
-        let profile = PeerProfile::from_agent(agent);
-        if profile == PeerProfile::Unknown && !agent.is_empty() {
-            return Err("unknown agent — capability denied");
-        }
-        Ok(profile.caps())
-    }
-
-    pub fn gate_for(
-        &self,
-        agent: &str,
-        client_claimed: u32,
-        generation: u64,
-    ) -> Result<CapGate, &'static str> {
-        let held = self.resolve(agent, client_claimed)?;
-        Ok(CapGate::new(held, generation))
+    pub fn gate_for(&self, profile: PeerProfile, generation: u64) -> CapGate {
+        CapGate::new(profile.caps(), generation)
     }
 }
 
@@ -195,32 +158,59 @@ mod tests {
     }
 
     #[test]
-    fn client_all_ignored_server_authored() {
-        let reg = CapRegistry::new();
-        let caps = reg.resolve("jarbas", 0xFFFF_FFFF).unwrap();
-        assert!(!CapBits::is_client_all(caps.0));
-        assert!(caps.contains(CapBits::HITL));
-        assert!(!caps.contains(CapBits::NIX_WRITE));
+    fn profiles_are_server_authored() {
+        let jarbas = PeerProfile::Jarbas.caps();
+        assert!(jarbas.contains(CapBits::HITL));
+        assert!(jarbas.contains(CapBits::INFER));
+        assert!(!jarbas.contains(CapBits::NIX_WRITE));
+        assert!(!jarbas.contains(CapBits::AGENT_SPAWN));
+
+        let user = PeerProfile::LocalUser.caps();
+        assert!(user.contains(CapBits::INFER));
+        assert!(user.contains(CapBits::MEMORY));
+        assert!(!user.contains(CapBits::HITL));
+        assert!(!user.contains(CapBits::NIX_WRITE));
+        assert!(!user.contains(CapBits::AGENT_SPAWN));
+
+        let admin = PeerProfile::LocalAdmin.caps();
+        assert!(admin.contains(CapBits::NIX_WRITE));
+        assert!(admin.contains(CapBits::HITL));
+        assert!(admin.contains(CapBits::AGENT_SPAWN));
     }
 
     #[test]
-    fn unknown_agent_denied() {
-        let reg = CapRegistry::new();
-        assert!(reg.resolve("evil.bot", 0).is_err());
+    fn unix_cred_mapping() {
+        assert_eq!(
+            PeerProfile::from_unix_cred(0, 0, 1000, 1000),
+            PeerProfile::LocalAdmin
+        );
+        assert_eq!(
+            PeerProfile::from_unix_cred(1000, 1000, 1000, 1000),
+            PeerProfile::Jarbas
+        );
+        assert_eq!(
+            PeerProfile::from_unix_cred(1001, 1000, 1000, 1000),
+            PeerProfile::LocalAdmin
+        );
+        assert_eq!(
+            PeerProfile::from_unix_cred(1001, 1001, 1000, 1000),
+            PeerProfile::LocalUser
+        );
     }
 
     #[test]
-    fn nosctl_gets_nix_write() {
-        let reg = CapRegistry::new();
-        let caps = reg.resolve("nosctl", 0).unwrap();
-        assert!(caps.contains(CapBits::NIX_WRITE));
+    fn unknown_has_zero_caps() {
+        assert_eq!(PeerProfile::Unknown.caps(), CapBits::NONE);
     }
 
     #[test]
-    fn grant_override() {
+    fn registry_gate_uses_profile_not_agent() {
         let reg = CapRegistry::new();
-        reg.grant("wasm.skill", CapBits::INFER.union(CapBits::MEMORY));
-        let caps = reg.resolve("wasm.skill", 0).unwrap();
-        assert!(caps.contains(CapBits::INFER));
+        let jarbas = reg.gate_for(PeerProfile::Jarbas, 1);
+        assert!(jarbas.allow(CapBits::INFER, 1).is_ok());
+        assert!(jarbas.allow(CapBits::NIX_WRITE, 1).is_err());
+
+        let admin = reg.gate_for(PeerProfile::LocalAdmin, 1);
+        assert!(admin.allow(CapBits::NIX_WRITE, 1).is_ok());
     }
 }

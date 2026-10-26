@@ -145,7 +145,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             };
 
             let route = state.hermes.explain_route(&transcript);
-            let reply = match state.hermes.chat(&gate, &transcript) {
+            let reply = match state.hermes.chat(gate, &transcript) {
                 Ok(r) => r,
                 Err(e) => {
                     return Some(Response {
@@ -189,7 +189,8 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "transmute.status" => {
-            let st = transmute::query_status(&state.data_dir, &state.hermes.hub, &state.hermes.hotswap);
+            let st =
+                transmute::query_status(&state.data_dir, &state.hermes.hub, &state.hermes.hotswap);
             Response {
                 id: req.id,
                 ok: true,

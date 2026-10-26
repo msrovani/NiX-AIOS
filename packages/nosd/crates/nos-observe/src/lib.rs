@@ -13,18 +13,13 @@ use std::path::Path;
 use std::process::Command;
 
 /// Presença do utilizador / postura do sistema (padrão assistd).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Presence {
+    #[default]
     Active,
     Drowsy,
     Sleep,
-}
-
-impl Default for Presence {
-    fn default() -> Self {
-        Self::Active
-    }
 }
 
 impl Presence {
@@ -208,12 +203,7 @@ fn read_hwmon_linux() -> Vec<HwmonReading> {
             let label_path = path.join(fname.replace("_input", "_label"));
             let sensor = std::fs::read_to_string(&label_path)
                 .map(|s| s.trim().to_string())
-                .unwrap_or_else(|_| {
-                    fname
-                        .strip_suffix("_input")
-                        .unwrap_or(&fname)
-                        .to_string()
-                });
+                .unwrap_or_else(|_| fname.strip_suffix("_input").unwrap_or(&fname).to_string());
             out.push(HwmonReading {
                 name: format!("{chip_name}/{sensor}"),
                 temp_mc,

@@ -84,7 +84,11 @@ impl PackageStore {
     }
 
     /// Install imported artifact bytes; exige `sandbox_status=Passed` + FNV hex16 do body.
-    pub fn install_imported(&mut self, meta: ImportMeta, body: &[u8]) -> Result<&StoredPackage, StoreError> {
+    pub fn install_imported(
+        &mut self,
+        meta: ImportMeta,
+        body: &[u8],
+    ) -> Result<&StoredPackage, StoreError> {
         if meta.name.trim().is_empty() {
             return Err(StoreError::EmptyName);
         }
@@ -100,7 +104,12 @@ impl PackageStore {
         if expected != actual {
             return Err(StoreError::HashMismatch);
         }
-        if meta.signature.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false) {
+        if meta
+            .signature
+            .as_ref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+        {
             let pk = meta
                 .public_key
                 .as_ref()
@@ -194,9 +203,12 @@ impl FederatedIndex {
         self.entries
             .iter()
             .filter(|e| {
-                e.name.to_lowercase().split(|c: char| !c.is_alphanumeric()).any(|t| {
-                    t.len() >= 3 && g.contains(t)
-                }) || g.split_whitespace().any(|t| e.name.to_lowercase().contains(t))
+                e.name
+                    .to_lowercase()
+                    .split(|c: char| !c.is_alphanumeric())
+                    .any(|t| t.len() >= 3 && g.contains(t))
+                    || g.split_whitespace()
+                        .any(|t| e.name.to_lowercase().contains(t))
             })
             .max_by(|a, b| {
                 a.score

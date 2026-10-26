@@ -4,8 +4,8 @@
 
 use nos_core::ModelSlot;
 use nos_cortex::{
-    CapacityProber, HotSwapController, ModelHub, NodeCapacity, QuantSuggest,
-    fetch_to_dir, scan_path, slot_from_path, suggest_for_capacity,
+    fetch_to_dir, scan_path, slot_from_path, suggest_for_capacity, CapacityProber,
+    HotSwapController, ModelHub, NodeCapacity, QuantSuggest,
 };
 use nos_voice::{LocaleVoiceSpec, VoicePipeline, VoiceStatus};
 use serde::{Deserialize, Serialize};
@@ -185,7 +185,10 @@ fn detect_active_wifi() -> Option<String> {
         return None;
     }
     for line in String::from_utf8_lossy(&out.stdout).lines() {
-        if let Some(ssid) = line.strip_prefix("yes:").or_else(|| line.strip_prefix("sim:")) {
+        if let Some(ssid) = line
+            .strip_prefix("yes:")
+            .or_else(|| line.strip_prefix("sim:"))
+        {
             let s = ssid.trim();
             if !s.is_empty() {
                 return Some(s.to_string());
@@ -217,7 +220,11 @@ fn read_mode(data_dir: &Path) -> String {
     "graphical_bootstrap".into()
 }
 
-pub fn query_status(data_dir: &Path, hub: &ModelHub, hotswap: &HotSwapController) -> TransmuteStatus {
+pub fn query_status(
+    data_dir: &Path,
+    hub: &ModelHub,
+    hotswap: &HotSwapController,
+) -> TransmuteStatus {
     let (models_dir, persist_mounted, persist_dir) = resolve_models_dir(data_dir);
     let cap = CapacityProber::probe();
     let quant_suggest = suggest_for_capacity(&cap);
@@ -259,7 +266,10 @@ pub fn execute_transmute(
     };
     std::env::set_var("NOSD_LOCALE", &loc.raw_locale);
     let _ = fs::create_dir_all(data_dir);
-    let _ = fs::write(data_dir.join("locale.conf"), format!("LANG={}\n", loc.raw_locale));
+    let _ = fs::write(
+        data_dir.join("locale.conf"),
+        format!("LANG={}\n", loc.raw_locale),
+    );
     if persist_mounted {
         let _ = fs::write(
             Path::new(&persist_root).join("locale.conf"),
@@ -287,10 +297,7 @@ pub fn execute_transmute(
             &blob_need,
             &cap,
             opts.hitl_confirmed,
-            matches!(
-                nos_core::s1_backend_from_env(),
-                nos_core::S1Backend::Absent
-            ),
+            nos_core::s1_scorer_absent(),
         );
         if !plan.allow_fetch {
             errors.push(format!(
@@ -337,7 +344,12 @@ pub fn execute_transmute(
             let tar_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz";
             if let Ok(tar_path) = fetch_to_dir(tar_url, &models_dir, "piper_linux_x86_64.tar.gz") {
                 let _ = Command::new("tar")
-                    .args(["-xzf", &tar_path.display().to_string(), "-C", &models_dir.display().to_string()])
+                    .args([
+                        "-xzf",
+                        &tar_path.display().to_string(),
+                        "-C",
+                        &models_dir.display().to_string(),
+                    ])
                     .status();
                 let bin = models_dir.join("piper").join("piper");
                 if bin.is_file() {

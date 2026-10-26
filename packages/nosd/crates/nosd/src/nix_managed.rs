@@ -68,7 +68,9 @@ pub fn validate_nix_text(text: &str) -> Result<(), NixProposeError> {
         return Err(NixProposeError::Reject("staging must not embed switch"));
     }
     if !(t.contains('{') && t.contains('}')) {
-        return Err(NixProposeError::Reject("expected nix attrset/module braces"));
+        return Err(NixProposeError::Reject(
+            "expected nix attrset/module braces",
+        ));
     }
     validate_ai_managed_schema(t)?;
     Ok(())
@@ -92,15 +94,18 @@ fn hitl_required_env() -> bool {
 }
 
 fn run_syntax_check(path: &Path) -> (bool, String) {
-    if let Ok(out) = Command::new("nix-instantiate")
+    match Command::new("nix-instantiate")
         .args(["--parse"])
         .arg(path)
         .output()
     {
-        return (out.status.success(), "nix-instantiate --parse".into());
+        Ok(out) => (out.status.success(), "nix-instantiate --parse".into()),
+        Err(e) => {
+            // R-02: ausência da ferramenta é falha, não "structural OK".
+            warn!(target: "nosd", "nix-instantiate absent ({e}) - syntax check fail-closed");
+            (false, "nix-instantiate absent".into())
+        }
     }
-    warn!(target: "nosd", "nix syntax tool absent — structural validation only");
-    (true, "structural".into())
 }
 
 fn auto_switch_env() -> bool {
@@ -131,7 +136,10 @@ fn log_line(msg: &str) {
 }
 
 /// Escreve staging e valida. Se `NOSD_NIX_AUTO_SWITCH=1`, arma apply root.
-pub fn propose_staging(data_dir: &Path, nix_text: &str) -> Result<NixProposeResult, NixProposeError> {
+pub fn propose_staging(
+    data_dir: &Path,
+    nix_text: &str,
+) -> Result<NixProposeResult, NixProposeError> {
     validate_nix_text(nix_text)?;
     fs::create_dir_all(data_dir)?;
     let staging = data_dir.join("staging-ai-managed.nix");
@@ -191,7 +199,9 @@ pub fn propose_staging(data_dir: &Path, nix_text: &str) -> Result<NixProposeResu
 pub fn request_build_vm(data_dir: &Path) -> Result<NixApplyResult, NixProposeError> {
     let staging = data_dir.join("staging-ai-managed.nix");
     if !staging.is_file() {
-        return Err(NixProposeError::Apply("missing staging-ai-managed.nix".into()));
+        return Err(NixProposeError::Apply(
+            "missing staging-ai-managed.nix".into(),
+        ));
     }
     let (syntax_ok, _) = run_syntax_check(&staging);
     if !syntax_ok {
@@ -228,7 +238,9 @@ pub fn request_build_vm(data_dir: &Path) -> Result<NixApplyResult, NixProposeErr
 pub fn request_apply(data_dir: &Path) -> Result<NixApplyResult, NixProposeError> {
     let staging = data_dir.join("staging-ai-managed.nix");
     if !staging.is_file() {
-        return Err(NixProposeError::Apply("missing staging-ai-managed.nix".into()));
+        return Err(NixProposeError::Apply(
+            "missing staging-ai-managed.nix".into(),
+        ));
     }
     let (syntax_ok, _) = run_syntax_check(&staging);
     if !syntax_ok {
@@ -260,8 +272,7 @@ pub fn request_apply(data_dir: &Path) -> Result<NixApplyResult, NixProposeError>
         request_path: req_path.display().to_string(),
         target,
         auto_env: auto_switch_env(),
-        note: "root nosd-nix-apply.service will copy staging→ai-managed.nix and switch"
-            .into(),
+        note: "root nosd-nix-apply.service will copy staging→ai-managed.nix and switch".into(),
     })
 }
 
@@ -308,6 +319,14 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    fn nix_tool_present() -> bool {
+        Command::new("nix-instantiate")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
     #[test]
     fn reject_switch_embed() {
         let t = r#"{ ... }: { system.activationScripts.x = "nixos-rebuild switch"; }"#;
@@ -336,8 +355,14 @@ mod tests {
         let dir = tempdir().unwrap();
         assert!(request_apply(dir.path()).is_err());
         fs::write(dir.path().join("staging-ai-managed.nix"), "{ ... }: { }").unwrap();
-        let r = request_apply(dir.path()).unwrap();
-        assert!(r.requested);
+        if nix_tool_present() {
+            let r = request_apply(dir.path()).unwrap();
+            assert!(r.requested);
+        } else {
+            // R-02: sem nix-instantiate, falha fechado.
+            let e = request_apply(dir.path()).unwrap_err();
+            assert!(e.to_string().contains("syntax"), "{e}");
+        }
     }
 
     #[test]
@@ -350,8 +375,13 @@ mod tests {
     fn build_vm_request_writes() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("staging-ai-managed.nix"), "{ ... }: { }").unwrap();
-        let r = request_build_vm(dir.path()).unwrap();
-        assert!(r.requested);
-        assert!(Path::new(&r.request_path).is_file());
+        if nix_tool_present() {
+            let r = request_build_vm(dir.path()).unwrap();
+            assert!(r.requested);
+            assert!(Path::new(&r.request_path).is_file());
+        } else {
+            let e = request_build_vm(dir.path()).unwrap_err();
+            assert!(e.to_string().contains("syntax"), "{e}");
+        }
     }
 }

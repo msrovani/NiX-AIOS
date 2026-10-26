@@ -49,7 +49,8 @@ in
     users.users.nosd = {
       isSystemUser = true;
       group = "nosd";
-      extraGroups = [ "video" "render" ];
+      # R-01/NX.3: journal legível + DRM.
+      extraGroups = [ "video" "render" "systemd-journal" ];
     };
     users.groups.nosd = { };
 
@@ -65,7 +66,7 @@ in
     systemd.services.nosd = {
       description = "Neural-OS Daemon";
       wantedBy = [ "multi-user.target" "graphical.target" ];
-      # Sobe apos local-fs (NAO esperar network-online — senao :7701 recusa antes do Wi-Fi)
+      # Sobe apos local-fs (NAO esperar network-online; orb lab e opt-in cinematic)
       after = [ "local-fs.target" ];
       serviceConfig = {
         Type = "notify";
@@ -73,6 +74,18 @@ in
         User = "nosd";
         Group = "nosd";
         ExecStart = "${cfg.package}/bin/nosd --foreground --socket ${cfg.socket} --data-dir ${cfg.dataDir} --node-id ${toString cfg.nodeId} --hermes-tick-secs ${toString cfg.hermesTickSecs} --mesh-bind ${cfg.meshBind} --mesh-broadcast ${cfg.meshBroadcast}";
+        # R-01: serviços NixOS não herdam o PATH de login; declarar ferramentas.
+        path = with pkgs; [
+          networkmanager
+          nix
+          util-linux
+          gnutar
+          alsa-utils
+          pipewire
+          llama-cpp
+          whisper-cpp
+          espeak-ng
+        ];
         Restart = "always";
         RestartSec = "2s";
         TimeoutStartSec = "60s";
@@ -102,7 +115,7 @@ in
           "NOSD_HERMES_TICK_SECS=${toString cfg.hermesTickSecs}"
           "NOSD_MESH_BIND=${cfg.meshBind}"
           "NOSD_MESH_BROADCAST=${cfg.meshBroadcast}"
-          "NOSD_ORB_LAB=127.0.0.1:7701"
+          # S-05: orb lab OFF por default; jarbas-cage liga só no modo cinematic.
           # I.3: Landlock no Linux (Absent/Failed honesto se kernel sem ABI)
           "NOSD_LANDLOCK=1"
           # AutoLearn/Seek fora do tick default (0.5.2); lab: NOSD_AUTOLEARN=1

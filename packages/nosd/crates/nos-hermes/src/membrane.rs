@@ -2,23 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MembraneGrant {
     pub caps_bits: u32,
     pub fs_allow: Vec<String>,
     pub net_allow: Vec<String>,
     pub mcp_servers: Vec<String>,
-}
-
-impl Default for MembraneGrant {
-    fn default() -> Self {
-        Self {
-            caps_bits: 0,
-            fs_allow: vec![],
-            net_allow: vec![],
-            mcp_servers: vec![],
-        }
-    }
 }
 
 /// Graft caps onto WASM skill — never inherit ambient process caps.
@@ -28,10 +17,7 @@ pub fn graft(base_none: u32, grant: &MembraneGrant) -> u32 {
 }
 
 pub fn mcp_allowed(grant: &MembraneGrant, server: &str) -> bool {
-    grant
-        .mcp_servers
-        .iter()
-        .any(|s| s == server || s == "*")
+    grant.mcp_servers.iter().any(|s| s == server || s == "*")
 }
 
 /// Stub P.6 — peers Cross-OS conhecidos (patterns, não hosts reais).

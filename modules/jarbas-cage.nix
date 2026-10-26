@@ -1,6 +1,6 @@
-# JARBAS Wayland kiosk — ADR-0118
+# JARBAS Wayland kiosk ï¿½ ADR-0118
 # 0.5.x: default Slint HUD (iGPU cage); Chromium = opt-in cinematic.
-# dGPU llama-server ? este unit — ver services.nosdEngine (nosd-engine@.service).
+# dGPU llama-server ? este unit ï¿½ ver services.nosdEngine (nosd-engine@.service).
 # 0.5.x: conflicts display-manager (hotswap DRM).
 { config, lib, pkgs, ... }:
 let
@@ -9,7 +9,7 @@ let
   waitScript = pkgs.writeShellScript "jarbas-wait-deps" ''
     set -euo pipefail
     # Root ExecStartPre (+): runtime dirs + seatd sock stale
-    # 0.5.0: NAO apertar 750 — ISO live precisa 1777 para firstboot+nosd (EACCES pós-Q5).
+    # 0.5.0: NAO apertar 750 ï¿½ ISO live precisa 1777 para firstboot+nosd (EACCES pï¿½s-Q5).
     mkdir -p /run/user/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb
     chown nosd:nosd /run/user/nosd || true
     chown -R nosd:nosd /var/lib/nosd 2>/dev/null || chown nosd:nosd /var/lib/nosd || true
@@ -27,10 +27,13 @@ let
       if [ -S /run/nosd/nosd.sock ]; then break; fi
       sleep 0.5
     done
-    for i in $(seq 1 40); do
-      if ${pkgs.curl}/bin/curl -sf -o /dev/null http://127.0.0.1:7701/ 2>/dev/null; then break; fi
-      sleep 0.5
-    done
+    # S-05: orb lab sÃ³ no modo cinematic; Slint nÃ£o depende dele.
+    if [ "${cfg.uiMode}" = "cinematic" ]; then
+      for i in $(seq 1 40); do
+        if ${pkgs.curl}/bin/curl -sf -o /dev/null http://127.0.0.1:7701/ 2>/dev/null; then break; fi
+        sleep 0.5
+      done
+    fi
   '';
 
   pickDrm = pkgs.writeShellScript "jarbas-pick-drm" ''
@@ -64,8 +67,8 @@ let
   cinematicWrap = pkgs.writeShellScript "jarbas-cinematic-wrap" ''
     set -euo pipefail
     CURL="${pkgs.curl}/bin/curl"
-    # User=nosd: NUNCA /run/*.log (root-only) — tee Permission denied derruba o unit (metal s529).
-    # s529: só /var/lib/nosd (FAT OFF)
+    # User=nosd: NUNCA /run/*.log (root-only) ï¿½ tee Permission denied derruba o unit (metal s529).
+    # s529: sï¿½ /var/lib/nosd (FAT OFF)
     LOG=/var/lib/nosd/jarbas-cage.log
     touch "$LOG" 2>/dev/null || LOG=/run/user/nosd/jarbas-cage.log
     touch "$LOG" 2>/dev/null || LOG=/tmp/jarbas-cage-$UID.log
@@ -100,7 +103,7 @@ let
       export LIBSEAT_BACKEND=seatd
       CAGE_BIN="${pkgs.cage}/bin/cage"
       SEAT_WRAP="${pkgs.seatd}/bin/seatd-launch"
-      # Preferir seatd.service já activo (After=seatd). seatd-launch em cima = "Socket file found" (metal).
+      # Preferir seatd.service jï¿½ activo (After=seatd). seatd-launch em cima = "Socket file found" (metal).
       run_cage() {
         if [ -S /run/seatd.sock ]; then
           echo "jarbas-slint: using system seatd.sock"
@@ -120,7 +123,7 @@ let
       unset SLINT_BACKEND || true
       unset LIBGL_ALWAYS_SOFTWARE || true
       if run_slint; then exit 0; fi
-      echo "jarbas-slint: GL/cage falhou — retry winit-software" >&2
+      echo "jarbas-slint: GL/cage falhou ï¿½ retry winit-software" >&2
       export JARBAS_FORCE_SOFTWARE=1
       export SLINT_BACKEND=winit-software
       export LIBGL_ALWAYS_SOFTWARE=1
@@ -165,7 +168,7 @@ let
     sleep 2
     ${pkgs.kbd}/bin/chvt "$(echo ${cfg.tty} | tr -dc '0-9')" || true
     MODE="${cfg.uiMode}"
-    printf '\n*** JARBAS %s = %s — Alt+F%s ***\n' "$MODE" "${cfg.tty}" "$(echo ${cfg.tty} | tr -dc '0-9')" > /dev/tty1 || true
+    printf '\n*** JARBAS %s = %s ï¿½ Alt+F%s ***\n' "$MODE" "${cfg.tty}" "$(echo ${cfg.tty} | tr -dc '0-9')" > /dev/tty1 || true
   '';
 in
 {
@@ -202,6 +205,11 @@ in
   config = lib.mkIf cfg.enable {
     services.seatd.enable = true;
     services.xserver.enable = lib.mkDefault false;
+
+    # S-05: o orb lab sÃ³ Ã© necessÃ¡rio no modo cinematic (Chromium).
+    systemd.services.nosd.serviceConfig.Environment = lib.mkAfter (
+      lib.optional (cfg.uiMode == "cinematic") "NOSD_ORB_LAB=127.0.0.1:7701"
+    );
 
     services.pipewire = {
       enable = true;
@@ -284,7 +292,7 @@ in
         StandardError = "journal";
         ExecStartPre = "+${waitScript}";
         ExecStart = "${cinematicWrap}";
-        # Anti-loop: Chromium reiniciava em spam (prompt+mouse sem UI estável)
+        # Anti-loop: Chromium reiniciava em spam (prompt+mouse sem UI estï¿½vel)
         Restart = "on-failure";
         RestartSec = "10s";
         StartLimitIntervalSec = 180;
@@ -293,12 +301,12 @@ in
         # seat = libseat/seatd; sem isto DRM master falha mesmo com DeviceAllow.
         SupplementaryGroups = "video audio render input seat";
         # Confinamento host thin (I.3): Preferir cage vivo a ProtectSystem=strict
-        # (quebra seatd/DRM no metal — lição PAMName/seat). Landlock syscall = nosd bin.
+        # (quebra seatd/DRM no metal ï¿½ liï¿½ï¿½o PAMName/seat). Landlock syscall = nosd bin.
         ProtectHome = true;
         NoNewPrivileges = true;
         DeviceAllow = [ "char-drm rw" "char-input rw" ];
         OOMScoreAdjust = -500;
-        # PATH: wrap usa paths absolutos; curl bare no PATH evita regressão
+        # PATH: wrap usa paths absolutos; curl bare no PATH evita regressï¿½o
         Environment = [
           "XDG_RUNTIME_DIR=/run/user/nosd"
           "NOSD_SOCKET=/run/nosd/nosd.sock"

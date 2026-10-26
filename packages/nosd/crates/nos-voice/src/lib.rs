@@ -192,11 +192,9 @@ pub fn find_piper_cli() -> Option<PathBuf> {
         }
     }
     // 0.5.0: Linux-first (sem FAT).
-    for fixed in ["/var/lib/nosd/models/piper/piper"] {
-        let pb = PathBuf::from(fixed);
-        if pb.is_file() {
-            return Some(pb);
-        }
+    let fixed = PathBuf::from("/var/lib/nosd/models/piper/piper");
+    if fixed.is_file() {
+        return Some(fixed);
     }
     which(&["piper"])
 }
@@ -247,10 +245,11 @@ impl VoicePipeline {
         let stt_ready = w_cli.is_some() && w_model.is_some();
         let tts_ready =
             (find_piper_cli().is_some() && p_model.is_some()) || find_espeak_cli().is_some();
+        // Labels estáveis p/ gate M3f (não Debug enum).
         let posture = if stt_ready && tts_ready {
             "Ready".into()
         } else {
-            format!("{:?}", self.engine_posture())
+            "EngineAbsent".into()
         };
         VoiceStatus {
             stt_ready,
@@ -269,17 +268,14 @@ impl VoicePipeline {
     }
 
     fn find_whisper_model(&self, loc: &LocaleVoiceSpec) -> Option<PathBuf> {
-        for cand in [
+        [
             self.models_dir.join(&loc.whisper_model_file),
             self.models_dir.join("ggml-small.bin"),
             self.models_dir.join("ggml-base.bin"),
             self.models_dir.join("ggml-tiny.bin"),
-        ] {
-            if cand.is_file() {
-                return Some(cand);
-            }
-        }
-        None
+        ]
+        .into_iter()
+        .find(|cand| cand.is_file())
     }
 
     fn find_piper_model(&self, loc: &LocaleVoiceSpec) -> Option<PathBuf> {

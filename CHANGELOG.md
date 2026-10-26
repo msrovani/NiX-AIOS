@@ -3,6 +3,53 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.5.4] — 2026-10-26 (Trust & Truth)
+
+> 0.5.3 foi o nome de trabalho; o ship real é 0.5.4.
+
+### Security
+
+- **S-01/S-02:** identidade IPC derivada do transporte. Unix usa `SO_PEERCRED`;
+  TCP/HTTP exige token. `agent`, `caps` e `cap_gen` do cliente deixam de autorizar.
+  Perfil `LocalUser` (chat/read-only) e `Jarbas` (sem `NIX_WRITE`/spawn).
+- **S-03:** `security.rotate` troca token TCP/HTTP + geração; tokens antigos são
+  revogados. `nosctl security-rotate`.
+- **S-06:** ring Nix (apply/confirm/build-vm/rollback) **desarmado por default**;
+  `NOSD_NIX_RING=1` é opt-in explícito após HITL nonce + VM test.
+- **HTTP lab:** **off por default** (`NOSD_ORB_LAB=""`); o ISO só liga no modo
+  cinematic. `/rpc` exige token, `application/json`, same-origin e limites de
+  corpo/tempo; removido `Access-Control-Allow-Origin: *` e o fallback silencioso
+  para `health` em JSON inválido.
+- Token em `<data-dir>/ipc.token` (`0600` em Unix); nunca logado. TCP não-loopback
+  exige `--ipc-token` explícito.
+
+### Changed
+
+- `nosctl` e `nos-jarbas` aceitam `--token`/`--token-file` (env
+  `NOSD_IPC_TOKEN`/`NOSD_IPC_TOKEN_FILE`). Quickstart TCP atualizado.
+- `nosctl` lê o token também no socket Unix (token-first → `LocalAdmin`);
+  JARBAS continua sem token → `Jarbas`. No ISO, `nos-transmute` usa `sudo`
+  para o primeiroboot/transmute (user `nixos` não é admin do daemon).
+- Testes de S1/memória usam funções puras (sem `std::env`), removendo flakiness.
+- Workspace `cargo fmt` limpo e `clippy -D warnings` limpo.
+
+### Fixed
+
+- Slint HUD compila com `--features slint-ui` (padding CSS shorthand inválido e
+  `var_os().as_deref() == Some("1")`).
+- 5 testes de integração novos em `nosd/tests/ipc_auth.rs` (sem token, agent
+  legado, token válido, rotação, ring desarmado; Unix token-first).
+- **R-01:** `services.nosd.path` declara networkmanager/nix/util-linux/gnutar/
+  alsa-utils/pipewire/llama-cpp/whisper-cpp/espeak-ng; helper root declara
+  `nixos-rebuild`. `nosd` entra no grupo `systemd-journal`.
+- **R-02:** `run_syntax_check` é fail-closed: sem `nix-instantiate` não há
+  `syntax_ok:true`; `nix.propose` falha honestamente.
+
+### Notes
+
+- Ring Nix continua **desarmado** até S-04 (HITL por nonce) e R-03/R-04.
+- S-04, S-07 e R-09 (ISO/QEMU) são as próximas fatias de 0.5.5/0.6.0.
+
 ## [0.5.2] — 2026-10-25
 
 ### Added

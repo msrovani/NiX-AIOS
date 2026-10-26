@@ -140,6 +140,8 @@ in
         Type = "oneshot";
         ExecStart = "${applyScript}";
         Nice = 5;
+        # R-01: nixos-rebuild/mountpoint não estão no defaultPath.
+        path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
       };
     };
 
@@ -158,6 +160,7 @@ in
         Type = "oneshot";
         ExecStart = "${rollbackScript}";
         Nice = 5;
+        path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
       };
     };
 

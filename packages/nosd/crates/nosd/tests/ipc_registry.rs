@@ -1,8 +1,8 @@
 //! Contrato IPC: métodos side-effect / caps conhecidos vs handlers presentes no dispatch.
 
+use nos_core::CapBits;
 use nos_hermes::SIDE_EFFECT_METHODS;
 use nos_ipc::Request;
-use nos_core::CapBits;
 
 fn sample_req(method: &str) -> Request {
     Request {
@@ -11,6 +11,7 @@ fn sample_req(method: &str) -> Request {
         caps: 0,
         cap_gen: 1,
         agent: "nosctl".into(),
+        token: None,
         params: serde_json::json!({}),
     }
 }
@@ -31,6 +32,14 @@ fn side_effect_methods_have_non_deny_caps_or_known() {
 #[test]
 fn self_heal_requires_nix_write_and_hitl() {
     let req = sample_req("self.heal.evaluate");
+    let c = req.required_cap();
+    assert!(c.contains(CapBits::NIX_WRITE));
+    assert!(c.contains(CapBits::HITL));
+}
+
+#[test]
+fn security_rotate_requires_admin_caps() {
+    let req = sample_req("security.rotate");
     let c = req.required_cap();
     assert!(c.contains(CapBits::NIX_WRITE));
     assert!(c.contains(CapBits::HITL));

@@ -46,14 +46,26 @@ impl AgencyFleet {
         self.agents.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.agents.is_empty()
+    }
+
     pub fn list(&self) -> Vec<&AgentManifest> {
         self.agents.values().collect()
     }
 
     pub fn seed_natives(&mut self) {
         let seeds = [
-            ("native.hermes", ScheduleKind::Continuous, "orchestrate OPAR"),
-            ("native.observe", ScheduleKind::EventDriven, "Linux observe bus"),
+            (
+                "native.hermes",
+                ScheduleKind::Continuous,
+                "orchestrate OPAR",
+            ),
+            (
+                "native.observe",
+                ScheduleKind::EventDriven,
+                "Linux observe bus",
+            ),
             (
                 "native.autolearn",
                 ScheduleKind::PollEvery { every: 200 },

@@ -60,9 +60,7 @@ pub fn systemctl_unit_allowed(unit: &str) -> bool {
     if u.is_empty() {
         return false;
     }
-    u.starts_with("nosd")
-        || u.starts_with("jarbas-")
-        || u.starts_with("nosd-engine@")
+    u.starts_with("nosd") || u.starts_with("jarbas-") || u.starts_with("nosd-engine@")
 }
 
 /// Valida caps + allowlist; devolve intent (stub — não executa sem HITL explícito).
@@ -105,10 +103,7 @@ pub fn systemctl_run_stub(intent: &SystemctlIntent) -> Result<(), ActuatorError>
     if out.status.success() {
         Ok(())
     } else {
-        Err(ActuatorError::Io(format!(
-            "systemctl exit {}",
-            out.status
-        )))
+        Err(ActuatorError::Io(format!("systemctl exit {}", out.status)))
     }
 }
 

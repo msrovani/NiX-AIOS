@@ -139,9 +139,8 @@ fn append_record(path: &Path, rec: &MemoryRecord) -> Result<(), MemoryError> {
     upgrade_l4_stub_to_seg(path)?;
     ensure_seg_file(path)?;
     let payload = encode_payload(rec)?;
-    let len = u32::try_from(payload.len()).map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "record too large")
-    })?;
+    let len = u32::try_from(payload.len())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "record too large"))?;
     let mut f = OpenOptions::new().append(true).open(path)?;
     f.write_all(&len.to_le_bytes())?;
     f.write_all(&payload)?;
@@ -160,11 +159,7 @@ fn read_all_records(path: &Path) -> Result<Vec<MemoryRecord>, MemoryError> {
         return Ok(Vec::new());
     }
     if magic != SEG_MAGIC {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "bad seg magic",
-        )
-        .into());
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "bad seg magic").into());
     }
     let _ver = read_u32(&mut f)?;
     let mut records = Vec::new();
@@ -244,7 +239,10 @@ mod tests {
             .unwrap();
         let raw = fs::read(layer_dir(&root, 3)).unwrap();
         assert!(raw.starts_with(&SEG_MAGIC));
-        assert!(!raw.windows(2).any(|w| w == b"\n{"), "not line-delimited JSONL");
+        assert!(
+            !raw.windows(2).any(|w| w == b"\n{"),
+            "not line-delimited JSONL"
+        );
     }
 
     #[test]

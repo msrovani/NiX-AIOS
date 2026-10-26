@@ -6,9 +6,7 @@ source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST_ISO="${DEST_ISO:-/mnt/c/Users/msrov/Downloads/nixaios-minimal-051.iso}"
 DEST_IMG="${DEST_IMG:-/mnt/c/Users/msrov/Downloads/nixaios-minimal-051-persist.img}"
-sed -i 's/\r$//' "$ROOT"/scripts/*.sh "$ROOT"/images/iso.nix "$ROOT"/modules/*.nix \
-  "$ROOT"/packages/nosd/crates/nos-jarbas/ui/hud.slint \
-  "$ROOT"/packages/nosd/crates/nos-jarbas/src/slint_app.rs 2>/dev/null || true
+# .gitattributes + build-iso-tmp.sh normalizam LF na cópia; não mutar o repo.
 chmod +x "$ROOT/scripts/build-iso-tmp.sh" "$ROOT/scripts/guard-iso-no-s1-blob.sh" \
   "$ROOT/scripts/build-iso.sh"
 export LOG="${LOG:-/tmp/nixaios-iso-build-051.log}"

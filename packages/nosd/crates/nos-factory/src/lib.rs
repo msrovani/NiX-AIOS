@@ -1,4 +1,4 @@
-﻿//! App Factory path A — validate wasmi + CapGate + promote (ADR-0059).
+//! App Factory path A — validate wasmi + CapGate + promote (ADR-0059).
 //! Artifact MD frontmatter gate (ADR-0052 subset) — deny-by-default sem schema/kind/name/goal/acionaveis.
 //! Seek-before-generate (F.3) + federated PackageStore.
 
@@ -10,17 +10,15 @@ pub use seek::{
     seek_audit_line, seek_skill, CandidateSource, SeekConfig, SeekOutcome, SeekReport,
     SeekSourceTried, SkillCandidate, SkillNeed,
 };
-pub use skill_opt::{
-    SkillOptAction, SkillOptPlan, plan_skill_opt, self_evolve_agent_md,
-};
+pub use skill_opt::{plan_skill_opt, self_evolve_agent_md, SkillOptAction, SkillOptPlan};
 pub use store::{
     bytes_to_hex, fnv1a64, fnv1a64_hex16, FederatedIndex, FederatedIndexEntry, ImportMeta,
-    ImportProvenance, PackageStore, SandboxStatus, StoredPackage, StoreError, FEDERATED_INDEX_CAP,
+    ImportProvenance, PackageStore, SandboxStatus, StoreError, StoredPackage, FEDERATED_INDEX_CAP,
     PACKAGE_STORE_CAP,
 };
 
 use nos_core::CapBits;
-use nos_wasm::{FrugalRuntime, WasmError, tiny_identity_wasm};
+use nos_wasm::{tiny_identity_wasm, FrugalRuntime, WasmError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
@@ -74,7 +72,12 @@ impl AppFactory {
         }
     }
 
-    pub fn validate(&self, draft: &ArtifactDraft, caps: CapBits, gen: u64) -> Result<i32, FactoryError> {
+    pub fn validate(
+        &self,
+        draft: &ArtifactDraft,
+        caps: CapBits,
+        gen: u64,
+    ) -> Result<i32, FactoryError> {
         match draft.path {
             FactoryPath::AWasmi => {
                 let code = if draft.wasm.is_empty() {
@@ -134,7 +137,7 @@ pub fn validate_artifact_md(text: &str) -> Result<ArtifactMdMeta, FactoryError> 
     let contexto = fm_line(fm, "contexto");
     let acionaveis = fm_line(fm, "acionaveis");
 
-    if schema.as_deref() != Some("1") {
+    if schema != Some("1") {
         return Err(FactoryError::ArtifactMd("schema!=1"));
     }
     let kind = kind.ok_or(FactoryError::ArtifactMd("kind"))?;

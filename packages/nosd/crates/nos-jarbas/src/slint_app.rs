@@ -1,7 +1,7 @@
 //! HUD pixels via Slint (feature `slint-ui`). Cage Wayland / lab winit.
 //! Honesty: compila ≠ DRM metal VERIFIED.
 
-use crate::rpc::{Endpoint, next_req};
+use crate::rpc::{next_req, Endpoint};
 use nos_ipc::Request;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -10,7 +10,7 @@ slint::include_modules!();
 
 pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
     // Fallback Slint: só força software se pedido (cinemático default = Chromium+iGPU)
-    if std::env::var_os("JARBAS_FORCE_SOFTWARE").as_deref() == Some("1")
+    if std::env::var("JARBAS_FORCE_SOFTWARE").ok().as_deref() == Some("1")
         && std::env::var_os("SLINT_BACKEND").is_none()
     {
         std::env::set_var("SLINT_BACKEND", "winit-software");
@@ -42,7 +42,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
         method: "orb.set".into(),
         caps: 0,
         cap_gen: 1,
-        agent: "jarbas".into(),
+        agent: "jarbas".into(), token: None,
         params: serde_json::json!({ "state": "idle", "presets": true, "particles": 160, "rings": 3 }),
     });
 
@@ -53,7 +53,8 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
     std::thread::spawn(move || {
         let mut id = 1u64;
         loop {
-            let health = ep_poll.rpc_blocking(next_req(&mut id, "health", 0, serde_json::json!({})));
+            let health =
+                ep_poll.rpc_blocking(next_req(&mut id, "health", 0, serde_json::json!({})));
             let score = ep_poll.rpc_blocking(next_req(&mut id, "score", 0, serde_json::json!({})));
             let tick = ep_poll.rpc_blocking(next_req(
                 &mut id,
@@ -105,10 +106,8 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                                         .get("title")
                                         .and_then(|v| v.as_str())
                                         .unwrap_or("janela");
-                                    let kind = w0
-                                        .get("kind")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("?");
+                                    let kind =
+                                        w0.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
                                     let wid = w0.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
                                     let escalate = w0
                                         .get("escalate")
@@ -186,7 +185,14 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                             if !s.is_empty() {
                                 ui.set_score_line(s.into());
                             } else {
-                                ui.set_score_line(r.result.to_string().chars().take(96).collect::<String>().into());
+                                ui.set_score_line(
+                                    r.result
+                                        .to_string()
+                                        .chars()
+                                        .take(96)
+                                        .collect::<String>()
+                                        .into(),
+                                );
                             }
                         }
                     }
@@ -223,6 +229,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             caps: 0,
             cap_gen: 1,
             agent: "jarbas".into(),
+            token: None,
             params: serde_json::json!({ "state": "thinking", "presets": true }),
         });
         // Long / complex → async submit+poll; short → sync chat
@@ -242,6 +249,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                 caps: 1 | 16,
                 cap_gen: 1,
                 agent: "jarbas".into(),
+                token: None,
                 params: serde_json::json!({ "prompt": prompt }),
             };
             match ep_chat.rpc_blocking(req) {
@@ -261,6 +269,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             caps: 0,
             cap_gen: 1,
             agent: "jarbas".into(),
+            token: None,
             params: serde_json::json!({ "state": "speaking", "presets": true }),
         });
         if let Some(ui) = ui_chat.upgrade() {
@@ -279,6 +288,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                 caps: 0,
                 cap_gen: 1,
                 agent: "jarbas".into(),
+                token: None,
                 params: serde_json::json!({ "state": "idle", "presets": true }),
             });
             let ui_w = ui_idle;
@@ -315,6 +325,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             caps: 1 << 6,
             cap_gen: 1,
             agent: "jarbas".into(),
+            token: None,
             params: serde_json::json!({
                 "window_id": wid as u64,
                 "action": "submit",
@@ -373,6 +384,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             caps: 1 << 6,
             cap_gen: 1,
             agent: "jarbas".into(),
+            token: None,
             params: serde_json::json!({
                 "window_id": wid as u64,
                 "action": "cancel",
@@ -401,6 +413,7 @@ fn chat_submit_poll(ep: &Endpoint, prompt: &str) -> anyhow::Result<String> {
         caps: 1 | 16,
         cap_gen: 1,
         agent: "jarbas".into(),
+        token: None,
         params: serde_json::json!({ "prompt": prompt }),
     };
     let r = ep.rpc_blocking(req)?;
@@ -427,12 +440,19 @@ fn chat_submit_poll(ep: &Endpoint, prompt: &str) -> anyhow::Result<String> {
             caps: 1,
             cap_gen: 1,
             agent: "jarbas".into(),
+            token: None,
             params: serde_json::json!({ "id": job_id }),
         };
         let pr = ep.rpc_blocking(poll)?;
         if pr.result.get("pending").and_then(|v| v.as_bool()) != Some(true) {
             if pr.result.get("ok").and_then(|v| v.as_bool()) == Some(false) {
-                anyhow::bail!("{}", pr.result.get("text").and_then(|v| v.as_str()).unwrap_or("fail"));
+                anyhow::bail!(
+                    "{}",
+                    pr.result
+                        .get("text")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("fail")
+                );
             }
             return Ok(pr
                 .result

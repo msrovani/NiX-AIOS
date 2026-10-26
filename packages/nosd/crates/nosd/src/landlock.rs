@@ -91,7 +91,7 @@ pub fn try_restrict_process(data_dir: &Path) -> LandlockStatus {
         let _ = data_dir;
         let s = LandlockStatus::AbsentPlatform;
         unsafe { APPLIED = s };
-        return s;
+        s
     }
     #[cfg(target_os = "linux")]
     {
@@ -153,7 +153,10 @@ fn linux_restrict(data_dir: &Path) -> Result<(), String> {
         )
     };
     if ruleset < 0 {
-        return Err(format!("create_ruleset errno={}", std::io::Error::last_os_error()));
+        return Err(format!(
+            "create_ruleset errno={}",
+            std::io::Error::last_os_error()
+        ));
     }
     let ruleset = ruleset as i32;
 

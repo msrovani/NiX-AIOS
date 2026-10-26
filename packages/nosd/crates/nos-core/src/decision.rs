@@ -95,22 +95,47 @@ pub fn s1_blob_present() -> bool {
     false
 }
 
-/// Backend efectivo para roteamento: AgentJev/Laya sem blob → Keyword.
-pub fn s1_backend_effective() -> S1Backend {
-    match s1_backend_from_env() {
-        S1Backend::AgentJev | S1Backend::DestilledLaya if !s1_blob_present() => S1Backend::Keyword,
+/// Backend efectivo, puro (testavel sem `std::env`).
+pub fn s1_backend_effective_for(backend: S1Backend, blob_present: bool) -> S1Backend {
+    match backend {
+        S1Backend::AgentJev | S1Backend::DestilledLaya if !blob_present => S1Backend::Keyword,
         other => other,
     }
 }
 
-pub fn s1_backend_label() -> &'static str {
-    match s1_backend_from_env() {
-        S1Backend::AgentJev | S1Backend::DestilledLaya if !s1_blob_present() => "scorer_absent→keyword",
-        S1Backend::AgentJev => "agentjev",
-        S1Backend::DestilledLaya => "laya",
-        S1Backend::Keyword => "keyword",
-        S1Backend::Absent => "absent",
+/// Label honesto, puro.
+pub fn s1_backend_label_for(backend: S1Backend, blob_present: bool) -> &'static str {
+    match (backend, blob_present) {
+        (S1Backend::AgentJev | S1Backend::DestilledLaya, false) => "scorer_absent\u{2192}keyword",
+        (S1Backend::AgentJev, _) => "agentjev",
+        (S1Backend::DestilledLaya, _) => "laya",
+        (S1Backend::Keyword, _) => "keyword",
+        (S1Backend::Absent, _) => "absent",
     }
+}
+
+/// Scorer neural ausente, puro.
+pub fn s1_scorer_absent_for(backend: S1Backend, blob_present: bool) -> bool {
+    match backend {
+        S1Backend::Absent => true,
+        S1Backend::AgentJev | S1Backend::DestilledLaya => !blob_present,
+        S1Backend::Keyword => false,
+    }
+}
+
+/// Backend efectivo para roteamento: AgentJev/Laya sem blob -> Keyword.
+pub fn s1_backend_effective() -> S1Backend {
+    s1_backend_effective_for(s1_backend_from_env(), s1_blob_present())
+}
+
+pub fn s1_backend_label() -> &'static str {
+    s1_backend_label_for(s1_backend_from_env(), s1_blob_present())
+}
+
+/// ADR-0106 honesty: scorer neural ausente ou pedido sem blob runtime.
+/// Usar em route.explain / model.fetch / transmute (nao so `S1Backend::Absent`).
+pub fn s1_scorer_absent() -> bool {
+    s1_scorer_absent_for(s1_backend_from_env(), s1_blob_present())
 }
 
 const S1_MIN_CONF: u8 = 140;
@@ -259,10 +284,27 @@ mod tests {
 
     #[test]
     fn agentjev_without_blob_falls_to_keyword() {
-        std::env::set_var("NOSD_S1_BACKEND", "agentjev");
-        std::env::remove_var("NOSD_S1_BLOB");
-        assert_eq!(s1_backend_effective(), S1Backend::Keyword);
-        assert!(s1_backend_label().contains("keyword"));
-        std::env::remove_var("NOSD_S1_BACKEND");
+        assert_eq!(
+            s1_backend_effective_for(S1Backend::AgentJev, false),
+            S1Backend::Keyword
+        );
+        assert!(s1_backend_label_for(S1Backend::AgentJev, false).contains("keyword"));
+        assert!(s1_scorer_absent_for(S1Backend::AgentJev, false));
+    }
+
+    #[test]
+    fn agentjev_with_blob_is_honest() {
+        assert_eq!(
+            s1_backend_effective_for(S1Backend::AgentJev, true),
+            S1Backend::AgentJev
+        );
+        assert!(!s1_scorer_absent_for(S1Backend::AgentJev, true));
+        assert_eq!(s1_backend_label_for(S1Backend::AgentJev, true), "agentjev");
+    }
+
+    #[test]
+    fn keyword_backend_not_scorer_absent() {
+        assert!(!s1_scorer_absent_for(S1Backend::Keyword, false));
+        assert_eq!(s1_backend_label_for(S1Backend::Keyword, false), "keyword");
     }
 }

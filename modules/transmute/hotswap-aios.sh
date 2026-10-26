@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Hotswap AIOS Full — usado por modules/transmute-stage.nix (0.5.2).
-# Placeholders: @curl@ @kbd@
+# Placeholders: @curl@ @kbd@ @nosd@
 set -euo pipefail
 LOGDIR=/var/lib/nosd
 mkdir -p "$LOGDIR" 2>/dev/null || true
@@ -40,8 +40,8 @@ sleep 1
 echo "hotswap: restarting nosd…"
 systemctl restart nosd.service || true
 for i in $(seq 1 30); do
-  if @curl@/bin/curl -sf -o /dev/null http://127.0.0.1:7701/ 2>/dev/null; then
-    echo "hotswap: nosd HTTP OK"
+  if @nosd@/bin/nosctl --socket /run/nosd/nosd.sock health >/dev/null 2>&1; then
+    echo "hotswap: nosd health OK"
     break
   fi
   sleep 0.5

@@ -1,15 +1,22 @@
 //! nosctl — cliente CLI do nosd.
 
 use clap::{Parser, Subcommand};
-use nos_ipc::{Request, Response, decode_body, encode, take_frame};
+use nos_ipc::{decode_body, encode, take_frame, Request, Response};
+use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Parser)]
 struct Args {
-    #[arg(long, default_value = "/run/nosd.sock")]
+    #[arg(long, default_value = "/run/nosd/nosd.sock")]
     socket: String,
     #[arg(long)]
     tcp: Option<String>,
+    /// Token IPC para TCP (env NOSD_IPC_TOKEN).
+    #[arg(long, env = "NOSD_IPC_TOKEN", hide_env_values = true)]
+    token: Option<String>,
+    /// Ficheiro do token IPC (default: /run/nosd/ipc.token, /var/lib/nosd/ipc.token ou ./data/ipc.token).
+    #[arg(long, env = "NOSD_IPC_TOKEN_FILE")]
+    token_file: Option<PathBuf>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -50,18 +57,30 @@ enum Cmd {
         estimated_mb: u64,
     },
     /// Hot-load GGUF path (unload + llama attach).
-    Load { path: String },
+    Load {
+        path: String,
+    },
     /// Unload → cpu-echo.
     Unload,
-    Chat { prompt: String },
+    Chat {
+        prompt: String,
+    },
     /// Async: S2 enfileira; S1 devolve ready+text. Poll com `poll`.
     #[command(name = "submit")]
-    Submit { prompt: String },
+    Submit {
+        prompt: String,
+    },
     #[command(name = "poll")]
-    Poll { id: u64 },
-    Recall { query: String },
+    Poll {
+        id: u64,
+    },
+    Recall {
+        query: String,
+    },
     /// MoE S1/S2 route explain (no infer).
-    Route { prompt: String },
+    Route {
+        prompt: String,
+    },
     /// Factory A: omit --wasm-b64 → Frugal identity; else path A validate+promote.
     Spawn {
         #[arg(default_value = "agent")]
@@ -72,7 +91,9 @@ enum Cmd {
     Tick,
     /// ADR-0052 frontmatter deny-by-default (texto MD).
     #[command(name = "artifact-validate")]
-    ArtifactValidate { md: String },
+    ArtifactValidate {
+        md: String,
+    },
     /// Janelas JARBAS (conector HITL).
     #[command(name = "ui-list")]
     UiList,
@@ -94,7 +115,9 @@ enum Cmd {
         body: Option<String>,
     },
     #[command(name = "ui-close")]
-    UiClose { id: u64 },
+    UiClose {
+        id: u64,
+    },
     #[command(name = "ui-action")]
     UiAction {
         window_id: u64,
@@ -116,10 +139,15 @@ enum Cmd {
         pattern: Option<String>,
     },
     /// CapGate NIX_WRITE → staging (+ auto-apply se NOSD_NIX_AUTO_SWITCH=1).
-    NixPropose { nix: String },
+    NixPropose {
+        nix: String,
+    },
     /// Arma apply root (nosd-nix-apply.service).
     NixApply,
-    /// Scan Wi‑Fi (nmcli).
+    /// Rotaciona token TCP/HTTP + geração (LocalAdmin). Devolve o novo token.
+    #[command(name = "security-rotate")]
+    SecurityRotate,
+    /// Scan Wi-Fi (nmcli).
     WifiScan,
     /// Liga SSID (+ senha). CapGate HITL.
     WifiConnect {
@@ -220,11 +248,7 @@ async fn main() -> anyhow::Result<()> {
             ("agent.spawn", p, 1 << 3) // AGENT_SPAWN
         }
         Cmd::Tick => ("cognitive.tick", serde_json::json!({}), 0),
-        Cmd::ArtifactValidate { md } => (
-            "artifact.validate",
-            serde_json::json!({ "md": md }),
-            0,
-        ),
+        Cmd::ArtifactValidate { md } => ("artifact.validate", serde_json::json!({ "md": md }), 0),
         Cmd::UiList => ("ui.list", serde_json::json!({}), 0),
         Cmd::UiCard { title, kv } => {
             let mut pairs = Vec::new();
@@ -290,6 +314,11 @@ async fn main() -> anyhow::Result<()> {
             1 << 5, // NIX_WRITE
         ),
         Cmd::NixApply => ("nix.apply", serde_json::json!({}), 1 << 5),
+        Cmd::SecurityRotate => (
+            "security.rotate",
+            serde_json::json!({}),
+            (1 << 5) | (1 << 6),
+        ),
         Cmd::WifiScan => ("wifi.scan", serde_json::json!({}), 0),
         Cmd::WifiConnect { ssid, password } => (
             "wifi.connect",
@@ -297,7 +326,10 @@ async fn main() -> anyhow::Result<()> {
             1 << 6, // HITL
         ),
         Cmd::VoiceStatus => ("voice.status", serde_json::json!({}), 0),
-        Cmd::VoiceTurn { prompt, record_secs } => (
+        Cmd::VoiceTurn {
+            prompt,
+            record_secs,
+        } => (
             "voice.turn",
             serde_json::json!({ "prompt": prompt, "record_secs": record_secs, "play": true }),
             1 | 16, // INFER | MEMORY
@@ -320,12 +352,23 @@ async fn main() -> anyhow::Result<()> {
             (1 << 1) | (1 << 2) | (1 << 5), // NET | FS | NIX_WRITE
         ),
     };
+    // Token-first: se o ficheiro existir, a CLI fica LocalAdmin também no Unix.
+    // Sem token, o daemon usa SO_PEERCRED (Jarbas/LocalUser).
+    let token = load_token(args.token.clone(), args.token_file.clone());
+    if args.tcp.is_some() && token.is_none() {
+        eprintln!(
+            "nosctl: TCP requires --token/--token-file (or NOSD_IPC_TOKEN/NOSD_IPC_TOKEN_FILE)"
+        );
+        std::process::exit(2);
+    }
+
     let req = Request {
         id: 1,
         method: method.into(),
         caps, // ignored by daemon (I.1); kept for wire compat
         cap_gen: 1,
-        agent: "nosctl".into(),
+        agent: "nosctl".into(), // legacy hint; never auth
+        token,
         params,
     };
     let enc = encode(&req)?;
@@ -353,6 +396,34 @@ async fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
     Ok(())
+}
+
+fn load_token(explicit: Option<String>, file: Option<PathBuf>) -> Option<String> {
+    if let Some(token) = explicit {
+        let token = token.trim().to_string();
+        if !token.is_empty() {
+            return Some(token);
+        }
+    }
+    let mut paths: Vec<PathBuf> = Vec::new();
+    if let Some(path) = file {
+        paths.push(path);
+    }
+    if let Ok(path) = std::env::var("NOSD_IPC_TOKEN_FILE") {
+        paths.push(PathBuf::from(path));
+    }
+    paths.push(PathBuf::from("/run/nosd/ipc.token"));
+    paths.push(PathBuf::from("/var/lib/nosd/ipc.token"));
+    paths.push(PathBuf::from("data/ipc.token"));
+    for path in paths {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            let token = text.trim();
+            if !token.is_empty() {
+                return Some(token.to_string());
+            }
+        }
+    }
+    None
 }
 
 async fn read_resp<S: AsyncReadExt + Unpin>(s: &mut S) -> anyhow::Result<Response> {

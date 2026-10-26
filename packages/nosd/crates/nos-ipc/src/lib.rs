@@ -6,7 +6,7 @@ use nos_core::CapBits;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const DEFAULT_SOCKET: &str = "/run/nosd.sock";
+pub const DEFAULT_SOCKET: &str = "/run/nosd/nosd.sock";
 
 #[derive(Debug, Error)]
 pub enum IpcError {
@@ -24,19 +24,20 @@ pub enum IpcError {
 pub struct Request {
     pub id: u64,
     pub method: String,
-    /// Deprecated: ignored by daemon (I.1 server-authored). Kept for wire compat.
+    /// Deprecated: ignorado pelo daemon (I.1). Mantido por compatibilidade de wire.
     #[serde(default)]
     pub caps: u32,
+    /// Deprecated: geração é server-authored; mantido por compatibilidade.
+    #[serde(default)]
     pub cap_gen: u64,
-    /// Identidade do peer — CapRegistry resolve caps (nosctl|jarbas|…).
-    #[serde(default = "default_agent")]
+    /// Hint de cliente para logs/auditoria. NUNCA define permissão.
+    #[serde(default)]
     pub agent: String,
+    /// Token de transporte para TCP/HTTP. Unix usa `SO_PEERCRED`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
     #[serde(default)]
     pub params: serde_json::Value,
-}
-
-fn default_agent() -> String {
-    "nosctl".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,8 +55,8 @@ impl Request {
         match self.method.as_str() {
             "health" | "score" | "fleet.health" | "model.list" | "model.suggest" | "model.plan"
             | "route.explain" | "cognitive.tick" | "artifact.validate" | "ui.list" | "ui.card"
-            | "wifi.scan" | "voice.status" | "transmute.status"
-            | "orb.get" | "orb.set" | "orb.sense" => CapBits::NONE,
+            | "wifi.scan" | "voice.status" | "transmute.status" | "orb.get" | "orb.set"
+            | "orb.sense" => CapBits::NONE,
             "infer.submit" | "chat" | "chat.submit" | "chat.poll" | "model.unload"
             | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
             "model.load" => CapBits::INFER.union(CapBits::FS),
@@ -69,6 +70,8 @@ impl Request {
             "hw.act" | "audio.act" | "audio.volume" | "gpu.plan" | "observe.snapshot"
             | "policy.matrix" | "device.recipe" => CapBits::OBSERVE,
             "self.heal.evaluate" => CapBits::NIX_WRITE.union(CapBits::HITL),
+            // Rotação de token TCP/HTTP: só admin (LocalAdmin).
+            "security.rotate" => CapBits::NIX_WRITE.union(CapBits::HITL),
             "systemctl.scoped" => CapBits::HITL,
             "nix.build_vm" => CapBits::NIX_WRITE,
             "wifi.connect" => CapBits::HITL,
@@ -122,6 +125,7 @@ mod tests {
             caps: 0,
             cap_gen: 0,
             agent: "nosctl".into(),
+            token: None,
             params: serde_json::json!({}),
         };
         let enc = encode(&req).unwrap();

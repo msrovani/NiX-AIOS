@@ -158,9 +158,12 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("synth");
-            match state.hermes.spawn_wasm_agent(&gate, name, &[]) {
+            match state.hermes.spawn_wasm_agent(gate, name, &[]) {
                 Ok(v) => {
-                    let synth = v.get("synthesized").and_then(|x| x.as_bool()).unwrap_or(true);
+                    let synth = v
+                        .get("synthesized")
+                        .and_then(|x| x.as_bool())
+                        .unwrap_or(true);
                     opar_after_ok(
                         state,
                         "factory.synthesize",
@@ -276,7 +279,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 },
                 _ => Vec::new(),
             };
-            match state.hermes.spawn_wasm_agent(&gate, name, &wasm_bytes) {
+            match state.hermes.spawn_wasm_agent(gate, name, &wasm_bytes) {
                 Ok(v) => {
                     let method = if req.method == "factory.promote" {
                         "factory.promote"

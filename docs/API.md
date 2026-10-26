@@ -1,13 +1,44 @@
 # API — nosctl / IPC
 
 Transporte: Unix socket (`/run/nosd/nosd.sock`) ou TCP lab (`--tcp 127.0.0.1:7700`).  
-Framing: JSON `Request` / `Response` (`nos-ipc`). Caps no request são **ignorados** pelo daemon (I.1).
+Framing: JSON `Request` / `Response` (`nos-ipc`).
+
+## Autenticação (S-01/S-02/S-03)
+
+A identidade **não** vem do payload. `caps`, `cap_gen` e `agent` são legado e
+**ignorados** para autorização.
+
+| Transporte | Identidade | Como usar |
+|---|---|---|
+| Unix socket | `SO_PEERCRED` (uid/gid) **ou** token | `nosctl --socket /run/nosd/nosd.sock --token-file <path> <cmd>` |
+| TCP loopback | token **obrigatório** | `nosctl --tcp … --token-file <path> <cmd>` |
+| HTTP lab `/rpc` | token + same-origin + JSON | token injetado na página; sem CORS `*` |
+
+`nosctl` tenta ler o token (explícito, `NOSD_IPC_TOKEN_FILE`, `/run/nosd/ipc.token`,
+`./data/ipc.token`). Com token válido → `LocalAdmin`; sem token, cai em
+`SO_PEERCRED`. JARBAS não envia token e fica `Jarbas` (sem `NIX_WRITE`).
+
+Perfis derivados do transporte:
+
+- uid `0` ou gid admin → `LocalAdmin` (todos os bits);
+- uid do daemon (`nosd`) → `Jarbas` (HITL/FS/NET; **sem** `NIX_WRITE`/spawn);
+- outro uid local → `LocalUser` (chat/read-only; sem HITL/NIX_WRITE);
+- sem credencial / token inválido → `Unknown` (deny).
+
+O daemon grava o token em `<data-dir>/ipc.token` (modo `0600` em Unix) e nunca
+o loga. Para rotacionar (revoga tokens TCP/HTTP antigos):
+
+```bash
+nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token security-rotate
+```
+
+TCP em endereço não-loopback exige `--ipc-token` explícito.
 
 ## CLI (`nosctl`)
 
 ```bash
 nosctl --socket /run/nosd/nosd.sock <cmd>
-nosctl --tcp 127.0.0.1:7700 <cmd>
+nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 ```
 
 ### Saúde e observação
@@ -64,6 +95,10 @@ nosctl --tcp 127.0.0.1:7700 <cmd>
 | `transmute-status` | `transmute.status` | |
 | `transmute [--confirm] [--no-download] [--locale]` | `transmute.run` | NET\|FS\|NIX_WRITE; HITL obrigatório p/ download |
 
+`nix.propose` é **fail-closed**: sem `nix-instantiate` no PATH devolve
+`syntax_ok:false` (não há “structural OK”). `nix.apply`/`confirm`/`build-vm`/
+`rollback` devolvem `NIX_RING_DISABLED` até `NOSD_NIX_RING=1`.
+
 Resposta: JSON pretty-print; exit ≠0 se `ok: false`.
 
 ## Response shape
@@ -81,13 +116,15 @@ Resposta: JSON pretty-print; exit ≠0 se `ok: false`.
 
 ## HTTP lab (orb)
 
-Quando `NOSD_ORB_LAB` (default `127.0.0.1:7701`):
+Quando `NOSD_ORB_LAB` (default **off**; opt-in `127.0.0.1:7701`; o ISO só liga no
+modo cinematic):
 
-- `GET /` — lab cinemático  
-- `GET /transmute` — wizard HTML  
-- `POST /rpc` — proxy IPC  
+- `GET /` — lab cinemático (injeta o token da sessão na página)
+- `GET /transmute` — wizard HTML
+- `POST /rpc` — proxy IPC autenticado: token obrigatório, `Content-Type: application/json`,
+  same-origin quando há `Origin`, corpo ≤ 1 MiB, timeout de 5 s. Sem CORS `*`.
 
-Não expor à WAN.
+Não expor à WAN. Em produção, o lab deve ficar desligado (`NOSD_ORB_LAB=""`).
 
 ## EventBus (amostra)
 

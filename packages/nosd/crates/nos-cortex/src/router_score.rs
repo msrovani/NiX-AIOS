@@ -87,7 +87,12 @@ const MARGIN: i32 = 2;
 /// Escolhe slot/lane por margem de score; `None` → caller usa keyword clássico.
 pub fn decide_from_scores(s: RouteScores) -> Option<RouteDecision> {
     let candidates = [
-        (s.hw, ModelSlot::HwExpert, SystemLane::S1Local, "score_v0_hw"),
+        (
+            s.hw,
+            ModelSlot::HwExpert,
+            SystemLane::S1Local,
+            "score_v0_hw",
+        ),
         (
             s.rust + if s.complex >= 3 { 1 } else { 0 },
             ModelSlot::RustCoder,
@@ -104,7 +109,12 @@ pub fn decide_from_scores(s: RouteScores) -> Option<RouteDecision> {
             SystemLane::S2Deep,
             "score_v0_complex",
         ),
-        (s.greet, ModelSlot::Active, SystemLane::S1Local, "score_v0_greet"),
+        (
+            s.greet,
+            ModelSlot::Active,
+            SystemLane::S1Local,
+            "score_v0_greet",
+        ),
     ];
     let mut best = candidates[0];
     for c in candidates.iter().skip(1) {

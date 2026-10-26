@@ -58,18 +58,14 @@ impl HermesEngine {
         spec: &CardSpec,
         source: UiSource,
     ) -> Result<Value, HermesError> {
+        // Display thin (ADR-0058): sempre Info — kv vai no body; sem HITL escalate.
         let body = card_body_from_spec(spec);
-        let kind = if spec.kv.is_empty() {
-            WindowKind::Info
-        } else {
-            WindowKind::Custom
-        };
         let w = self
             .windows
             .open_from_kind(
                 gate,
                 cap_gen,
-                kind,
+                WindowKind::Info,
                 source,
                 Some(spec.title.clone()),
                 Some(body),

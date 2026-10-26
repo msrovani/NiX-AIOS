@@ -109,11 +109,7 @@ pub fn fetch_to_dir(url: &str, dest_dir: &Path, filename: &str) -> Result<PathBu
     Ok(dest)
 }
 
-pub fn fetch_hf_gguf(
-    repo: &str,
-    file: &str,
-    dest_dir: &Path,
-) -> Result<PathBuf, FetchError> {
+pub fn fetch_hf_gguf(repo: &str, file: &str, dest_dir: &Path) -> Result<PathBuf, FetchError> {
     let url = hf_resolve_url(repo, file);
     let name = Path::new(file)
         .file_name()

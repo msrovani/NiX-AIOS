@@ -16,6 +16,19 @@ pub fn fnv1a64_hex16(data: &[u8]) -> String {
     format!("{:016x}", fnv1a64(data))
 }
 
+/// Comparação em tempo constante para tokens (mesmo comprimento).
+/// Comprimentos diferentes devolvem `false` sem vazar o primeiro byte divergente.
+pub fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -27,5 +40,13 @@ mod tests {
         assert_ne!(a, fnv1a64(b"other"));
         assert_eq!(fnv1a64(b""), 0xcbf29ce484222325);
         assert_eq!(fnv1a64_hex16(b"x").len(), 16);
+    }
+
+    #[test]
+    fn ct_eq_matches_only_identical_bytes() {
+        assert!(ct_eq(b"token-123", b"token-123"));
+        assert!(!ct_eq(b"token-123", b"token-124"));
+        assert!(!ct_eq(b"token", b"token-123"));
+        assert!(!ct_eq(b"", b"x"));
     }
 }

@@ -2,28 +2,18 @@
 
 use crate::airllm::{plan_airllm, run_layer_stream};
 use crate::fit_policy::{fit_model, FitVerdict};
-use tracing::info;
 use nos_core::ModelSlot;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::info;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SlotState {
     pub path: Option<PathBuf>,
     pub loaded: bool,
     pub bytes_len: u64,
-}
-
-impl Default for SlotState {
-    fn default() -> Self {
-        Self {
-            path: None,
-            loaded: false,
-            bytes_len: 0,
-        }
-    }
 }
 
 #[derive(Clone, Default)]
@@ -119,11 +109,7 @@ impl ModelHub {
     }
 
     pub fn loaded_count(&self) -> u8 {
-        self.slots
-            .read()
-            .values()
-            .filter(|s| s.loaded)
-            .count() as u8
+        self.slots.read().values().filter(|s| s.loaded).count() as u8
     }
 
     pub fn list(&self) -> Vec<(ModelSlot, SlotState)> {
@@ -167,12 +153,7 @@ mod tests {
         h.register_path(ModelSlot::Active, PathBuf::from("/tmp/a.gguf"), 100);
         h.register_path(ModelSlot::GeneratorPro, PathBuf::from("/tmp/p.gguf"), 100);
         assert!(h.ensure_loaded(ModelSlot::Active));
-        assert!(h.ensure_loaded_fit(
-            ModelSlot::GeneratorPro,
-            8000,
-            512,
-            512,
-        ));
+        assert!(h.ensure_loaded_fit(ModelSlot::GeneratorPro, 8000, 512, 512,));
         assert_eq!(h.loaded_count(), 1);
     }
 }

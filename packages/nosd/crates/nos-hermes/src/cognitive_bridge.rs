@@ -40,9 +40,7 @@ pub fn build_chat_prompt(
         })
         .unwrap_or_default();
 
-    format!(
-        "{soul_block}{recall_block}## User\n{user_prompt}\n"
-    )
+    format!("{soul_block}{recall_block}## User\n{user_prompt}\n")
 }
 
 #[cfg(test)]

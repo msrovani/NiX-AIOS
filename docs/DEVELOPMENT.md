@@ -24,8 +24,8 @@ nix-aios/
 
 ```bash
 cd packages/nosd
-cargo fmt
-cargo clippy -p nosd -- -D warnings   # se clippy configurado
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo test -p nosd resolve_models_dir
 cargo test -p nos-mesh crdt
@@ -43,7 +43,7 @@ Smokes (Linux/WSL):
 ## Adicionar um RPC
 
 1. Método + caps em `nos-ipc` / CapGate matrix.
-2. Handler em `nosd/src/server.rs`.
+2. Handler na fatia `nosd/src/rpc/<domínio>.rs`.
 3. Subcomando em `nosctl.rs`.
 4. Se side-effect: entrada em `nos-hermes::opar_gate`.
 5. Teste host + linha honesty no ledger se fechar item de remigração.

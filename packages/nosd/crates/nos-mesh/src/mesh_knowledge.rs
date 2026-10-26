@@ -30,9 +30,6 @@ mod tests {
 
     #[test]
     fn trim_affects_fingerprint() {
-        assert_eq!(
-            content_fingerprint("  x  "),
-            content_fingerprint("x")
-        );
+        assert_eq!(content_fingerprint("  x  "), content_fingerprint("x"));
     }
 }

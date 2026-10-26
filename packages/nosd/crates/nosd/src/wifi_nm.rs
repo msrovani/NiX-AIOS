@@ -38,14 +38,7 @@ pub fn scan(limit: usize) -> Result<Vec<WifiAp>, WifiError> {
         .args(["device", "wifi", "rescan"])
         .output();
     let out = Command::new(bin)
-        .args([
-            "-t",
-            "-f",
-            "SSID,SIGNAL,SECURITY",
-            "device",
-            "wifi",
-            "list",
-        ])
+        .args(["-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list"])
         .output()
         .map_err(|e| WifiError::Nm(e.to_string()))?;
     if !out.status.success() {
@@ -62,10 +55,7 @@ pub fn scan(limit: usize) -> Result<Vec<WifiAp>, WifiError> {
         if ssid.is_empty() || !seen.insert(ssid.clone()) {
             continue;
         }
-        let signal = parts
-            .get(1)
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0u8);
+        let signal = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0u8);
         let security = parts.get(2).unwrap_or(&"").to_string();
         aps.push(WifiAp {
             ssid,
@@ -92,9 +82,7 @@ pub fn connect(ssid: &str, password: &str) -> Result<(), WifiError> {
     if !password.is_empty() {
         cmd.args(["password", password]);
     }
-    let out = cmd
-        .output()
-        .map_err(|e| WifiError::Nm(e.to_string()))?;
+    let out = cmd.output().map_err(|e| WifiError::Nm(e.to_string()))?;
     if out.status.success() {
         info!(target: "nosd", "wifi connect ok ssid={}", ssid);
         Ok(())

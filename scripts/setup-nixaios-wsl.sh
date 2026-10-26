@@ -3,8 +3,8 @@
 # Copies repo to Linux FS, enables systemd, installs Determinate Nix.
 set -euo pipefail
 
-WIN_REPO="${WIN_REPO:-/mnt/c/DEV/neural-os-core-latest}"
-LINUX_REPO="${LINUX_REPO:-$HOME/src/neural-os-core-latest}"
+WIN_REPO="${WIN_REPO:-/mnt/c/DEV/nix-aios}"
+LINUX_REPO="${LINUX_REPO:-$HOME/src/nix-aios}"
 
 echo "==> Enabling systemd in /etc/wsl.conf (needs sudo)"
 if [[ ! -f /etc/wsl.conf ]] || ! grep -q 'systemd=true' /etc/wsl.conf 2>/dev/null; then
@@ -58,5 +58,5 @@ echo ""
 echo "DONE setup. Next:"
 echo "  1) From PowerShell:  wsl --shutdown"
 echo "  2) Reopen Ubuntu"
-echo "  3) bash $LINUX_REPO/nixaios/scripts/build-iso-wsl.sh"
-echo "     (or: cd $LINUX_REPO/nixaios && nix build .#iso -L)"
+echo "  3) bash $LINUX_REPO/scripts/build-iso-wsl.sh"
+echo "     (or: cd $LINUX_REPO && nix build .#iso -L)"

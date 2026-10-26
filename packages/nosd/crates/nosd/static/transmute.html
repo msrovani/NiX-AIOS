@@ -118,7 +118,7 @@ async function rpc(method, params={}){
   const r=await fetch("/rpc",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({id:rpcId++, method, caps:CAPS_ALL, cap_gen:1, params})
+    body:JSON.stringify({id:rpcId++, method, caps:CAPS_ALL, cap_gen:1, token:"__NOSD_TOKEN__", params})
   });
   return await r.json();
 }

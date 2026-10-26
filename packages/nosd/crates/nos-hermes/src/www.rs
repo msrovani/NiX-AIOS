@@ -86,9 +86,6 @@ mod tests {
     fn fetch_denied_without_net_cap() {
         let a = plan_www(WwwKind::Fetch, "https://example.com");
         let g = CapGate::new(CapBits::INFER, 1);
-        assert!(matches!(
-            fetch_if_allowed(&g, 1, &a),
-            Err(WwwError::Cap(_))
-        ));
+        assert!(matches!(fetch_if_allowed(&g, 1, &a), Err(WwwError::Cap(_))));
     }
 }

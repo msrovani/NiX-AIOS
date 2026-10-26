@@ -306,14 +306,14 @@ EOF
     log "— Garantir nosd —"
     $SUDO systemctl start nosd.service || true
     for i in $(seq 1 40); do
-      if @curl@/bin/curl -sf -o /dev/null http://127.0.0.1:7701/ 2>/dev/null; then
-        log "nosd HTTP OK (try=$i)"
+      if $SUDO @nosd@/bin/nosctl --socket /run/nosd/nosd.sock health >/dev/null 2>&1; then
+        log "nosd health OK (try=$i)"
         break
       fi
       sleep 0.5
     done
-    if ! @curl@/bin/curl -sf -o /dev/null http://127.0.0.1:7701/ 2>/dev/null; then
-      log "FAIL: nosd :7701 offline"
+    if ! $SUDO @nosd@/bin/nosctl --socket /run/nosd/nosd.sock health >/dev/null 2>&1; then
+      log "FAIL: nosd health offline (socket /run/nosd/nosd.sock)"
       exit 1
     fi
 

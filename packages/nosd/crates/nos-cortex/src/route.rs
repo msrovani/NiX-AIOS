@@ -2,8 +2,8 @@
 //! S1 = reação local (Active / experts leves). S2 = raciocínio profundo (GeneratorPro).
 //! Onda 5: tenta `score_v0` (pesos fixos); senão keyword. Honesty: ≠ ROUTER.BITNET treinado.
 
-use nos_core::{ModelSlot, S1Backend, s1_backend_effective, score_intent_s1};
 use super::router_score::{decide_from_scores, score_intent};
+use nos_core::{s1_backend_effective, score_intent_s1, ModelSlot, S1Backend};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SystemLane {
@@ -23,7 +23,12 @@ pub struct RouteDecision {
 /// Classifica intenção → slot + lane. Fail-closed: default S1 Active.
 /// W3: `NOSD_S1_BACKEND=agentjev` sem `NOSD_S1_BLOB` → keyword efectivo (não rede neural fantasma).
 pub fn route_intent(prompt: &str) -> RouteDecision {
-    if s1_backend_effective() == S1Backend::Keyword {
+    route_intent_with(prompt, s1_backend_effective())
+}
+
+/// Versão pura (testável sem `std::env`).
+pub fn route_intent_with(prompt: &str, backend: S1Backend) -> RouteDecision {
+    if backend == S1Backend::Keyword {
         if let Some(d) = route_from_s1_keyword(prompt) {
             return d;
         }
@@ -102,7 +107,12 @@ pub fn route_intent_keyword(prompt: &str) -> RouteDecision {
             reason: "vision_keywords",
         };
     }
-    if contains_any(&p, &["pci", "hwid", "driver", "firmware", "gpu ", "nvidia", "amdgpu"]) {
+    if contains_any(
+        &p,
+        &[
+            "pci", "hwid", "driver", "firmware", "gpu ", "nvidia", "amdgpu",
+        ],
+    ) {
         return RouteDecision {
             slot: ModelSlot::HwExpert,
             lane: SystemLane::S1Local,
@@ -174,10 +184,8 @@ mod tests {
     }
 
     #[test]
-    fn s1_keyword_env_routes_hw() {
-        std::env::set_var("NOSD_S1_BACKEND", "keyword");
-        let d = route_intent("nvidia pci driver firmware");
-        std::env::remove_var("NOSD_S1_BACKEND");
+    fn s1_keyword_routes_hw_without_env() {
+        let d = route_intent_with("nvidia pci driver firmware", S1Backend::Keyword);
         assert_eq!(d.reason, "s1_keyword");
         assert_eq!(d.slot, ModelSlot::HwExpert);
     }

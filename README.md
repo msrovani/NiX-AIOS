@@ -4,8 +4,8 @@
 
 Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 
-**Release 0.5.2** — revisão estrutural (RPC fatiado, Hermes boot, contratos); volid ISO `NIXAIOS051`.  
-**Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.5.2](docs/RELEASE_0.5.2.md)
+**Release 0.5.4** — Trust & Truth (IPC auth, token, ring desarmado); volid ISO `NIXAIOS051`.  
+**Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.5.4](docs/RELEASE_0.5.4.md)
 
 ## Quick start
 
@@ -13,8 +13,9 @@ Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 cd packages/nosd
 cargo test --workspace
 cargo run -p nosd -- --foreground --tcp 127.0.0.1:7700 --data-dir ./data
-cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 health
-cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 chat "oi"
+# TCP exige token (S-01); o daemon grava ./data/ipc.token
+cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 --token-file ./data/ipc.token health
+cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 --token-file ./data/ipc.token chat "oi"
 ```
 
 Sem GGUF → `[cpu-echo]`. WSL / ISO / metal: ver [Getting started](docs/GETTING_STARTED.md) e [WSL](docs/WSL.md).

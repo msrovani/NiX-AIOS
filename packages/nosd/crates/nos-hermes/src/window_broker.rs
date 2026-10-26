@@ -9,8 +9,8 @@ use nos_core::{
 use parking_lot::Mutex;
 use serde_json::json;
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tracing::info;
 
 const CAP: usize = 16;
@@ -65,8 +65,10 @@ impl WindowBroker {
             spec.source,
             spec.escalate
         );
-        self.bus
-            .publish(topics::UI_OPEN, serde_json::to_value(&spec).unwrap_or(json!({})));
+        self.bus.publish(
+            topics::UI_OPEN,
+            serde_json::to_value(&spec).unwrap_or(json!({})),
+        );
         Ok(spec)
     }
 
@@ -194,14 +196,26 @@ impl WindowBroker {
                 body.unwrap_or_else(|| "Status".into()),
                 source,
             ),
-            WindowKind::HitlText | WindowKind::Custom => {
+            // Custom = display card (sem escalate); HitlText = entrada obrigatória.
+            WindowKind::Custom => {
+                let mut w = WindowSpec::info(
+                    id,
+                    title.unwrap_or_else(|| "JARBAS".into()),
+                    body.unwrap_or_default(),
+                    source,
+                );
+                w.kind = WindowKind::Custom;
+                w.escalate = false;
+                w
+            }
+            WindowKind::HitlText => {
                 let mut w = WindowSpec::info(
                     id,
                     title.unwrap_or_else(|| "Entrada".into()),
                     body.unwrap_or_default(),
                     source,
                 );
-                w.kind = kind;
+                w.kind = WindowKind::HitlText;
                 w.escalate = true;
                 w.fields = vec![nos_core::HitlField {
                     name: "text".into(),
@@ -220,7 +234,9 @@ impl WindowBroker {
 
 fn try_nmcli_ssids(limit: usize) -> Vec<String> {
     use std::process::Command;
-    let _ = Command::new("nmcli").args(["device", "wifi", "rescan"]).output();
+    let _ = Command::new("nmcli")
+        .args(["device", "wifi", "rescan"])
+        .output();
     let out = match Command::new("nmcli")
         .args(["-t", "-f", "SSID", "device", "wifi", "list"])
         .output()

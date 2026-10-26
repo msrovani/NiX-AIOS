@@ -12,7 +12,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("prompt")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            match state.hermes.chat_submit(&gate, prompt) {
+            match state.hermes.chat_submit(gate, prompt) {
                 Ok(v) => Response {
                     id: req.id,
                     ok: true,
@@ -28,11 +28,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "chat.poll" => {
-            let job_id = req
-                .params
-                .get("id")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            let job_id = req.params.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
             match state.hermes.chat_poll(job_id) {
                 Some(v) => Response {
                     id: req.id,
@@ -70,14 +66,13 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
 
-
         "chat" | "infer.submit" => {
             let prompt = req
                 .params
                 .get("prompt")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            match state.hermes.chat(&gate, prompt) {
+            match state.hermes.chat(gate, prompt) {
                 Ok(text) => Response {
                     id: req.id,
                     ok: true,

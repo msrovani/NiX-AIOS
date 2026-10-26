@@ -589,10 +589,7 @@ fn seek_crates(need: &SkillNeed, cfg: &SeekConfig, out: &mut Vec<SkillCandidate>
                 .unwrap_or("crate")
                 .to_string();
             let url = format!("https://crates.io/crates/{}", name);
-            let license = c
-                .get("license")
-                .and_then(|l| l.as_str())
-                .map(String::from);
+            let license = c.get("license").and_then(|l| l.as_str()).map(String::from);
             let escalate_license = license_escalate(license.as_deref());
             let score = score_need(need, &name, &need.goal);
             if score >= 0.25 {
@@ -764,6 +761,8 @@ f
             synthesize_reason: None,
             outcome: SeekOutcome::Synth,
         };
-        assert!(seek_audit_line(&r).contains("sought?Synth") || seek_audit_line(&r).contains("Synth"));
+        assert!(
+            seek_audit_line(&r).contains("sought?Synth") || seek_audit_line(&r).contains("Synth")
+        );
     }
 }

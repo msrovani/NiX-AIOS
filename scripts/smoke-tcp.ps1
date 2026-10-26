@@ -12,7 +12,8 @@ function Invoke-Nosctl([string[]]$CtlArgs) {
   # cargo escreve progresso em stderr — não tratar como erro do PowerShell
   $prev = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
-  $out = & cargo run --manifest-path $manifest -p nosd --bin nosctl -- @CtlArgs 2>&1 | Out-String
+  $tokenArgs = @("--token-file", (Join-Path $data "ipc.token"))
+  $out = & cargo run --manifest-path $manifest -p nosd --bin nosctl -- @($tokenArgs + $CtlArgs) 2>&1 | Out-String
   $code = $LASTEXITCODE
   $ErrorActionPreference = $prev
   Write-Host $out

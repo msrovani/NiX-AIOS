@@ -35,7 +35,10 @@ pub fn sse_data_chunk(line: &str) -> Option<SseChunk> {
         if let Some(t) = v
             .pointer("/content")
             .and_then(|x| x.as_str())
-            .or_else(|| v.pointer("/choices/0/delta/content").and_then(|x| x.as_str()))
+            .or_else(|| {
+                v.pointer("/choices/0/delta/content")
+                    .and_then(|x| x.as_str())
+            })
             .or_else(|| v.pointer("/choices/0/text").and_then(|x| x.as_str()))
         {
             if !t.is_empty() {
@@ -107,7 +110,9 @@ impl InferenceBackend for LlamaServerBackend {
             "stream": true,
         });
         let url = self.completion_url();
-        let agent = ureq::AgentBuilder::new().timeout_read(Duration::from_secs(120)).build();
+        let agent = ureq::AgentBuilder::new()
+            .timeout_read(Duration::from_secs(120))
+            .build();
         let resp = agent
             .post(&url)
             .set("Content-Type", "application/json")
@@ -146,10 +151,7 @@ mod tests {
     #[test]
     fn sse_parse_completion_json() {
         let line = r#"data: {"content":" hello"}"#;
-        assert_eq!(
-            sse_data_chunk(line),
-            Some(SseChunk::Text(" hello".into()))
-        );
+        assert_eq!(sse_data_chunk(line), Some(SseChunk::Text(" hello".into())));
     }
 
     #[test]

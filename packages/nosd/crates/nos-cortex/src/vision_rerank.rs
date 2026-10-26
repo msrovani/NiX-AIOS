@@ -42,15 +42,7 @@ pub fn role_from_prompt(prompt: &str) -> Option<VisionRerankRole> {
     if contains_any(
         &p,
         &[
-            "imagem",
-            "image",
-            "foto",
-            "camera",
-            "câmera",
-            "webcam",
-            "vision",
-            "visão",
-            "visao",
+            "imagem", "image", "foto", "camera", "câmera", "webcam", "vision", "visão", "visao",
             "gesto",
         ],
     ) {

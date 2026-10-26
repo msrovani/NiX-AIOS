@@ -26,6 +26,7 @@ pub const SIDE_EFFECT_METHODS: &[&str] = &[
     "gpu.plan",
     "device.recipe",
     "self.heal.evaluate",
+    "security.rotate",
 ];
 
 pub fn is_side_effect(method: &str) -> bool {

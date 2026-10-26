@@ -89,11 +89,7 @@ impl FragReassembler {
             None => {
                 if slots.len() >= MAX_SLOTS {
                     // evict oldest
-                    if let Some((oi, _)) = slots
-                        .iter()
-                        .enumerate()
-                        .min_by_key(|(_, s)| s.last_ms)
-                    {
+                    if let Some((oi, _)) = slots.iter().enumerate().min_by_key(|(_, s)| s.last_ms) {
                         slots.remove(oi);
                     }
                 }

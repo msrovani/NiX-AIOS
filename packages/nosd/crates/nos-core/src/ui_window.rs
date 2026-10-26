@@ -89,7 +89,12 @@ pub mod topics {
 }
 
 impl WindowSpec {
-    pub fn info(id: u64, title: impl Into<String>, body: impl Into<String>, source: UiSource) -> Self {
+    pub fn info(
+        id: u64,
+        title: impl Into<String>,
+        body: impl Into<String>,
+        source: UiSource,
+    ) -> Self {
         Self {
             id,
             kind: WindowKind::Info,

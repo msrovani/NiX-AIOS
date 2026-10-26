@@ -105,7 +105,7 @@ function setAccentCss(){
   document.getElementById("meta").textContent=`${state} · ${pattern}`;
 }
 async function rpc(method, params){
-  const body={id:rpcId++, method, caps:0, cap_gen:1, params:params||{}};
+  const body={id:rpcId++, method, caps:0, cap_gen:1, token:"__NOSD_TOKEN__", params:params||{}};
   try{
     const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const j=await r.json();
@@ -290,7 +290,7 @@ async function chat(prompt){
   document.getElementById("reply").textContent="a pensar (MoE dGPU)…";
   let text="", wav_b64=null;
   try{
-    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, params:{prompt, play:true}};
+    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, token:"__NOSD_TOKEN__", params:{prompt, play:true}};
     const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const jj=await r.json();
     if(jj.ok && jj.result){
@@ -310,7 +310,7 @@ async function voiceTurnMic(){
   tone(600,0.05); await rpc("orb.set",{state:"listening",presets:true});
   document.getElementById("reply").textContent="a ouvir microfone (Whisper local 4s)…";
   try{
-    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, params:{record_secs:4, play:true}};
+    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, token:"__NOSD_TOKEN__", params:{record_secs:4, play:true}};
     const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const jj=await r.json();
     if(jj.ok && jj.result){

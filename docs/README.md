@@ -1,7 +1,7 @@
 # Documentação NixAIOS
 
 Hub da documentação do produto paralelo **NixAIOS** (daemon `nosd` + ISO NixOS).  
-Versão corrente: **0.5.2** — [`RELEASE_0.5.2.md`](RELEASE_0.5.2.md) (base [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md)).
+Versão corrente: **0.5.4** — [`RELEASE_0.5.4.md`](RELEASE_0.5.4.md) (base [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md)).
 
 > Bare-metal canónico: [neural-os-core](https://github.com/msrovani/neural-os-core). Este repo = bancada NixOS (ADR-0118).
 
@@ -17,6 +17,7 @@ Versão corrente: **0.5.2** — [`RELEASE_0.5.2.md`](RELEASE_0.5.2.md) (base [`R
 | [OPERATIONS.md](OPERATIONS.md) | ISO, metal, journal, firstboot |
 | [GLOSSARY.md](GLOSSARY.md) | Termos (Hermes, JARBAS, Frugal, …) |
 | [ROADMAP.md](ROADMAP.md) | Residuals pós-0.5.0 e honesty |
+| [IMPROVEMENT_PLAN.md](IMPROVEMENT_PLAN.md) | Plano de melhorias por ondas (0.5.4 → 0.6/0.7/0.8) |
 | [BOOT_TO_JARBAS.md](BOOT_TO_JARBAS.md) | Playbook M0–M5 boot→JARBAS Jarvis-like + rings + AI_GATE |
 | [METAL_CAMPAIGN.md](METAL_CAMPAIGN.md) | Campanha M4 stick NIXAIOS051 (Ring3_Linux/metal) |
 | [FLEET_LAB.md](FLEET_LAB.md) | Campanha M5 mesh 2-nó (0081 A/B) |

@@ -264,8 +264,10 @@ mod tests {
 
     #[test]
     fn listen_preset() {
-        let mut s = OrbSnapshot::default();
-        s.state = OrbState::Listening;
+        let mut s = OrbSnapshot {
+            state: OrbState::Listening,
+            ..Default::default()
+        };
         s.apply_state_presets();
         assert!(s.rings >= 3);
         assert_eq!(s.pattern, OrbPattern::Ring);

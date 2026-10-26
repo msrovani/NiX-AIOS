@@ -65,7 +65,10 @@ impl NosMemory {
         Self::open_with_backend(dir, MemoryBackendKind::from_env())
     }
 
-    pub fn open_with_backend(dir: impl AsRef<Path>, backend: MemoryBackendKind) -> Result<Self, MemoryError> {
+    pub fn open_with_backend(
+        dir: impl AsRef<Path>,
+        backend: MemoryBackendKind,
+    ) -> Result<Self, MemoryError> {
         let dir = dir.as_ref();
         MemoryBackendKind::ensure_dirs(dir)?;
         let storage = match backend {

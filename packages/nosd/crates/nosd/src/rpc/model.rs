@@ -134,7 +134,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("hitl_confirmed")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let scorer_absent = matches!(s1_backend_from_env(), S1Backend::Absent);
+            let scorer_absent = nos_core::s1_scorer_absent();
             let plan = deliberate_blob_fetch(&need, &cap, hitl, scorer_absent);
             let _ = remember_deliberation(&state.hermes.memory, &plan);
             if req.method == "blob.deliberate" || !plan.allow_fetch {
@@ -143,7 +143,10 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     let id = state.hermes.windows.alloc_id();
                     let body = format!(
                         "{}\nplan={}\nfit={:?}\n{}",
-                        plan.reason, plan.cortex_plan, plan.fit, iso_must_not_ship_blobs()
+                        plan.reason,
+                        plan.cortex_plan,
+                        plan.fit,
+                        iso_must_not_ship_blobs()
                     );
                     let spec = WindowSpec::hitl_confirm(
                         id,
@@ -151,7 +154,12 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                         body,
                         UiSource::Hermes,
                     );
-                    if let Ok(opened) = state.hermes.windows.open(&gate, state.cap_gen, spec) {
+                    if let Ok(opened) =
+                        state
+                            .hermes
+                            .windows
+                            .open(gate, state.ipc_generation(), spec)
+                    {
                         window_id = Some(opened.id);
                     } else {
                         window_id = Some(id);

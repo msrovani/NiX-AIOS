@@ -3,8 +3,8 @@
 mod server;
 
 use clap::Parser;
-use nos_cortex::CapacityProber;
 use nos_core::{NosScore, Sev};
+use nos_cortex::CapacityProber;
 use nos_hermes::{BootConfig, HermesEngine};
 use nos_mesh::MeshEngine;
 use std::path::PathBuf;
@@ -33,20 +33,32 @@ struct Args {
     #[arg(long, default_value = "", env = "NOSD_MESH_BIND")]
     mesh_bind: String,
     /// Destino broadcast/unicast dos heartbeats.
-    #[arg(long, default_value = "255.255.255.255:19000", env = "NOSD_MESH_BROADCAST")]
+    #[arg(
+        long,
+        default_value = "255.255.255.255:19000",
+        env = "NOSD_MESH_BROADCAST"
+    )]
     mesh_broadcast: String,
     /// Lab cinemático orb (vídeo+som+padrões) — HTTP JSON. Vazio = off.
     /// Ex: `127.0.0.1:7701` → abra no browser.
-    #[arg(long, default_value = "127.0.0.1:7701", env = "NOSD_ORB_LAB")]
+    #[arg(long, default_value = "", env = "NOSD_ORB_LAB")]
     orb_lab: String,
+    /// Token IPC para TCP/HTTP. Se ausente, gera e grava em `--ipc-token-file`.
+    #[arg(long, env = "NOSD_IPC_TOKEN", hide_env_values = true)]
+    ipc_token: Option<String>,
+    /// Ficheiro do token IPC (default: `<data-dir>/ipc.token`).
+    #[arg(long, env = "NOSD_IPC_TOKEN_FILE")]
+    ipc_token_file: Option<PathBuf>,
+    /// GID com perfil LocalAdmin no socket Unix (default: gid do daemon).
+    #[arg(long, env = "NOSD_ADMIN_GID")]
+    admin_gid: Option<u32>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -56,17 +68,62 @@ async fn main() -> anyhow::Result<()> {
     let models_dir = args.data_dir.join("models");
     std::fs::create_dir_all(&models_dir)?;
 
+    // S-01/S-03: token de processo para TCP/HTTP. Unix usa SO_PEERCRED.
+    let ipc_token_file = args
+        .ipc_token_file
+        .clone()
+        .unwrap_or_else(|| args.data_dir.join("ipc.token"));
+    let ipc_token = match args.ipc_token.clone() {
+        Some(token) => {
+            if let Err(e) = nosd_lib::rpc::write_ipc_token(&ipc_token_file, &token) {
+                // Token explícito continua válido em memória; só o auto-discovery falha.
+                tracing::warn!(
+                    target: "nosd",
+                    "cannot persist explicit ipc token to {}: {e}",
+                    ipc_token_file.display()
+                );
+            }
+            token
+        }
+        None => match std::fs::read_to_string(&ipc_token_file) {
+            Ok(text) if !text.trim().is_empty() => text.trim().to_string(),
+            _ => {
+                let token = nosd_lib::rpc::new_ipc_token();
+                nosd_lib::rpc::write_ipc_token(&ipc_token_file, &token)?;
+                token
+            }
+        },
+    };
+    info!(
+        target: "nosd",
+        "ipc token file {} (token never logged)",
+        ipc_token_file.display()
+    );
+
+    #[cfg(unix)]
+    let daemon_uid = unsafe { libc::getuid() };
+    #[cfg(not(unix))]
+    let daemon_uid = 0u32;
+    #[cfg(unix)]
+    let admin_gid = args.admin_gid.unwrap_or_else(|| unsafe { libc::getgid() });
+    #[cfg(not(unix))]
+    let admin_gid = args.admin_gid.unwrap_or(0);
+    // S-06: só armar o ring root com opt-in explícito (após S-04/R-03/R-04).
+    let nix_ring_armed = matches!(
+        std::env::var("NOSD_NIX_RING").ok().as_deref(),
+        Some("1") | Some("true") | Some("armed")
+    );
+    if !nix_ring_armed {
+        info!(
+            target: "nosd",
+            "nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test"
+        );
+    }
+
     let cap = CapacityProber::probe();
     let posture = nos_cortex::CapacityProber::vram_posture(&cap);
     // Sugestão honesta: só útil com llama CUDA; default nixpkgs = CPU (ngl=0).
-    let suggest_ngl = nos_cortex::plan_n_gpu_layers(
-        32,
-        80,
-        cap.vram_free_mb,
-        256,
-        128,
-        256,
-    );
+    let suggest_ngl = nos_cortex::plan_n_gpu_layers(32, 80, cap.vram_free_mb, 256, 128, 256);
     info!(
         target: "nosd",
         "capacity ram_avail_mb={} vendor={} cards={:?} render={:?} vram_free_mb={} posture={} suggest_ngl={} (CUDA llama only; NOSD_LLAMA_NGL overrides)",
@@ -87,7 +144,8 @@ async fn main() -> anyhow::Result<()> {
     let ll = nosd_lib::landlock::try_restrict_process(&args.data_dir);
     info!(target: "nosd", "landlock status={ll:?}");
 
-    let (resolved_models, persist_mounted, _) = nosd_lib::transmute::resolve_models_dir(&args.data_dir);
+    let (resolved_models, persist_mounted, _) =
+        nosd_lib::transmute::resolve_models_dir(&args.data_dir);
     let scan_dirs = if persist_mounted && resolved_models != models_dir {
         vec![resolved_models, models_dir.clone()]
     } else {
@@ -126,7 +184,14 @@ async fn main() -> anyhow::Result<()> {
         hermes,
         mesh,
         data_dir: args.data_dir.clone(),
-        cap_gen: 1,
+        ipc: parking_lot::RwLock::new(nosd_lib::rpc::IpcAuth {
+            token: ipc_token,
+            generation: 1,
+        }),
+        ipc_token_file: ipc_token_file.clone(),
+        daemon_uid,
+        admin_gid,
+        nix_ring_armed,
         caps: nos_core::CapRegistry::new(),
         package_store: parking_lot::Mutex::new(nos_factory::PackageStore::new()),
         shutting_down: AtomicBool::new(false),
@@ -134,8 +199,12 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let mesh_udp = if !args.mesh_bind.is_empty() {
-        match nos_mesh::udp::start_mesh_udp(&args.mesh_bind, &args.mesh_broadcast, state.mesh.clone())
-            .await
+        match nos_mesh::udp::start_mesh_udp(
+            &args.mesh_bind,
+            &args.mesh_broadcast,
+            state.mesh.clone(),
+        )
+        .await
         {
             Ok(u) => {
                 info!(
@@ -199,6 +268,13 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let addr = bind.unwrap_or_else(|| "127.0.0.1:7700".into());
+    let is_loopback = addr
+        .parse::<std::net::SocketAddr>()
+        .map(|a| a.ip().is_loopback())
+        .unwrap_or(false);
+    if !is_loopback && args.ipc_token.is_none() {
+        anyhow::bail!("--tcp non-loopback requires an explicit NOSD_IPC_TOKEN/--ipc-token");
+    }
     info!(target: "nosd", "listen tcp {}", addr);
     server::serve_tcp(addr, state).await?;
     Ok(())
@@ -213,12 +289,15 @@ async fn hermes_runtime_loop(
     let mut n = 0u64;
     let period = std::time::Duration::from_secs(every_secs.max(1));
     loop {
-        if state.shutting_down.load(std::sync::atomic::Ordering::Relaxed) {
+        if state
+            .shutting_down
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
             break;
         }
         let tick = state.hermes.cognitive_tick();
         // NX.3/NX.5: observe → EventBus + thermal/presence ngl hint
-        if n % 3 == 0 {
+        if n.is_multiple_of(3) {
             let snap = nos_observe::collect_snapshot();
             state.hermes.bus.publish(
                 nos_observe::TOPIC_OBSERVE_SNAPSHOT,
@@ -257,7 +336,7 @@ async fn hermes_runtime_loop(
             state.hermes.tick_mesh_hints(&state.mesh, n);
             u.tick_tx().await;
             u.poll_rx(8).await;
-            if n % 15 == 0 {
+            if n.is_multiple_of(15) {
                 let peers = state.mesh.peer_count();
                 let _ = state.hermes.record_opar(
                     "mesh",
@@ -281,7 +360,7 @@ async fn hermes_runtime_loop(
             );
             state.hermes.tick_soul_mirror(&state.mesh, n);
         }
-        if n == 1 || n % 30 == 0 {
+        if n == 1 || n.is_multiple_of(30) {
             info!(
                 target: "nosd",
                 "hermes runtime tick={} peers={} payload={}",

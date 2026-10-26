@@ -9,18 +9,27 @@ if [[ "${1:-}" == "--stage" ]]; then
 fi
 
 TCP="${NOSD_TCP:-127.0.0.1:7700}"
-SOCK="${NOSD_SOCKET:-}"
 DATA="${NOSD_DATA_DIR:-/var/lib/nosd}"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# S-01: TCP exige token; Unix socket usa SO_PEERCRED.
+TOKEN_FILE="${NOSD_IPC_TOKEN_FILE:-$DATA/ipc.token}"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Prefer Unix socket canónico (alinhar nosd/jarbas); TCP só se socket ausente.
+if [[ -n "${NOSD_SOCKET:-}" ]]; then
+  SOCK="$NOSD_SOCKET"
+elif [[ -S /run/nosd/nosd.sock ]]; then
+  SOCK="/run/nosd/nosd.sock"
+else
+  SOCK=""
+fi
 FAILS=0
 
 nosctl_bin() {
   if command -v nosctl >/dev/null 2>&1; then
     command -v nosctl
-  elif [[ -x "$ROOT/packages/nosd/target/debug/nosctl" ]]; then
-    echo "$ROOT/packages/nosd/target/debug/nosctl"
-  elif [[ -x "$ROOT/packages/nosd/target/release/nosctl" ]]; then
-    echo "$ROOT/packages/nosd/target/release/nosctl"
+  elif [[ -x "$REPO_ROOT/packages/nosd/target/debug/nosctl" ]]; then
+    echo "$REPO_ROOT/packages/nosd/target/debug/nosctl"
+  elif [[ -x "$REPO_ROOT/packages/nosd/target/release/nosctl" ]]; then
+    echo "$REPO_ROOT/packages/nosd/target/release/nosctl"
   else
     echo ""
   fi
@@ -36,9 +45,9 @@ rpc() {
     return 2
   fi
   if [[ -n "$SOCK" && -S "$SOCK" ]]; then
-    "$NOSCTL" --socket "$SOCK" "$method" "$@" 2>/dev/null || return 1
+    "$NOSCTL" --socket "$SOCK" --token-file "$TOKEN_FILE" "$method" "$@" 2>/dev/null || return 1
   else
-    "$NOSCTL" --tcp "$TCP" "$method" "$@" 2>/dev/null || return 1
+    "$NOSCTL" --tcp "$TCP" --token-file "$TOKEN_FILE" "$method" "$@" 2>/dev/null || return 1
   fi
 }
 
@@ -174,8 +183,10 @@ fi
 
 # --- M3d Frugal ---
 if want M3d || want M3; then
-  if [[ -x "$ROOT/scripts/smoke-frugal-fleet.sh" ]]; then
-    if bash "$ROOT/scripts/smoke-frugal-fleet.sh" >/tmp/gate-frugal.out 2>&1; then
+  if [[ -x "$REPO_ROOT/scripts/smoke-frugal-fleet.sh" ]]; then
+    # env -u ROOT: smoke usa NOSD_CRATE_ROOT; não herdar REPO_ROOT como ROOT
+    if env -u ROOT NOSD_CRATE_ROOT="$REPO_ROOT/packages/nosd" \
+      bash "$REPO_ROOT/scripts/smoke-frugal-fleet.sh" >/tmp/gate-frugal.out 2>&1; then
       gate_pass M3d Ring3_Linux PORT OBSERVED "smoke-frugal-fleet_PASS"
     else
       gate_fail M3d Ring3_Linux PORT UNKNOWN "smoke-frugal-fleet_FAIL"
@@ -187,15 +198,17 @@ fi
 
 # --- M3f voice ---
 if want M3f || want M3; then
-  # nosctl subcommand: voice-status → RPC voice.status
+  # nosctl voice-status — exigir posture Ready|EngineAbsent (não grep "mic" sempre presente)
   if out="$(rpc voice-status 2>/dev/null)"; then
-    if echo "$out" | grep -qiE 'pipeline_stages|mic|EngineAbsent|EngineReady|posture|stt_ready'; then
-      gate_pass M3f Ring3_Linux ADAPT IMPLEMENTED "voice.status_stages_or_posture"
+    if echo "$out" | grep -qiE '"posture"[[:space:]]*:[[:space:]]*"(Ready|EngineAbsent|EngineReady)'; then
+      gate_pass M3f Ring3_Linux ADAPT OBSERVED "voice.posture_Ready_or_Absent"
+    elif echo "$out" | grep -qiE 'EngineAbsent|EngineReady|"stt_ready"'; then
+      gate_pass M3f Ring3_Linux ADAPT OBSERVED "voice.status_engine_fields"
     else
-      emit M3f Ring3_Linux ADAPT IMPLEMENTED SKIP "voice-status soft — pipeline_stages in VoiceStatus"
+      emit M3f Ring3_Linux ADAPT UNKNOWN SKIP "voice-status sem posture honesty"
     fi
   else
-    emit M3f Ring3_Linux ADAPT IMPLEMENTED SKIP "voice-status unreachable — ADAPT honesty EngineAbsent OK"
+    emit M3f Ring3_Linux ADAPT AWAITING_HW SKIP "voice-status unreachable"
   fi
 fi
 
@@ -231,10 +244,18 @@ fi
 # --- MQEMU — lab ISO (≠ metal VERIFIED) ---
 if want MQEMU || want QEMU; then
   if [[ -n "${NIXAIOS_QEMU_LOG:-}" && -f "${NIXAIOS_QEMU_LOG}" ]]; then
-    if grep -qiE 'NixOS|nosd|Linux version|Welcome|JARBAS|systemd' "$NIXAIOS_QEMU_LOG"; then
+    if grep -qiE 'NixOS|Linux version|Welcome|systemd|Reached target' "$NIXAIOS_QEMU_LOG"; then
       gate_pass MQEMU Ring3_Linux_qemu DELEGATE OBSERVED "qemu_serial_boot_markers log=$NIXAIOS_QEMU_LOG"
     else
       gate_fail MQEMU Ring3_Linux_qemu DELEGATE UNKNOWN "qemu_log_no_boot_markers"
+    fi
+    # Honesty: boot markers ≠ nosd healthy
+    if grep -qiE 'Failed to start .*Neural-OS Daemon|Failed to start .*nosd' "$NIXAIOS_QEMU_LOG"; then
+      gate_fail MQEMU Ring3_Linux_qemu ADAPT OBSERVED "nosd.service_FAILED_in_qemu_log (≠ metal; diagnose guest)"
+    elif grep -qiE 'Started .*Neural-OS Daemon|nosd\.service:.*Succeeded' "$NIXAIOS_QEMU_LOG"; then
+      gate_pass MQEMU Ring3_Linux_qemu ADAPT OBSERVED "nosd_start_ok_in_qemu_log"
+    else
+      emit MQEMU Ring3_Linux_qemu ADAPT UNKNOWN SKIP "nosd start status unclear in qemu log"
     fi
   else
     emit MQEMU Ring3_Linux_qemu DELEGATE AWAITING_HW SKIP "set NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log after run-iso-qemu-*.sh (≠ metal)"

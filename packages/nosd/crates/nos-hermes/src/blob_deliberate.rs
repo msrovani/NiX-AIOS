@@ -3,10 +3,10 @@
 
 use nos_bei::PersonaState;
 use nos_core::{
-    disposition, lab_auto_switch_from_env, with_abstain, ActDisposition, ActDomain, Decision,
-    AbstainReason, CapBits, CapGate,
+    disposition, lab_auto_switch_from_env, with_abstain, AbstainReason, ActDisposition, ActDomain,
+    CapBits, CapGate, Decision,
 };
-use nos_cortex::{fit_model, FitVerdict, NodeCapacity, suggest_for_capacity};
+use nos_cortex::{fit_model, suggest_for_capacity, FitVerdict, NodeCapacity};
 use nos_memory::{MemoryRecord, NosMemory};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -86,10 +86,7 @@ pub fn deliberate_blob_fetch(
     }
     disp = with_abstain(disp, scorer_absent);
 
-    let hitl_required = matches!(
-        disp,
-        ActDisposition::Confirm | ActDisposition::Escalate
-    );
+    let hitl_required = matches!(disp, ActDisposition::Confirm | ActDisposition::Escalate);
     let denied = disp == ActDisposition::Deny;
     let allow_fetch = !denied && (!hitl_required || hitl_confirmed);
 

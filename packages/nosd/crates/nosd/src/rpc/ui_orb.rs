@@ -63,7 +63,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             let spec = nos_hermes::CardSpec { title, kv };
             match state.hermes.open_generative_card(
                 gate,
-                state.cap_gen,
+                state.ipc_generation(),
                 &spec,
                 nos_core::UiSource::Hermes,
             ) {
@@ -119,9 +119,9 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 let ssids = wifi_nm::scan(16)
                     .map(|aps| aps.into_iter().map(|a| a.ssid).collect::<Vec<_>>())
                     .unwrap_or_default();
-                state.hermes.ui_open_wifi(&gate, source, ssids)
+                state.hermes.ui_open_wifi(gate, source, ssids)
             } else {
-                state.hermes.ui_open(&gate, kind, source, title, body)
+                state.hermes.ui_open(gate, kind, source, title, body)
             };
             match opened {
                 Ok(w) => Response {
@@ -182,7 +182,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .ui_list()
                     .iter()
                     .any(|w| w.id == wid && w.kind == nos_core::WindowKind::HitlWifi);
-            match state.hermes.ui_action(&gate, act) {
+            match state.hermes.ui_action(gate, act) {
                 Ok(mut v) => {
                     if wifi_submit {
                         let ssid = values

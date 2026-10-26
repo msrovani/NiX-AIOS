@@ -35,8 +35,10 @@ impl OrbBroker {
         }
         let out = s.clone();
         drop(s);
-        self.bus
-            .publish(topics::ORB_STATE, serde_json::to_value(&out).unwrap_or(json!({})));
+        self.bus.publish(
+            topics::ORB_STATE,
+            serde_json::to_value(&out).unwrap_or(json!({})),
+        );
         info!(
             target: "nosd",
             "orb state={} pattern={} particles={}",
@@ -52,15 +54,21 @@ impl OrbBroker {
         s.pattern = pattern;
         let out = s.clone();
         drop(s);
-        self.bus
-            .publish(topics::ORB_STATE, serde_json::to_value(&out).unwrap_or(json!({})));
+        self.bus.publish(
+            topics::ORB_STATE,
+            serde_json::to_value(&out).unwrap_or(json!({})),
+        );
         out
     }
 
     /// Patch parcial (lab / nosctl).
     pub fn patch(&self, v: &serde_json::Value) -> OrbSnapshot {
         let mut s = self.snap.lock();
-        if let Some(st) = v.get("state").and_then(|x| x.as_str()).and_then(OrbState::parse) {
+        if let Some(st) = v
+            .get("state")
+            .and_then(|x| x.as_str())
+            .and_then(OrbState::parse)
+        {
             s.state = st;
             if v.get("presets").and_then(|x| x.as_bool()).unwrap_or(true) {
                 s.apply_state_presets();
@@ -96,8 +104,10 @@ impl OrbBroker {
         }
         let out = s.clone();
         drop(s);
-        self.bus
-            .publish(topics::ORB_STATE, serde_json::to_value(&out).unwrap_or(json!({})));
+        self.bus.publish(
+            topics::ORB_STATE,
+            serde_json::to_value(&out).unwrap_or(json!({})),
+        );
         out
     }
 
@@ -131,11 +141,12 @@ impl OrbBroker {
             .unwrap_or(false);
         let mut s = self.snap.lock();
         // Auto-estado a partir do áudio se idle/listening
-        if sense.audio_on && sense.level > 0.08 {
-            if matches!(s.state, OrbState::Idle | OrbState::Connecting) {
-                s.state = OrbState::Listening;
-                s.apply_state_presets();
-            }
+        if sense.audio_on
+            && sense.level > 0.08
+            && matches!(s.state, OrbState::Idle | OrbState::Connecting)
+        {
+            s.state = OrbState::Listening;
+            s.apply_state_presets();
         }
         s.sense = sense;
         // Motion aumenta agitação (sem substituir preset)
@@ -171,12 +182,7 @@ impl OrbBroker {
     }
 
     /// Fleet HUD fino — publica `FLEET_HEALTH` (JARBAS/lab); não altera lógica de saúde.
-    pub fn note_fleet(
-        &self,
-        verdict: &str,
-        peers: u32,
-        machines: u32,
-    ) -> OrbSnapshot {
+    pub fn note_fleet(&self, verdict: &str, peers: u32, machines: u32) -> OrbSnapshot {
         let mut s = self.snap.lock();
         if verdict == "no_go" {
             s.agitation = (s.agitation + 0.25).clamp(0.0, 1.0);
@@ -209,9 +215,11 @@ mod tests {
     fn sense_lifts_listening() {
         let bus = EventBus::new(8);
         let b = OrbBroker::new(bus);
-        let mut sense = OrbSense::default();
-        sense.audio_on = true;
-        sense.level = 0.4;
+        let sense = OrbSense {
+            audio_on: true,
+            level: 0.4,
+            ..Default::default()
+        };
         let s = b.sense(sense);
         assert_eq!(s.state, OrbState::Listening);
     }

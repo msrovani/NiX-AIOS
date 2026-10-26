@@ -93,8 +93,9 @@ bash ~/src/nix-aios/scripts/smoke-frugal-fleet.sh
 ### nix.propose (CapGate NIX_WRITE)
 
 ```bash
-# sem bit NIX_WRITE → deny; com bit → escreve staging, hitl_required=true, nunca switch
-nosctl --tcp 127.0.0.1:7700 nix-propose '{ ... }: { }'
+# TCP exige token (S-01); o token vive em $DATA/ipc.token
+# identidade LocalAdmin via token; sem token → deny
+nosctl --tcp 127.0.0.1:7700 --token-file "$DATA/ipc.token" nix-propose '{ ... }: { }'
 # ficheiro: $DATA/staging-ai-managed.nix
 ```
 

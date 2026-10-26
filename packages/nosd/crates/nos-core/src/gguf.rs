@@ -28,7 +28,7 @@ pub fn parse_gguf_header(buf: &[u8]) -> Result<GgufHeaderInfo, GgufError> {
         return Err(GgufError::BadMagic);
     }
     let version = u32::from_le_bytes(buf[4..8].try_into().unwrap());
-    if version < 1 || version > 3 {
+    if !(1..=3).contains(&version) {
         return Err(GgufError::BadVersion(version));
     }
     let tensor_count = u64::from_le_bytes(buf[8..16].try_into().unwrap());

@@ -1,4 +1,4 @@
-﻿//! Hermes — Observe→Plan→Act→Verify→Remember + MoE S1/S2 (manifesto NixAIOS).
+//! Hermes — Observe→Plan→Act→Verify→Remember + MoE S1/S2 (manifesto NixAIOS).
 //! WindowBroker: JARBAS materializa; Cortex sugere via `suggest_window_kind`.
 //! OrbBroker: usabilidade + sense mic/motion; Vision MoE = conector.
 
@@ -6,31 +6,31 @@ mod agency;
 mod autolearn;
 mod blob_deliberate;
 mod card;
-mod self_heal;
 mod cognitive_act;
 mod cognitive_bridge;
 mod membrane;
-mod patterns_external;
 mod opar_gate;
 mod orb_broker;
+mod patterns_external;
+mod self_heal;
 mod skill_observer;
 mod window_broker;
 mod www;
 
 pub use agency::{AgencyFleet, AgentManifest, ScheduleKind};
 pub use autolearn::{plan_from_seek, plan_learn, LearnAction, LearnPlan};
-pub use card::{parse_card_prompt, CardKv, CardSpec};
-pub use self_heal::{evaluate_self_heal, SelfHealDecision, SelfHealRecipe};
-pub use opar_gate::{is_side_effect, SIDE_EFFECT_METHODS};
 pub use blob_deliberate::{
     deliberate_blob_fetch, gate_allows_fetch, iso_must_not_ship_blobs, note_persona_download,
     remember_deliberation, BlobDeliberation, BlobKind, BlobNeed,
 };
+pub use card::{parse_card_prompt, CardKv, CardSpec};
 pub use cognitive_act::{wrap_opar, wrap_opar_with_seek, CognitiveAct};
 pub use cognitive_bridge::{build_chat_prompt, soul_path_default};
 pub use membrane::{discover_peers, graft, mcp_allowed, MembraneGrant};
-pub use patterns_external::{documented_patterns, CrossOsPeer, PATTERN_ANTHROPIC_SKILL_MD};
+pub use opar_gate::{is_side_effect, SIDE_EFFECT_METHODS};
 pub use orb_broker::OrbBroker;
+pub use patterns_external::{documented_patterns, CrossOsPeer, PATTERN_ANTHROPIC_SKILL_MD};
+pub use self_heal::{evaluate_self_heal, SelfHealDecision, SelfHealRecipe};
 pub use skill_observer::SkillObserver;
 pub use window_broker::WindowBroker;
 pub use www::{fetch_if_allowed, plan_www, WwwAction, WwwError, WwwKind};
@@ -42,8 +42,8 @@ use nos_core::{
     WindowAction, WindowKind, WindowSpec,
 };
 use nos_cortex::{
-    CapacityProber, HotSwapController, ModelHub, RouteDecision, S2Queue, SystemLane, route_intent,
-    suggest_window_kind,
+    route_intent, suggest_window_kind, CapacityProber, HotSwapController, ModelHub, RouteDecision,
+    S2Queue, SystemLane,
 };
 use nos_factory::{
     plan_skill_opt, seek_audit_line, seek_skill, AppFactory, ArtifactDraft, FactoryPath,
@@ -151,7 +151,8 @@ impl HermesEngine {
         let s2 = S2Queue::start(std::sync::Arc::new(move |p| {
             hs_s2.infer(p).map_err(|e| e.to_string())
         }));
-        let memory = NosMemory::open(&cfg.mem_dir).map_err(|e| HermesError::Memory(e.to_string()))?;
+        let memory =
+            NosMemory::open(&cfg.mem_dir).map_err(|e| HermesError::Memory(e.to_string()))?;
         let bus = EventBus::new(64);
         let eng = Self {
             hub,
@@ -194,7 +195,7 @@ impl HermesEngine {
 
     /// Mesh continuous: LayaIntent + offload hint (M.2/M.4) — chama o bin a cada N ticks.
     pub fn tick_mesh_hints(&self, mesh: &nos_mesh::MeshEngine, tick: u64) {
-        if tick % 5 != 0 {
+        if !tick.is_multiple_of(5) {
             return;
         }
         use nos_mesh::{content_fingerprint, LayaIntent};
@@ -216,7 +217,7 @@ impl HermesEngine {
 
     /// SoulMirror + CRDT local (M.3) — a cada 30 ticks com peers.
     pub fn tick_soul_mirror(&self, mesh: &nos_mesh::MeshEngine, tick: u64) {
-        if mesh.peer_count() == 0 || tick % 30 != 0 {
+        if mesh.peer_count() == 0 || !tick.is_multiple_of(30) {
             return;
         }
         let machines = mesh.fleet_machines();
@@ -262,18 +263,14 @@ impl HermesEngine {
             );
             return Ok(format!("[card] {body}"));
         }
-        let bei_budget = self
-            .bei
-            .tick()
-            .map(|s| s.budget_remaining)
-            .unwrap_or(0);
+        let bei_budget = self.bei.tick().map(|s| s.budget_remaining).unwrap_or(0);
         let decision = route_intent(prompt);
 
         // S1 AgentJev/Laya: sem blob (NOSD_S1_BLOB / slot Agent) → ScorerAbsent + LOO blob_deliberate.
         match nos_core::s1_backend_from_env() {
             nos_core::S1Backend::AgentJev | nos_core::S1Backend::DestilledLaya => {
-                let blob_ok = nos_core::s1_blob_present()
-                    || self.hub.path_of(ModelSlot::Agent).is_some();
+                let blob_ok =
+                    nos_core::s1_blob_present() || self.hub.path_of(ModelSlot::Agent).is_some();
                 if !blob_ok {
                     self.bus.publish(
                         "S1_SCORER_ABSENT",
@@ -298,7 +295,10 @@ impl HermesEngine {
                 kind,
                 UiSource::Cortex,
                 None,
-                Some(format!("Pedido via chat: {}", prompt.chars().take(80).collect::<String>())),
+                Some(format!(
+                    "Pedido via chat: {}",
+                    prompt.chars().take(80).collect::<String>()
+                )),
             );
         }
 
@@ -402,7 +402,11 @@ impl HermesEngine {
     }
 
     /// Onda 4.5: S2 → fila async; S1 → infer sync + `park_done` (mesmo `chat.poll`).
-    pub fn chat_submit(&self, gate: &CapGate, prompt: &str) -> Result<serde_json::Value, HermesError> {
+    pub fn chat_submit(
+        &self,
+        gate: &CapGate,
+        prompt: &str,
+    ) -> Result<serde_json::Value, HermesError> {
         gate.allow(CapBits::INFER, self.cap_gen)
             .map_err(HermesError::Cap)?;
         let decision = route_intent(prompt);
@@ -474,12 +478,8 @@ impl HermesEngine {
         let cap = CapacityProber::probe();
         let try_load = |slot: ModelSlot| -> bool {
             let need = self.hub.need_mb(slot);
-            self.hub.ensure_loaded_fit(
-                slot,
-                need,
-                cap.ram_avail_mb,
-                cap.vram_free_mb,
-            )
+            self.hub
+                .ensure_loaded_fit(slot, need, cap.ram_avail_mb, cap.vram_free_mb)
         };
         let chosen = if try_load(decision.slot) {
             decision.slot
@@ -613,7 +613,7 @@ impl HermesEngine {
     /// A.1 — seed natives once + telemetria de frota + Remember thin (DB.2 / W6).
     pub fn tick_agency(&self) {
         let mut fleet = self.agency.lock();
-        if fleet.len() == 0 {
+        if fleet.is_empty() {
             fleet.seed_natives();
         }
         let count = fleet.len();
@@ -638,9 +638,8 @@ impl HermesEngine {
             "mesh_skill",
         ];
         let rot = self.autolearn_rot.fetch_add(1, Ordering::Relaxed);
-        let goal = std::env::var("NOSD_AUTOLEARN_GOAL").unwrap_or_else(|_| {
-            HINTS[(rot as usize) % HINTS.len()].to_string()
-        });
+        let goal = std::env::var("NOSD_AUTOLEARN_GOAL")
+            .unwrap_or_else(|_| HINTS[(rot as usize) % HINTS.len()].to_string());
         let skill_need = SkillNeed {
             goal: goal.clone(),
             capabilities: vec![],
@@ -806,11 +805,7 @@ impl HermesEngine {
         }
 
         let phase_before = self.bei.sleep_phase();
-        let bei_budget = self
-            .bei
-            .tick()
-            .map(|s| s.budget_remaining)
-            .unwrap_or(0);
+        let bei_budget = self.bei.tick().map(|s| s.budget_remaining).unwrap_or(0);
         let phase_after = self.bei.sleep_phase();
         if phase_after == SleepPhase::Consolidate && phase_before != SleepPhase::Consolidate {
             self.tick_sleep_consolidate(&gate);
@@ -838,7 +833,7 @@ impl HermesEngine {
         });
         self.bus.publish("HERMES_TICK", payload.clone());
         // DB.2 / W6 — Remember amostrado (não a cada tick — anti-flood memory).
-        if idle % 32 == 0 {
+        if idle.is_multiple_of(32) {
             let _ = self.record_opar(
                 "cognitive.tick",
                 &format!("idle={idle} phase={}", phase_after.name()),
@@ -866,9 +861,7 @@ impl HermesEngine {
         if peer_count == 0 && machine_count <= 1 {
             return;
         }
-        let v = verdict
-            .map(|x| x.as_str())
-            .unwrap_or("unknown");
+        let v = verdict.map(|x| x.as_str()).unwrap_or("unknown");
         let _ = self.orb.note_fleet(v, peer_count, machine_count);
     }
 
@@ -915,7 +908,11 @@ impl HermesEngine {
         self.windows.close(id)
     }
 
-    pub fn ui_action(&self, gate: &CapGate, act: WindowAction) -> Result<serde_json::Value, HermesError> {
+    pub fn ui_action(
+        &self,
+        gate: &CapGate,
+        act: WindowAction,
+    ) -> Result<serde_json::Value, HermesError> {
         self.windows
             .action(gate, self.cap_gen, act)
             .map_err(HermesError::Ui)
@@ -934,7 +931,7 @@ mod tests {
     use super::*;
     use nos_cortex::HotSwapController;
     use nos_memory::NosMemory;
-    use tempfile::{TempDir, tempdir};
+    use tempfile::{tempdir, TempDir};
 
     struct TestEng {
         _dir: TempDir,

@@ -1,4 +1,4 @@
-# Getting started — NixAIOS 0.5.2
+# Getting started — NixAIOS 0.5.4
 
 Três bancadas, três níveis de honestidade (ADR-0113):
 
@@ -13,7 +13,7 @@ Três bancadas, três níveis de honestidade (ADR-0113):
 Requisitos: Rust stable, sem Nix obrigatório.
 
 ```powershell
-cd C:\DEV\nix-aios\nix-aios\packages\nosd
+cd C:\DEV\nix-aios\packages\nosd
 cargo test --workspace
 cargo run -p nosd -- --foreground --tcp 127.0.0.1:7700 --data-dir ./data
 ```
@@ -21,8 +21,9 @@ cargo run -p nosd -- --foreground --tcp 127.0.0.1:7700 --data-dir ./data
 Noutro terminal:
 
 ```powershell
-cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 health
-cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 chat "oi"
+# TCP exige token (S-01); o daemon grava ./data/ipc.token
+cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 --token-file ./data/ipc.token health
+cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 --token-file ./data/ipc.token chat "oi"
 ```
 
 Sem GGUF/`llama-completion` no PATH → resposta `[cpu-echo]` (honesto).

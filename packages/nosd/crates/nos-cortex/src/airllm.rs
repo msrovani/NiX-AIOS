@@ -38,7 +38,12 @@ pub struct AirLlmStreamReport {
 }
 
 /// Se TooTight/Tight, sugere stream por N camadas (default 4).
-pub fn plan_airllm(need_mb: u64, avail_ram_mb: u64, avail_vram_mb: u64, n_layers: u32) -> AirLlmPlan {
+pub fn plan_airllm(
+    need_mb: u64,
+    avail_ram_mb: u64,
+    avail_vram_mb: u64,
+    n_layers: u32,
+) -> AirLlmPlan {
     let fit = fit_model(need_mb, avail_ram_mb, avail_vram_mb);
     let avail_mb = avail_ram_mb.saturating_add(avail_vram_mb);
     let n_layers = n_layers.max(1);
@@ -53,7 +58,7 @@ pub fn plan_airllm(need_mb: u64, avail_ram_mb: u64, avail_vram_mb: u64, n_layers
         },
         FitVerdict::Tight | FitVerdict::TooTight => {
             let per = 4u32.min(n_layers).max(1);
-            let passes = (n_layers + per - 1) / per;
+            let passes = n_layers.div_ceil(per);
             AirLlmPlan {
                 layer_stream: true,
                 layers_per_pass: per,
@@ -109,7 +114,10 @@ where
         idx = idx.saturating_add(1);
     }
     AirLlmStreamReport {
-        note: format!("streamed {} passes (thin host — no weight mmap)", passes.len()),
+        note: format!(
+            "streamed {} passes (thin host — no weight mmap)",
+            passes.len()
+        ),
         ok: true,
         passes,
     }

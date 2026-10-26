@@ -13,11 +13,11 @@ pub use crdt::{CrdtEntry, CrdtStore, VersionVector};
 pub use fleet_health::{
     encode_mch, fleet_worst, parse_mch, HealthVerdict, MachineHealth, MAGIC_MCH,
 };
+pub use frack::Frack;
+pub use frag::{FragHeader, FragReassembler};
 pub use laya_intent::{LayaIntent, WIRE_VERSION as LAYA_WIRE_VERSION};
 pub use mesh_knowledge::{content_fingerprint, fnv1a64, payload_fingerprint};
 pub use soul_mirror::SoulMirrorSnapshot;
-pub use frack::Frack;
-pub use frag::{FragHeader, FragReassembler};
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -51,9 +51,7 @@ pub struct CapacityScore {
 
 impl CapacityScore {
     pub fn total(&self) -> u64 {
-        u64::from(self.cpu_units) * 10_000
-            + u64::from(self.mem_mib)
-            + u64::from(self.net_score)
+        u64::from(self.cpu_units) * 10_000 + u64::from(self.mem_mib) + u64::from(self.net_score)
     }
 }
 
@@ -149,21 +147,11 @@ impl MeshEngine {
         self.on_heartbeat_inner(peer_id, has_pk, None);
     }
 
-    pub fn on_heartbeat_with_capacity(
-        &self,
-        peer_id: u32,
-        has_pk: bool,
-        capacity: CapacityScore,
-    ) {
+    pub fn on_heartbeat_with_capacity(&self, peer_id: u32, has_pk: bool, capacity: CapacityScore) {
         self.on_heartbeat_inner(peer_id, has_pk, Some(capacity));
     }
 
-    fn on_heartbeat_inner(
-        &self,
-        peer_id: u32,
-        has_pk: bool,
-        capacity: Option<CapacityScore>,
-    ) {
+    fn on_heartbeat_inner(&self, peer_id: u32, has_pk: bool, capacity: Option<CapacityScore>) {
         let now = now_ms();
         let mut g = self.peers.lock();
         let e = g.entry(peer_id).or_insert(PeerInfo {
@@ -203,11 +191,7 @@ impl MeshEngine {
     }
 
     pub fn peer_tofu_count(&self) -> usize {
-        self.peers
-            .lock()
-            .values()
-            .filter(|p| p.pk_bound)
-            .count()
+        self.peers.lock().values().filter(|p| p.pk_bound).count()
     }
 
     /// ROLE / SkillSync (FRAG lab) só após janela TOFU (130 ticks ou `TOFU_SETTLE_MS`).
@@ -462,7 +446,9 @@ impl MeshEngine {
             return None;
         }
         if let Some((h, _payload)) = FragReassembler::parse(buf) {
-            self.pending_fracks.lock().push(Frack::from_frag(h.msg_id, h.frag_idx));
+            self.pending_fracks
+                .lock()
+                .push(Frack::from_frag(h.msg_id, h.frag_idx));
         }
         if let Some(payload) = self.frags.push(buf) {
             info!(

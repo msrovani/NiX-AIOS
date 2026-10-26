@@ -1,45 +1,64 @@
-//! RPC surface do nosd (0.5.2) — dispatch fatiado por domínio.
-mod health;
-mod model;
+//! RPC surface do nosd (0.5.4) — dispatch fatiado por domínio.
 mod chat;
+mod factory_store;
+mod health;
+mod http_lab;
+mod model;
 mod nix_wifi;
+mod security;
 mod ui_orb;
 mod voice_transmute;
-mod factory_store;
-mod http_lab;
 
 pub use http_lab::serve_orb_lab;
 
 use crate::{actuators, nix_managed, transmute, wifi_nm};
 use nos_core::{
-    CapBits, CapRegistry, NosScore, SafetyViolation, Sev, ActDomain, ActDisposition,
-    disposition, lab_auto_switch_from_env, note_violation, s1_backend_from_env, s1_backend_label,
-    S1Backend, UiSource, WindowSpec,
+    disposition, lab_auto_switch_from_env, note_violation, s1_backend_label, ActDisposition,
+    ActDomain, CapBits, CapRegistry, NosScore, PeerProfile, SafetyViolation, Sev, UiSource,
+    WindowSpec,
 };
-use nos_factory::{
-    ImportMeta, ImportProvenance, PackageStore, SandboxStatus, StoreError,
-};
-use parking_lot::Mutex;
 use nos_cortex::CapacityProber;
+use nos_factory::{ImportMeta, ImportProvenance, PackageStore, SandboxStatus, StoreError};
 use nos_hermes::{
     deliberate_blob_fetch, iso_must_not_ship_blobs, remember_deliberation, BlobKind, BlobNeed,
     HermesEngine,
 };
-use nos_ipc::{Request, Response, decode_body, encode, take_frame};
+use nos_ipc::{decode_body, encode, take_frame, Request, Response};
 use nos_mesh::{fleet_worst, HealthVerdict, MachineHealth, MeshEngine};
+use parking_lot::{Mutex, RwLock};
 use serde_json::json;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{info, warn};
 
+/// Estado do token TCP/HTTP. A rotação invalida tokens antigos.
+#[derive(Debug, Clone)]
+pub struct IpcAuth {
+    pub token: String,
+    pub generation: u64,
+}
+
+/// Identidade resolvida pelo transporte, nunca pelo payload.
+#[derive(Debug, Clone, Copy)]
+pub enum AuthContext {
+    Unix { uid: Option<u32>, gid: Option<u32> },
+    Tcp,
+}
+
 pub struct AppState {
     pub hermes: HermesEngine,
     pub mesh: MeshEngine,
     pub data_dir: PathBuf,
-    pub cap_gen: u64,
-    /// CapGate server-authored (I.1) - nunca confiar em req.caps.
+    pub ipc: RwLock<IpcAuth>,
+    pub ipc_token_file: PathBuf,
+    pub daemon_uid: u32,
+    pub admin_gid: u32,
+    /// S-06: ring Nix (root apply/rollback) desarmado por default.
+    pub nix_ring_armed: bool,
+    /// CapGate server-authored (I.1) - nunca confiar em req.caps/req.agent.
     pub caps: CapRegistry,
     pub package_store: Mutex<PackageStore>,
     pub shutting_down: AtomicBool,
@@ -47,16 +66,108 @@ pub struct AppState {
     pub hermes_ticks: std::sync::atomic::AtomicU64,
 }
 
-fn opar_after_ok(state: &AppState, method: &str, ok: bool, observe: &str, plan: &str, act: &str, verify: &str) {
-    if ok && nos_hermes::is_side_effect(method) {
-        let _ = state.hermes.opar_side_effect(method, observe, plan, act, verify);
+impl AppState {
+    pub fn ipc_generation(&self) -> u64 {
+        self.ipc.read().generation
+    }
+
+    pub fn ipc_token(&self) -> String {
+        self.ipc.read().token.clone()
+    }
+
+    /// Resolve perfil + geração a partir do transporte.
+    /// Unix: `SO_PEERCRED`. TCP/HTTP: token de processo (comparação constante).
+    pub fn authenticate(&self, auth: &AuthContext, token: Option<&str>) -> (PeerProfile, u64) {
+        // Token-first em qualquer transporte: a CLI/operador prova posse do
+        // ficheiro 0600 e recebe LocalAdmin; JARBAS não envia token e fica Jarbas.
+        if let Some(t) = token {
+            let ipc = self.ipc.read();
+            return if nos_core::ct_eq(t.as_bytes(), ipc.token.as_bytes()) {
+                (PeerProfile::LocalAdmin, ipc.generation)
+            } else {
+                (PeerProfile::Unknown, 0)
+            };
+        }
+        match auth {
+            AuthContext::Unix { uid, gid } => {
+                let profile = match (uid, gid) {
+                    (Some(uid), Some(gid)) => {
+                        PeerProfile::from_unix_cred(*uid, *gid, self.daemon_uid, self.admin_gid)
+                    }
+                    (Some(uid), None) => {
+                        PeerProfile::from_unix_cred(*uid, 0, self.daemon_uid, self.admin_gid)
+                    }
+                    _ => PeerProfile::Unknown,
+                };
+                (profile, self.ipc_generation())
+            }
+            AuthContext::Tcp => (PeerProfile::Unknown, 0),
+        }
+    }
+
+    /// Rotaciona token + geração. Escreve o ficheiro antes de trocar em memória.
+    pub fn rotate_ipc(&self) -> Result<(String, u64), std::io::Error> {
+        let token = new_ipc_token();
+        write_ipc_token(&self.ipc_token_file, &token)?;
+        let mut ipc = self.ipc.write();
+        ipc.token = token.clone();
+        ipc.generation = ipc.generation.saturating_add(1);
+        Ok((token, ipc.generation))
     }
 }
 
-fn note_capgate_deny(agent: &str, method: &str, detail: &str) {
+pub fn new_ipc_token() -> String {
+    format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    )
+}
+
+/// Escreve o token com modo 0600 em Unix (best-effort de permissões).
+pub fn write_ipc_token(path: &Path, token: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut opts = std::fs::OpenOptions::new();
+    opts.create(true).write(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(path)?;
+    f.write_all(token.as_bytes())?;
+    f.write_all(b"\n")?;
+    f.sync_all()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(())
+}
+
+fn opar_after_ok(
+    state: &AppState,
+    method: &str,
+    ok: bool,
+    observe: &str,
+    plan: &str,
+    act: &str,
+    verify: &str,
+) {
+    if ok && nos_hermes::is_side_effect(method) {
+        let _ = state
+            .hermes
+            .opar_side_effect(method, observe, plan, act, verify);
+    }
+}
+
+fn note_capgate_deny(profile: PeerProfile, method: &str, detail: &str) {
     let _ = note_violation(SafetyViolation {
         invariant: "capgate".into(),
-        agent: agent.to_string(),
+        agent: format!("{profile:?}"),
         skill: method.to_string(),
         detail: detail.to_string(),
     });
@@ -64,10 +175,7 @@ fn note_capgate_deny(agent: &str, method: &str, detail: &str) {
 
 /// W4/W5 - score honesto: S1 label, llama-server posture, landlock, early boot JSON.
 fn build_runtime_score(state: &AppState, phase: &str, msg: &str) -> NosScore {
-    let fleet_verdict = state
-        .mesh
-        .fleet_verdict()
-        .map(|v| v.as_str().to_string());
+    let fleet_verdict = state.mesh.fleet_verdict().map(|v| v.as_str().to_string());
     let llama = nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name());
     let early_boot = {
         let p = state.data_dir.join("boot-score.json");
@@ -101,7 +209,7 @@ pub async fn serve_tcp(addr: String, state: Arc<AppState>) -> anyhow::Result<()>
         let (sock, _) = listener.accept().await?;
         let st = state.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle_stream(sock, st).await {
+            if let Err(e) = handle_stream(sock, st, AuthContext::Tcp).await {
                 warn!(target: "nosd", "conn err: {e}");
             }
         });
@@ -118,8 +226,14 @@ pub async fn serve_unix(path: String, state: Arc<AppState>) -> anyhow::Result<()
         }
         let (sock, _) = listener.accept().await?;
         let st = state.clone();
+        // SO_PEERCRED: a identidade é do kernel, não do JSON.
+        let cred = sock.peer_cred().ok();
+        let auth = AuthContext::Unix {
+            uid: cred.as_ref().map(|c| c.uid()),
+            gid: cred.as_ref().map(|c| c.gid()),
+        };
         tokio::spawn(async move {
-            if let Err(e) = handle_stream(sock, st).await {
+            if let Err(e) = handle_stream(sock, st, auth).await {
                 warn!(target: "nosd", "conn err: {e}");
             }
         });
@@ -153,7 +267,11 @@ fn method_domain(method: &str) -> Option<ActDomain> {
     })
 }
 
-async fn handle_stream<S>(mut sock: S, state: Arc<AppState>) -> anyhow::Result<()>
+async fn handle_stream<S>(
+    mut sock: S,
+    state: Arc<AppState>,
+    auth: AuthContext,
+) -> anyhow::Result<()>
 where
     S: AsyncReadExt + AsyncWriteExt + Unpin,
 {
@@ -168,7 +286,7 @@ where
         while let Some((body, consumed)) = take_frame(&acc)? {
             acc.drain(..consumed);
             let req: Request = decode_body(&body)?;
-            let resp = dispatch(&state, req);
+            let resp = dispatch(&state, &auth, req);
             sock.write_all(&encode(&resp)?).await?;
         }
     }
@@ -195,33 +313,42 @@ pub fn sync_local_fleet_health(state: &AppState) {
         sys,
         audio: HealthVerdict::Unknown,
         hub,
-        reason: format!("hermes_ticks={} hub_loaded={}", ticks, state.hermes.hub.loaded_count()),
+        reason: format!(
+            "hermes_ticks={} hub_loaded={}",
+            ticks,
+            state.hermes.hub.loaded_count()
+        ),
     });
 }
 
-fn dispatch(state: &AppState, req: Request) -> Response {
-    // I.1: caps server-authored by agent identity; client bitmask ignored.
-    let gate = match state.caps.gate_for(&req.agent, req.caps, state.cap_gen) {
-        Ok(g) => g,
-        Err(e) => {
-            note_capgate_deny(&req.agent, &req.method, &e.to_string());
-            return Response {
-                id: req.id,
-                ok: false,
-                error: Some(e.into()),
-                result: json!({ "capgate": "server_authored" }),
-            };
-        }
-    };
+fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
+    // I.1: identidade vem do transporte (peer creds / token); payload é ignorado.
+    let (profile, auth_gen) = state.authenticate(auth, req.token.as_deref());
+    if profile == PeerProfile::Unknown {
+        note_capgate_deny(profile, &req.method, "unauthenticated peer");
+        return Response {
+            id: req.id,
+            ok: false,
+            error: Some("unauthenticated peer (peer creds / token required)".into()),
+            result: json!({ "capgate": "server_authored", "profile": "Unknown" }),
+        };
+    }
+
+    let current_gen = state.ipc_generation();
+    let gate = state.caps.gate_for(profile, auth_gen);
     let need = req.required_cap();
     if need.0 != 0 {
-        if let Err(e) = gate.allow(need, state.cap_gen) {
-            note_capgate_deny(&req.agent, &req.method, e);
+        if let Err(e) = gate.allow(need, current_gen) {
+            note_capgate_deny(profile, &req.method, e);
             return Response {
                 id: req.id,
                 ok: false,
-                error: Some(format!("{e} [server-authored agent={}]", req.agent)),
-                result: json!({ "need": need.0, "held": gate.held.0 }),
+                error: Some(format!("{e} [server-authored profile={profile:?}]")),
+                result: json!({
+                    "need": need.0,
+                    "held": gate.held.0,
+                    "profile": format!("{profile:?}"),
+                }),
             };
         }
     }
@@ -246,7 +373,9 @@ fn dispatch(state: &AppState, req: Request) -> Response {
             return Response {
                 id: req.id,
                 ok: false,
-                error: Some(format!("SITE_POLICY escalate domain={dom:?} - HITL required")),
+                error: Some(format!(
+                    "SITE_POLICY escalate domain={dom:?} - HITL required"
+                )),
                 result: json!({ "disposition": "escalate", "need_hitl": true }),
             };
         }
@@ -267,6 +396,9 @@ fn dispatch(state: &AppState, req: Request) -> Response {
         }
     }
 
+    if let Some(r) = security::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
     if let Some(r) = health::dispatch(state, &gate, req.clone()) {
         return r;
     }

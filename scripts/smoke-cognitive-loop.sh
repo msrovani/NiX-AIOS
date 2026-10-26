@@ -5,7 +5,8 @@ set -euo pipefail
 [[ -f /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]] && \
   . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 
-ROOT="${ROOT:-~/src/nix-aios/packages/nosd}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+NOSD_CRATE_ROOT="${NOSD_CRATE_ROOT:-$SCRIPT_DIR/../packages/nosd}"
 DATA="${DATA:-$HOME/nosd-cognitive-data}"
 PORT="${PORT:-7701}"
 MODEL_URL="${MODEL_URL:-https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf}"
@@ -14,7 +15,7 @@ MARKER="nixaios-cognitive-$(date +%s)"
 NIX_PKGS="rustc cargo pkg-config openssl llama-cpp"
 
 mkdir -p "$DATA/models"
-cd "$ROOT"
+cd "$NOSD_CRATE_ROOT"
 
 echo "==> resolve llama-completion (not server-wrapper llama-cli)"
 if [[ -n "${NOSD_LLAMA_CLI:-}" && -x "${NOSD_LLAMA_CLI}" ]]; then
@@ -94,7 +95,7 @@ fi
 
 NOSCTL="$CARGO_TARGET_DIR/release/nosctl"
 echo "==> chat"
-CHAT_OUT=$(nix-shell -p $NIX_PKGS --run "'$NOSCTL' --tcp '127.0.0.1:$PORT' chat 'diz a palavra secreta $MARKER por favor'")
+CHAT_OUT=$(nix-shell -p $NIX_PKGS --run "'$NOSCTL' --tcp '127.0.0.1:$PORT' --token-file '$DATA/ipc.token' chat 'diz a palavra secreta $MARKER por favor'")
 echo "$CHAT_OUT"
 echo "$CHAT_OUT" | grep -qi 'cpu-echo' && { echo "FAIL: cpu-echo" >&2; exit 5; }
 # Exigir texto não vazio no result.text
@@ -116,7 +117,7 @@ echo "    completion_len=${#TEXT}"
 echo "    completion_preview=${TEXT:0:160}"
 
 echo "==> recall"
-RECALL_OUT=$(nix-shell -p $NIX_PKGS --run "'$NOSCTL' --tcp '127.0.0.1:$PORT' recall '$MARKER'")
+RECALL_OUT=$(nix-shell -p $NIX_PKGS --run "'$NOSCTL' --tcp '127.0.0.1:$PORT' --token-file '$DATA/ipc.token' recall '$MARKER'")
 echo "$RECALL_OUT"
 echo "$RECALL_OUT" | grep -q "$MARKER" || {
   echo "FAIL: recall miss" >&2

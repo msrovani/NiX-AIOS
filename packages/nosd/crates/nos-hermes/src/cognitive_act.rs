@@ -60,10 +60,7 @@ pub fn wrap_opar_with_seek(
             key: key.clone(),
             text,
             scope: format!("session/{domain}"),
-            entities: vec![
-                "mom/pattern".into(),
-                format!("domain/{domain}"),
-            ],
+            entities: vec!["mom/pattern".into(), format!("domain/{domain}")],
         })
         .is_ok();
     CognitiveAct {

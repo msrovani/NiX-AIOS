@@ -16,6 +16,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.5.2 (2026-10-25):** Revisão estrutural A+B+C — archive s5xx, IPC registry, autolearn off, hub único, self.heal RPC, HermesEngine::boot, rpc/ fatiado, firstboot/hotswap externos — [`RELEASE_0.5.2.md`](RELEASE_0.5.2.md). Volid permanece `NIXAIOS051`.
 
+**0.5.4 Trust & Truth (em curso, 2026-10-26):** S-01/S-02/S-03 — identidade IPC por `SO_PEERCRED`/token, `agent`/`caps` legado ignorados, `security.rotate` com revogação; HTTP lab `/rpc` com token/same-origin/limites. Evidência: `nosd/tests/ipc_auth.rs`, `cargo test --workspace`, `clippy -D warnings`. Plano: [`IMPROVEMENT_PLAN.md`](IMPROVEMENT_PLAN.md). Ring Nix continua desarmado até S-04.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---
@@ -24,7 +26,7 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 | ID | Item | Status | Evidência / gap |
 |----|------|--------|-----------------|
-| I.1 | CapGate server-authored; deny client ALL | **DONE** | `nos-core::CapRegistry`; `server.rs` ignora `req.caps`; testes |
+| I.1 | CapGate server-authored; deny client ALL | **DONE** (0.5.4) | `PeerProfile::from_unix_cred`; token-first; `agent`/`caps` ignorados; `security.rotate`; `ipc_auth.rs` (TCP + Unix) |
 | I.2 | Host-imports wasmi CapGate + Frugal prove deny | **PARTIAL** | Frugal + `aios_ai::infer` CapGate; fuel trap pré-existente; prove deny INFER OK |
 | I.3 | systemd Protect* + Landlock **real** NIX_WRITE | **PARTIAL**↑ | 0.5.0: allowlist +`/mnt/nixaios-log`; `path_allowed` teste FAT; Verified só Linux+ABI; lab metal AWAITING |
 | I.4 | Factory B/C PathBcAbsent | **DONE** / PREEXIST | `FactoryError::PathBcAbsent` |

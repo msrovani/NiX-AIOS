@@ -21,8 +21,7 @@ pub enum SleepPhase {
 }
 
 /// Cinco fases nomeadas (paridade SleepCycleAgent bare-metal).
-pub const SLEEP_PHASE_NAMES: [&'static str; 5] =
-    ["REPLAY", "DREAM", "CONSOLIDATE", "PRUNE", "REFLECT"];
+pub const SLEEP_PHASE_NAMES: [&str; 5] = ["REPLAY", "DREAM", "CONSOLIDATE", "PRUNE", "REFLECT"];
 
 impl SleepPhase {
     pub fn next(self) -> Self {
@@ -97,10 +96,10 @@ impl BeiRuntime {
         }
         g.budget -= 1;
         g.ticks += 1;
-        if g.ticks % 8 == 0 {
+        if g.ticks.is_multiple_of(8) {
             g.arousal = g.arousal.saturating_sub(1);
         }
-        if g.sleep_every > 0 && g.ticks % g.sleep_every == 0 {
+        if g.sleep_every > 0 && g.ticks.is_multiple_of(g.sleep_every) {
             g.sleep = g.sleep.next();
             debug!(
                 target: "nosd",

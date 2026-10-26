@@ -23,6 +23,16 @@
 - **FAILED:** `nosd.service` (Neural-OS Daemon) várias vezes no boot — claim QEMU ≠ metal VERIFIED; investigar journal guest.
 - Gate: `NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --stage MQEMU`.
 
+## Fixes bughunt (2026-10-26)
+
+- Socket default `nosctl`/`nos-ipc` → `/run/nosd/nosd.sock`; gate prefere socket se existir.
+- Smoke frugal: `NOSD_CRATE_ROOT` (sem colisão `ROOT`); gate `env -u ROOT`.
+- `s1_scorer_absent()` partilhado (route/fetch/transmute).
+- `route.explain` Decision ← `score_intent_s1`; blob = só `s1_blob_present()`.
+- Gate M3f posture Ready|Absent; MQEMU falha se `nosd.service` FAILED no log.
+- WSL paths → `C:\DEV\nix-aios` / `$HOME/src/nix-aios`; QEMU ISO default s529-remig.
+- `ui.card` / Custom display sem HITL escalate.
+
 ## Próximo
 
 Metal journal M4 → cage+chat live → lab 2-nó 0081 A/B · diagnosticar `nosd` FAIL no QEMU.

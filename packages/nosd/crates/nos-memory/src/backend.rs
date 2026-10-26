@@ -22,26 +22,31 @@ pub enum MemoryBackendKind {
 }
 
 impl MemoryBackendKind {
-    pub fn from_env() -> Self {
-        match std::env::var("NOSD_MEMORY_BACKEND")
-            .unwrap_or_else(|_| "nsgdb".into())
-            .to_ascii_lowercase()
-            .as_str()
-        {
+    /// Parser puro (testável sem `std::env`).
+    pub fn parse(value: &str) -> Self {
+        match value.to_ascii_lowercase().as_str() {
             "jsonl" => Self::Jsonl,
             _ => Self::Nsgdb,
         }
     }
 
-    pub fn storage_path(data_dir: &Path) -> PathBuf {
-        match Self::from_env() {
+    pub fn from_env() -> Self {
+        Self::parse(&std::env::var("NOSD_MEMORY_BACKEND").unwrap_or_else(|_| "nsgdb".into()))
+    }
+
+    pub fn storage_path_for(self, data_dir: &Path) -> PathBuf {
+        match self {
             Self::Jsonl => data_dir.join("memories.jsonl"),
             Self::Nsgdb => data_dir.join("nsgdb"),
         }
     }
 
-    pub fn ensure_dirs(data_dir: &Path) -> std::io::Result<()> {
-        match Self::from_env() {
+    pub fn storage_path(data_dir: &Path) -> PathBuf {
+        Self::from_env().storage_path_for(data_dir)
+    }
+
+    pub fn ensure_dirs_for(self, data_dir: &Path) -> std::io::Result<()> {
+        match self {
             Self::Jsonl => {
                 let path = data_dir.join("memories.jsonl");
                 if let Some(parent) = path.parent() {
@@ -59,11 +64,19 @@ impl MemoryBackendKind {
         }
     }
 
+    pub fn ensure_dirs(data_dir: &Path) -> std::io::Result<()> {
+        Self::from_env().ensure_dirs_for(data_dir)
+    }
+
     /// Camadas activas até wiring neural-sgdb MCP real (BQ/semantic = AWAITING).
     pub fn layers_supported(self) -> &'static [MemoryLayer] {
         match self {
             Self::Jsonl => &[MemoryLayer::L3Pattern],
-            Self::Nsgdb => &[MemoryLayer::L2Episodic, MemoryLayer::L3Pattern, MemoryLayer::L4Stub],
+            Self::Nsgdb => &[
+                MemoryLayer::L2Episodic,
+                MemoryLayer::L3Pattern,
+                MemoryLayer::L4Stub,
+            ],
         }
     }
 
@@ -80,8 +93,7 @@ mod tests {
     #[test]
     fn nsgdb_default_dir() {
         let d = tempdir().unwrap();
-        std::env::remove_var("NOSD_MEMORY_BACKEND");
-        let p = MemoryBackendKind::storage_path(d.path());
+        let p = MemoryBackendKind::Nsgdb.storage_path_for(d.path());
         assert!(p.ends_with("nsgdb"));
     }
 
@@ -94,11 +106,11 @@ mod tests {
     }
 
     #[test]
-    fn jsonl_env_path() {
+    fn jsonl_path_is_file() {
         let d = tempdir().unwrap();
-        std::env::set_var("NOSD_MEMORY_BACKEND", "jsonl");
-        let p = MemoryBackendKind::storage_path(d.path());
+        let p = MemoryBackendKind::parse("jsonl").storage_path_for(d.path());
         assert!(p.ends_with("memories.jsonl"));
-        std::env::remove_var("NOSD_MEMORY_BACKEND");
+        assert_eq!(MemoryBackendKind::parse("JSONL"), MemoryBackendKind::Jsonl);
+        assert_eq!(MemoryBackendKind::parse("nsgdb"), MemoryBackendKind::Nsgdb);
     }
 }

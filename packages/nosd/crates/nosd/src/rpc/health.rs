@@ -47,10 +47,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
         "fleet.health" => {
             sync_local_fleet_health(state);
             let machines = state.mesh.fleet_machines();
-            let verdict = state
-                .mesh
-                .fleet_verdict()
-                .unwrap_or(HealthVerdict::Unknown);
+            let verdict = state.mesh.fleet_verdict().unwrap_or(HealthVerdict::Unknown);
             Response {
                 id: req.id,
                 ok: true,
@@ -112,27 +109,41 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                 .unwrap_or("");
             let d = state.hermes.explain_route(prompt);
             let sc = nos_cortex::score_intent(prompt);
-            // ADR-0106 thin + AgentJev LOO honesty (S1.2: blob runtime, nunca ISO).
+            // ADR-0106: ScorerAbsent via helper; Decision ligada a score_intent_s1 (não hardcode).
             let s1_want = nos_core::s1_backend_from_env();
             let s1_eff = nos_core::s1_backend_effective();
-            let blob = nos_core::s1_blob_present()
-                || state.hermes.hub.path_of(nos_core::ModelSlot::Agent).is_some();
-            let decision = if matches!(
-                s1_want,
-                nos_core::S1Backend::AgentJev | nos_core::S1Backend::DestilledLaya
-            ) && !blob
-            {
+            let blob = nos_core::s1_blob_present();
+            let hub_agent = state
+                .hermes
+                .hub
+                .path_of(nos_core::ModelSlot::Agent)
+                .is_some();
+            let decision = if nos_core::s1_scorer_absent()
+                && matches!(
+                    s1_want,
+                    nos_core::S1Backend::AgentJev | nos_core::S1Backend::DestilledLaya
+                ) {
                 nos_core::Decision::<String>::abstain(
                     nos_core::AbstainReason::ScorerAbsent,
                     "s1_loo_blob_deliberate",
                 )
             } else {
-                nos_core::Decision::decide(
-                    d.slot.name().to_string(),
-                    160,
-                    16,
-                    d.reason,
-                )
+                let s1 = nos_core::score_intent_s1(prompt);
+                match (s1.abstain, s1.value) {
+                    (Some(reason), _) => nos_core::Decision::<String>::abstain(reason, s1.source),
+                    (None, Some(slot)) => nos_core::Decision::decide(
+                        slot.name().to_string(),
+                        s1.confidence_q8,
+                        s1.margin_q8,
+                        s1.source,
+                    ),
+                    (None, None) => nos_core::Decision::decide(
+                        d.slot.name().to_string(),
+                        s1.confidence_q8,
+                        s1.margin_q8,
+                        format!("route_fallback:{}", d.reason),
+                    ),
+                }
             };
             Response {
                 id: req.id,
@@ -162,6 +173,8 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                         "backend_effective": format!("{s1_eff:?}"),
                         "backend_label": nos_core::s1_backend_label(),
                         "blob_present": blob,
+                        "hub_agent_path": hub_agent,
+                        "scorer_absent": nos_core::s1_scorer_absent(),
                         "loo": if !blob { "blob_deliberate" } else { "ready" },
                     },
                     "decision": decision,
@@ -198,14 +211,8 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
         "cognitive.tick" => {
             let mut v = state.hermes.cognitive_tick();
             if let Some(obj) = v.as_object_mut() {
-                obj.insert(
-                    "mesh_peers".into(),
-                    json!(state.mesh.peer_count()),
-                );
-                obj.insert(
-                    "mesh_last_frag".into(),
-                    json!(state.mesh.last_frag_len()),
-                );
+                obj.insert("mesh_peers".into(), json!(state.mesh.peer_count()));
+                obj.insert("mesh_last_frag".into(), json!(state.mesh.last_frag_len()));
             }
             Response {
                 id: req.id,

@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
 # NixAIOS — build bootable ISO via flake (run inside WSL Ubuntu with Nix)
-# Output: nixaios/result/iso/*.iso (symlink result/)
+# Output: result/iso/*.iso (symlink result/)
 set -euo pipefail
 
-REPO="${REPO:-$HOME/src/neural-os-core-latest}"
-NIXAIOS="$REPO/nixaios"
-
-if [[ ! -d "$NIXAIOS" ]]; then
-  # Fallback: Windows mount (slower I/O)
-  NIXAIOS="~/src/nix-aios"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Prefer repo that contains this script; else Linux clone; else Windows mount.
+if [[ -f "$SCRIPT_DIR/../flake.nix" ]]; then
+  NIXAIOS="$(cd "$SCRIPT_DIR/.." && pwd)"
+elif [[ -d "${REPO:-$HOME/src/nix-aios}" ]]; then
+  NIXAIOS="${REPO:-$HOME/src/nix-aios}"
+elif [[ -d /mnt/c/DEV/nix-aios ]]; then
+  NIXAIOS="/mnt/c/DEV/nix-aios"
+else
+  echo "NixAIOS repo not found (set REPO=...)" >&2
+  exit 1
 fi
 
 cd "$NIXAIOS"
 echo "==> Building NixAIOS ISO from $NIXAIOS"
 echo "    (first run downloads nixpkgs — can take 30–90+ min)"
 
-# Prefer convenience attr; fall back to full config path
 if nix build .#iso -L --print-out-paths 2>/tmp/nixaios-iso-build.log; then
   OUT=$(readlink -f result)
 else

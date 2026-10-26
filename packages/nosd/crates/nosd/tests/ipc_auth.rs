@@ -1,0 +1,305 @@
+//! S-01/S-02/S-03: identidade de transporte, token TCP e rotação.
+//!
+//! Sobe o binário `nosd` real e fala o framing IPC. Sem `agent`, sem token e
+//! com `agent` legado devem ser negados; com token válido, health funciona.
+
+use serde_json::{json, Value};
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream};
+#[cfg(unix)]
+use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+use tempfile::TempDir;
+
+struct Daemon {
+    child: Child,
+    port: u16,
+    token: String,
+    #[cfg(unix)]
+    socket: Option<PathBuf>,
+    _dir: TempDir,
+}
+
+impl Drop for Daemon {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn free_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn start() -> Daemon {
+    let dir = tempfile::tempdir().unwrap();
+    let port = free_port();
+    let token = "test-token-0123456789abcdef".to_string();
+    let args = vec![
+        "--foreground".to_string(),
+        "--tcp".to_string(),
+        format!("127.0.0.1:{port}"),
+        "--data-dir".to_string(),
+        dir.path().to_string_lossy().to_string(),
+        "--orb-lab".to_string(),
+        String::new(),
+        "--hermes-tick-secs".to_string(),
+        "0".to_string(),
+        "--ipc-token".to_string(),
+        token.clone(),
+    ];
+    let child = Command::new(env!("CARGO_BIN_EXE_nosd"))
+        .args(&args)
+        .env_remove("NOSD_NIX_RING")
+        .env_remove("NOSD_LANDLOCK")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn nosd");
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut child = child;
+    loop {
+        if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            break;
+        }
+        if let Some(status) = child.try_wait().unwrap() {
+            panic!("nosd exited before listening: {status}");
+        }
+        if Instant::now() > deadline {
+            panic!("nosd did not listen on 127.0.0.1:{port}");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    Daemon {
+        child,
+        port,
+        token,
+        #[cfg(unix)]
+        socket: None,
+        _dir: dir,
+    }
+}
+
+fn rpc_with(
+    daemon: &Daemon,
+    token: Option<&str>,
+    agent: Option<&str>,
+    method: &str,
+    params: Value,
+) -> Value {
+    let mut req = json!({
+        "id": 1,
+        "method": method,
+        "cap_gen": 1,
+        "params": params,
+    });
+    if let Some(token) = token {
+        req["token"] = json!(token);
+    }
+    if let Some(agent) = agent {
+        req["agent"] = json!(agent);
+    }
+    let body = serde_json::to_vec(&req).unwrap();
+    let mut sock = TcpStream::connect(("127.0.0.1", daemon.port)).unwrap();
+    sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    sock.write_all(&(body.len() as u32).to_le_bytes()).unwrap();
+    sock.write_all(&body).unwrap();
+    sock.shutdown(Shutdown::Write).unwrap();
+
+    let mut len = [0u8; 4];
+    sock.read_exact(&mut len).unwrap();
+    let n = u32::from_le_bytes(len) as usize;
+    let mut buf = vec![0u8; n];
+    sock.read_exact(&mut buf).unwrap();
+    serde_json::from_slice(&buf).unwrap()
+}
+
+fn rpc(daemon: &Daemon, token: Option<&str>, method: &str, params: Value) -> Value {
+    rpc_with(daemon, token, None, method, params)
+}
+
+#[test]
+fn tcp_without_token_is_denied() {
+    let daemon = start();
+    let r = rpc(&daemon, None, "health", json!({}));
+    assert_eq!(r["ok"], false, "{r}");
+    let err = r["error"].as_str().unwrap_or("");
+    assert!(err.contains("unauthenticated"), "{r}");
+    assert_eq!(r["result"]["profile"], "Unknown");
+}
+
+#[test]
+fn legacy_agent_does_not_authenticate() {
+    let daemon = start();
+    for agent in ["hermes", "nosctl", "jarbas", ""] {
+        let r = rpc_with(&daemon, None, Some(agent), "health", json!({}));
+        assert_eq!(r["ok"], false, "agent={agent:?} should not elevate: {r}");
+    }
+}
+
+#[test]
+fn valid_token_health_works() {
+    let daemon = start();
+    let r = rpc(&daemon, Some(&daemon.token), "health", json!({}));
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(r["result"]["status"], "ok");
+}
+
+#[test]
+fn nix_ring_is_disarmed_by_default() {
+    let daemon = start();
+    let r = rpc(
+        &daemon,
+        Some(&daemon.token),
+        "nix.apply",
+        json!({ "hitl_confirmed": true }),
+    );
+    assert_eq!(r["ok"], false, "nix.apply must be disarmed: {r}");
+    let err = r["error"].as_str().unwrap_or("");
+    assert!(err.contains("NIX_RING_DISABLED"), "{r}");
+}
+
+#[cfg(unix)]
+fn start_unix() -> Daemon {
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("nosd.sock");
+    let token = "test-unix-token-0123456789".to_string();
+    let args = vec![
+        "--foreground".to_string(),
+        "--socket".to_string(),
+        socket.to_string_lossy().to_string(),
+        "--data-dir".to_string(),
+        dir.path().to_string_lossy().to_string(),
+        "--orb-lab".to_string(),
+        String::new(),
+        "--hermes-tick-secs".to_string(),
+        "0".to_string(),
+        "--ipc-token".to_string(),
+        token.clone(),
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nosd"))
+        .args(&args)
+        .env_remove("NOSD_NIX_RING")
+        .env_remove("NOSD_LANDLOCK")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn nosd unix");
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if std::os::unix::net::UnixStream::connect(&socket).is_ok() {
+            break;
+        }
+        if let Some(status) = child.try_wait().unwrap() {
+            panic!("nosd unix exited before listening: {status}");
+        }
+        if Instant::now() > deadline {
+            panic!("nosd unix did not listen on {}", socket.display());
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    Daemon {
+        child,
+        port: 0,
+        token,
+        socket: Some(socket),
+        _dir: dir,
+    }
+}
+
+#[cfg(unix)]
+fn unix_rpc(
+    daemon: &Daemon,
+    token: Option<&str>,
+    agent: Option<&str>,
+    method: &str,
+    params: Value,
+) -> Value {
+    let mut req = json!({
+        "id": 1,
+        "method": method,
+        "cap_gen": 1,
+        "params": params,
+    });
+    if let Some(token) = token {
+        req["token"] = json!(token);
+    }
+    if let Some(agent) = agent {
+        req["agent"] = json!(agent);
+    }
+    let body = serde_json::to_vec(&req).unwrap();
+    let path = daemon.socket.as_ref().unwrap();
+    let mut sock = std::os::unix::net::UnixStream::connect(path).unwrap();
+    sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    sock.write_all(&(body.len() as u32).to_le_bytes()).unwrap();
+    sock.write_all(&body).unwrap();
+    sock.shutdown(Shutdown::Write).unwrap();
+
+    let mut len = [0u8; 4];
+    sock.read_exact(&mut len).unwrap();
+    let n = u32::from_le_bytes(len) as usize;
+    let mut buf = vec![0u8; n];
+    sock.read_exact(&mut buf).unwrap();
+    serde_json::from_slice(&buf).unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn unix_token_grants_admin_and_peer_creds_do_not() {
+    let daemon = start_unix();
+    let uid = unsafe { libc::getuid() };
+
+    // Sem token: peer creds do mesmo uid do daemon => Jarbas (sem NIX_WRITE).
+    // Root é LocalAdmin; nesse caso o teste não consegue provar a negação.
+    let without = unix_rpc(
+        &daemon,
+        None,
+        Some("hermes"),
+        "nix.propose",
+        json!({ "nix": "{ ... }: { }" }),
+    );
+    if uid != 0 {
+        assert_eq!(
+            without["ok"], false,
+            "peer creds must not elevate: {without}"
+        );
+    }
+
+    // Com token: LocalAdmin, mesmo no socket Unix. `security.rotate` exige
+    // NIX_WRITE|HITL e não depende de nix-instantiate (portátil no CI).
+    let with_token = unix_rpc(
+        &daemon,
+        Some(&daemon.token),
+        None,
+        "security.rotate",
+        json!({}),
+    );
+    assert_eq!(
+        with_token["ok"], true,
+        "unix token must grant admin: {with_token}"
+    );
+}
+
+#[test]
+fn rotate_revokes_old_token() {
+    let daemon = start();
+    let rotated = rpc(&daemon, Some(&daemon.token), "security.rotate", json!({}));
+    assert_eq!(rotated["ok"], true, "{rotated}");
+    let new_token = rotated["result"]["token"].as_str().unwrap().to_string();
+    assert_ne!(new_token, daemon.token);
+
+    let old = rpc(&daemon, Some(&daemon.token), "health", json!({}));
+    assert_eq!(old["ok"], false, "old token must be revoked: {old}");
+
+    let fresh = rpc(&daemon, Some(&new_token), "health", json!({}));
+    assert_eq!(fresh["ok"], true, "new token must work: {fresh}");
+}

@@ -180,9 +180,7 @@ fn log_cuda_posture(stdout: &str, stderr: &str, ngl: u32) {
         || lower.contains("ggml_cuda")
         || lower.contains("offloaded")
         || lower.contains("nvidia");
-    let sys_cpu_only = lower.contains("system_info")
-        && lower.contains("| cpu :")
-        && !has_cuda;
+    let sys_cpu_only = lower.contains("system_info") && lower.contains("| cpu :") && !has_cuda;
     if sys_cpu_only {
         warn!(
             target: "nosd",
@@ -219,7 +217,9 @@ fn clean_completion(stdout: &str, prompt: &str) -> String {
             || t.contains("build info")
             || t.contains("log_disable")
             // timestamps estilo "0.00.129.321 I ..."
-            || (t.len() > 12 && t.as_bytes().get(0).map(|c| c.is_ascii_digit()).unwrap_or(false) && t.contains(" I "))
+            || (t.len() > 12
+                && t.as_bytes().first().map(|c| c.is_ascii_digit()).unwrap_or(false)
+                && t.contains(" I "))
     };
     let lines: Vec<&str> = s.lines().map(str::trim).filter(|l| !skip(l)).collect();
     if lines.is_empty() {
@@ -230,7 +230,13 @@ fn clean_completion(stdout: &str, prompt: &str) -> String {
         }
         return one.chars().take(1024).collect();
     }
-    lines.join(" ").chars().take(1024).collect::<String>().trim().to_string()
+    lines
+        .join(" ")
+        .chars()
+        .take(1024)
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 #[cfg(test)]
@@ -246,7 +252,8 @@ mod tests {
 
     #[test]
     fn clean_drops_perf_logs() {
-        let dirty = "Once upon a time\n0.00.129.321 I common_perf_print: load time\nsampler chain: logits";
+        let dirty =
+            "Once upon a time\n0.00.129.321 I common_perf_print: load time\nsampler chain: logits";
         let out = clean_completion(dirty, "Once upon a time");
         assert!(!out.contains("common_perf"));
         assert!(!out.contains("sampler chain"));
@@ -255,6 +262,9 @@ mod tests {
     #[test]
     fn missing_model_absent() {
         let err = LlamaCliBackend::try_new(PathBuf::from("/nonexistent/model.gguf"));
-        assert!(matches!(err, Err(SwapError::Infer(_)) | Err(SwapError::EngineAbsent(_))));
+        assert!(matches!(
+            err,
+            Err(SwapError::Infer(_)) | Err(SwapError::EngineAbsent(_))
+        ));
     }
 }

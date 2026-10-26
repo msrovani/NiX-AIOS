@@ -1,6 +1,6 @@
 //! AutoLearn helicóptero (T.2) — miss → Seek → import|synth|fetch → remember.
 
-use nos_factory::{seek_skill, SeekConfig, SkillNeed, SeekReport};
+use nos_factory::{seek_skill, SeekConfig, SeekReport, SkillNeed};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

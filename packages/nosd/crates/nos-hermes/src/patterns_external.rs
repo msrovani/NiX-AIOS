@@ -17,7 +17,10 @@ pub fn documented_patterns() -> &'static [(&'static str, &'static str)] {
     &[
         (PATTERN_ASSISTD_DAEMON, "IPC daemon + capability bridge"),
         (PATTERN_FLOWORK_HITL, "Workflow steps with human confirm"),
-        (PATTERN_ANTHROPIC_SKILL_MD, "SKILL.md schema + tool membrane"),
+        (
+            PATTERN_ANTHROPIC_SKILL_MD,
+            "SKILL.md schema + tool membrane",
+        ),
     ]
 }
 
