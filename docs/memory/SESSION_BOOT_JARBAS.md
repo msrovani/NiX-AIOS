@@ -16,6 +16,13 @@
 3. QEMU serial markers ≠ stick `NIXAIOS051` VERIFIED.
 4. AgentJev sem blob → ScorerAbsent + LOO `blob_deliberate` (nunca seed ISO).
 
+## QEMU lab (2026-10-26)
+
+- ISO: `nixaios-minimal-s529-remig.iso` · TCG (sem KVM user) · `scripts/_qemu-boot-capture.sh` kernel+initrd.
+- **OBSERVED:** systemd → Network → Serial Getty → autologin `nixos` + banner Neural AIOS.
+- **FAILED:** `nosd.service` (Neural-OS Daemon) várias vezes no boot — claim QEMU ≠ metal VERIFIED; investigar journal guest.
+- Gate: `NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --stage MQEMU`.
+
 ## Próximo
 
-Metal journal M4 → cage+chat live → lab 2-nó 0081 A/B.
+Metal journal M4 → cage+chat live → lab 2-nó 0081 A/B · diagnosticar `nosd` FAIL no QEMU.
