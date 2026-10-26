@@ -143,14 +143,22 @@ EOF
     fi
 
     save_file() {
-      # $1=name $2=content — so /var/lib/nosd
-      printf '%s\n' "$2" | $SUDO tee "/var/lib/nosd/$1" >/dev/null
+      # $1=name $2=content — so /var/lib/nosd (0.5.0: falha visível se tee≠0)
+      if ! printf '%s\n' "$2" | $SUDO tee "/var/lib/nosd/$1" >/dev/null; then
+        log "ERRO: nao gravou /var/lib/nosd/$1 (permissao/sudo)"
+        return 1
+      fi
       $SUDO chmod a+rw "/var/lib/nosd/$1" 2>/dev/null || true
+      return 0
     }
     step_file=/var/lib/nosd/firstboot.step
     set_step() {
-      printf '%s\n' "$1" | $SUDO tee "$step_file" >/dev/null
+      if ! printf '%s\n' "$1" | $SUDO tee "$step_file" >/dev/null; then
+        log "ERRO: nao gravou firstboot.step=$1"
+        return 1
+      fi
       $SUDO chmod a+rw "$step_file" 2>/dev/null || true
+      return 0
     }
     cur_step=0
     if [ -f "$step_file" ]; then
@@ -412,13 +420,54 @@ EOF
       log "  pode demorar; journalctl -u nosd -f"
     fi
 
-    if ! $SUDO ${pkgs.nosd}/bin/nosctl --socket /run/nosd/nosd.sock transmute \
-        --locale "$LANG_SEL" $DL_ARGS; then
-      log "AVISO: nosctl transmute falhou/parcial — a tentar GUI na mesma (cage)."
+    # Captura JSON do nosctl para mostrar errors[] no tty (metal pós-Q5).
+    TM_OUT=/tmp/nos-transmute-out.json
+    TM_RC=0
+    $SUDO ${pkgs.nosd}/bin/nosctl --socket /run/nosd/nosd.sock transmute \
+        --locale "$LANG_SEL" $DL_ARGS >"$TM_OUT" 2>&1 || TM_RC=$?
+    if [ "$TM_RC" != "0" ]; then
+      log "AVISO: nosctl transmute exit=$TM_RC — a tentar GUI na mesma (cage)."
       log "  (downloads podem ter falhado; HUD Slint nao depende dos GGUF)"
-      log "  Log: journalctl -u nosd -b --no-pager | tail -40"
+      if [ -f "$TM_OUT" ]; then
+        log "--- transmute response (tail) ---"
+        tail -n 40 "$TM_OUT" | while IFS= read -r line; do log "  $line"; done
+        # Extrai errors se JSON tiver o campo (python stdlib; sem jq obrigatorio)
+        ${pkgs.python3}/bin/python3 -c '
+import json,sys
+p=sys.argv[1]
+try:
+  raw=open(p,encoding="utf-8",errors="replace").read()
+  # nosctl imprime Response { ok, result/error }; result pode ser TransmuteRunResult
+  j=json.loads(raw)
+  r=j.get("result") or j
+  errs=r.get("errors") if isinstance(r,dict) else None
+  note=r.get("note") if isinstance(r,dict) else None
+  md=r.get("models_dir") if isinstance(r,dict) else None
+  if md: print("models_dir="+str(md))
+  if note: print("note="+str(note))
+  if errs:
+    for e in errs: print("error: "+str(e))
+except Exception as ex:
+  print("parse_skip: "+str(ex))
+' "$TM_OUT" 2>/dev/null | while IFS= read -r line; do log "  $line"; done || true
+      fi
+      log "  journal: journalctl -u nosd -b --no-pager | tail -40"
     else
       log "transmute RPC OK"
+      if [ -f "$TM_OUT" ]; then
+        ${pkgs.python3}/bin/python3 -c '
+import json,sys
+try:
+  j=json.loads(open(sys.argv[1],encoding="utf-8",errors="replace").read())
+  r=j.get("result") or j
+  if isinstance(r,dict):
+    if r.get("models_dir"): print("models_dir="+str(r["models_dir"]))
+    if r.get("note"): print("note="+str(r["note"]))
+    for e in (r.get("errors") or []): print("error: "+str(e))
+except Exception:
+  pass
+' "$TM_OUT" 2>/dev/null | while IFS= read -r line; do log "  $line"; done || true
+      fi
     fi
 
     log "— Hotswap JARBAS Slint (cage tty7 / iGPU) —"

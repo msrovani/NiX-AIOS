@@ -49,6 +49,13 @@ pub fn path_allowed(path: &Path, data_dir: &Path) -> bool {
     if path.starts_with(data_dir) {
         return true;
     }
+    if path.starts_with("/var/lib/nosd")
+        || path.starts_with("/etc/nixos")
+        || path.starts_with("/mnt/nixaios-log")
+        || path.starts_with("/tmp")
+    {
+        return true;
+    }
     let Ok(canon) = path
         .canonicalize()
         .or_else(|_| Ok::<_, std::io::Error>(path.to_path_buf()))
@@ -63,12 +70,11 @@ pub fn path_allowed(path: &Path, data_dir: &Path) -> bool {
     };
     canon.starts_with(&root)
         || canon.starts_with("/etc/nixos/ai-managed.nix")
-        || path.starts_with("/var/lib/nosd")
-        || path.starts_with("/etc/nixos")
+        || canon.starts_with("/mnt/nixaios-log")
 }
 
 /// Aplica Landlock no processo actual (Linux). Idempotente best-effort.
-/// Allow: `data_dir` RW + `/etc/nixos` RO + `/var/lib/nosd` RW.
+/// Allow: `data_dir` RW + `/var/lib/nosd` RW + `/tmp` RW + `/mnt/nixaios-log` RW + `/etc/nixos` RO.
 pub fn try_restrict_process(data_dir: &Path) -> LandlockStatus {
     if std::env::var("NOSD_LANDLOCK").ok().as_deref() != Some("1") {
         return LandlockStatus::Disabled;
@@ -156,6 +162,8 @@ fn linux_restrict(data_dir: &Path) -> Result<(), String> {
         (Path::new("/var/lib/nosd").to_path_buf(), rw),
         (Path::new("/etc/nixos").to_path_buf(), ro),
         (Path::new("/tmp").to_path_buf(), rw),
+        // 0.5.0: FAT opt-in (NIXAIOS_USE_FAT_PERSIST) — sem isto fetch → EACCES pós-Q5
+        (Path::new("/mnt/nixaios-log").to_path_buf(), rw),
     ];
     // Dedup
     paths.sort_by(|a, b| a.0.cmp(&b.0));
@@ -235,6 +243,15 @@ mod tests {
             Path::new("/var/lib/nosd/models/x.gguf").starts_with(&root)
                 || path_allowed(Path::new("/var/lib/nosd/models/x.gguf"), &root)
         );
+    }
+
+    #[test]
+    fn allow_fat_log_mount_prefix() {
+        let root = PathBuf::from("/var/lib/nosd");
+        assert!(path_allowed(
+            Path::new("/mnt/nixaios-log/nosd-persist/models/x.gguf"),
+            &root
+        ));
     }
 
     #[test]

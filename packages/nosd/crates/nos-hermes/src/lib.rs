@@ -6,6 +6,7 @@ mod agency;
 mod autolearn;
 mod blob_deliberate;
 mod card;
+mod self_heal;
 mod cognitive_act;
 mod cognitive_bridge;
 mod membrane;
@@ -19,6 +20,7 @@ mod www;
 pub use agency::{AgencyFleet, AgentManifest, ScheduleKind};
 pub use autolearn::{plan_from_seek, plan_learn, LearnAction, LearnPlan};
 pub use card::{parse_card_prompt, CardKv, CardSpec};
+pub use self_heal::{evaluate_self_heal, SelfHealDecision, SelfHealRecipe};
 pub use opar_gate::{is_side_effect, SIDE_EFFECT_METHODS};
 pub use blob_deliberate::{
     deliberate_blob_fetch, gate_allows_fetch, iso_must_not_ship_blobs, note_persona_download,

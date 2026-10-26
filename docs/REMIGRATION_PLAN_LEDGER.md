@@ -11,7 +11,8 @@
 | **NOT_DONE** | Overclaim ou ausente — reabrir na próxima onda |
 | **PREEXIST** | Já existia antes desta remigração; só referenciado |
 
-Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 · REJECT 1** — ondas do plano = host-OK (`REMIGRATION_PLAN_ACCEPTANCE.md`); metal/lab e2e = residual.
+Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 · REJECT 1**.  
+**0.5.0/0.5.1 (2026-10-25):** P0 metal pós-Q5 Linux-first + Landlock FAT allow + CRDT/SoulMirror thin + llama_server_posture + SelfHeal deny stub + docs modernas — ship Git [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md). Ondas = host-OK; metal/lab e2e = residual AWAITING_HW (sem overclaim).
 
 ---
 
@@ -21,7 +22,7 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 |----|------|--------|-----------------|
 | I.1 | CapGate server-authored; deny client ALL | **DONE** | `nos-core::CapRegistry`; `server.rs` ignora `req.caps`; testes |
 | I.2 | Host-imports wasmi CapGate + Frugal prove deny | **PARTIAL** | Frugal + `aios_ai::infer` CapGate; fuel trap pré-existente; prove deny INFER OK |
-| I.3 | systemd Protect* + Landlock **real** NIX_WRITE | **PARTIAL**↑ | `NOSD_LANDLOCK=1` no unit nosd; score/health expõem `landlock`; Verified só Linux+ABI; lab metal AWAITING |
+| I.3 | systemd Protect* + Landlock **real** NIX_WRITE | **PARTIAL**↑ | 0.5.0: allowlist +`/mnt/nixaios-log`; `path_allowed` teste FAT; Verified só Linux+ABI; lab metal AWAITING |
 | I.4 | Factory B/C PathBcAbsent | **DONE** / PREEXIST | `FactoryError::PathBcAbsent` |
 | I.5 | Engine dGPU cgroup ≠ cage iGPU | **PARTIAL**↑ | engine OOM=+200 MemoryMax DevicePolicy=closed (sem DRM); cage DRM+OOM=-500; `lab-oom-engine.sh`; e2e metal AWAITING |
 
@@ -42,8 +43,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 | ID | Item | Status | Evidência / gap |
 |----|------|--------|-----------------|
 | M.1 | FRACK, TOFU settle, CapacityScore, roles, election | **DONE** (host) | `frack`+UDP TX pós-FRAG; `tofu_settled` 130 ticks; election CapacityScore; testes 21/21; lab 2-nó e2e = residual |
-| M.2 | nsgdb CRDT + mesh_knowledge FNV + LayaIntent=8 fio | **PARTIAL** | LayaIntent TX no `tick_tx` + RX; **CRDT merge NOT_DONE** |
-| M.3 | JARBAS HUD fleet + SoulMirror + lab 2+ nós | **PARTIAL** | MCH TX no tick_tx + fleet.health; SoulMirror/lab 2-nó e2e **NOT** |
+| M.2 | nsgdb CRDT + mesh_knowledge FNV + LayaIntent=8 fio | **PARTIAL**↑ | 0.5.0: `nos-mesh::crdt` LWW+VV host tests; LayaIntent TX/RX; **P2P NSGDB sync / lab 2-nó NOT** |
+| M.3 | JARBAS HUD fleet + SoulMirror + lab 2+ nós | **PARTIAL**↑ | 0.5.0: `SoulMirrorSnapshot` + bus `SOUL_MIRROR`; lab 2-nó e2e **AWAITING_HW** |
 | M.4 | capacity_weighted_assign offload S2 | **DONE** (host hint) | `assign_from_mesh_tuples` + `MESH_OFFLOAD_HINT` bus; remote infer e2e residual |
 
 ## Tema S1 / S2 / HW
@@ -54,9 +55,9 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 | S1.2 | Embutir scorer+Piper seed ISO warm mmap | **REJECT** | Política 2026-10-25: blobs externos **só runtime** via Cortex→Hermes→JARBAS (`blob_deliberate`); ISO NÃO embute |
 | S1.2b | Runtime blob/firmware fetch deliberado | **DONE** | `nos-hermes::blob_deliberate` + `model.fetch`/`firmware.fetch`/`transmute` HITL; `iso.nix` comment |
 | S2.1 | full-auto plan nvidia-smi/ROCm/DRM qualquer GGUF | **PARTIAL** / PREEXIST | capacity+plan pré-existente; ROCm thin |
-| S2.2 | llama-server persistente stream+cancel | **PARTIAL**↑ | score/health `llama_server=absent|url_set+engine`; SSE+cancel pré-existente; e2e daemon metal **NOT** |
+| S2.2 | llama-server persistente stream+cancel | **PARTIAL**↑ | 0.5.0: `llama_server_posture()` honesty; SSE+cancel pré-existente; e2e daemon metal **NOT** |
 | HW.1 | inventário tipado Hermes (udev/IIO/ACPI/…) | **PARTIAL** | = NX.3 thin |
-| HW.2 | JARBAS cards HITL + SelfHeal firmware Nix | **NOT_DONE** | cards/SelfHeal recipe **NOT** |
+| HW.2 | JARBAS cards HITL + SelfHeal firmware Nix | **PARTIAL**↑ | 0.5.0: `evaluate_self_heal` CapGate Deny-by-default + CardSpec; Slint ricos/firmware Nix **NOT** |
 
 ## Tema T / DB / F / A
 
@@ -77,11 +78,11 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 | ID | Item | Status | Evidência / gap |
 |----|------|--------|-----------------|
-| U.2 | k_ai Safety/Trust/Audit/SelfHeal/HWExpert nosd | **PARTIAL** | `safety_trust` TrustToken+invariants thin; SelfHeal/HWExpert port **NOT** |
+| U.2 | k_ai Safety/Trust/Audit/SelfHeal/HWExpert nosd | **PARTIAL**↑ | 0.5.0: `evaluate_self_heal` Deny-by-default; `safety_trust` thin; HWExpert port **NOT** |
 | U.3 | nos-bei budget/affect/sleep + SoulMirror | **PARTIAL** | BEI+Sleep; `tick_sleep_consolidate`→memória; SoulMirror cluster **NOT** |
-| B.1 | nosd-early + BOOT SCORE + firstboot Slint | **PARTIAL**↑ | early FAT honesty; cage `After=nosd-early-score`; score RPC lê `boot-score.json`→HUD; ISO rebuild + metal journal AWAITING |
+| B.1 | nosd-early + BOOT SCORE + firstboot Slint | **PARTIAL**↑ | 0.5.0: early só `/var/lib/nosd`; firstboot save_file fail-loud + erros transmute tty; ISO `NIXAIOS050`; metal journal AWAITING_HW |
 | N.1 | /etc/nixos/ai-ring + generation-guard | **PARTIAL** | = NX.1 cortex-nix-ring |
-| J.1 | nos-voice PipeWire full-duplex | **PARTIAL** / PREEXIST | whisper/piper paths; EngineAbsent sem bins; duplex **thin** |
+| J.1 | nos-voice PipeWire full-duplex | **PARTIAL** / PREEXIST | 0.5.0: locale/piper paths Linux-first (sem FAT); EngineAbsent sem bins; duplex **thin** |
 | J.2 | Generative Cards + Orb skill/hub | **PARTIAL** | `CardSpec` parse + WindowBroker; Slint generative rich widgets **NOT** |
 | G.1 | Matriz/TECNOLOGIAS/addendum honesty | **DONE** | este ledger + SESSION_529 + TECNOLOGIAS N.3* |
 
@@ -114,14 +115,14 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 **Marcar todo completed na UI sem cumprir o goal do plano = overclaim.**  
 Próxima onda: só fechar item com (1) teste host ou (2) log runtime + linha neste ledger → DONE.
 
-## Próxima onda sugerida (prioridade honesty)
+## Próxima onda sugerida (pós-0.5.0, prioridade honesty)
 
-1. CRDT mesh merge (M.2 residual — Laya/MCH TX já no tick).  
-2. Lab 2-nó fleet e2e + SoulMirror (M.3).  
-3. AgentJev/BGE/Vision blobs via `blob_deliberate` LOO.  
-4. llama-server e2e + AirLLM mmap real (S2.2).  
-5. **S1.2 REJECT:** nunca seed ISO.  
-6. NSGDB MCP CRDT/BQ/L5–L7.  
+1. Metal stick `NIXAIOS050`: Q5→transmute sem EACCES; cage tty7 (AWAITING_HW).  
+2. Lab 2-nó fleet e2e + SoulMirror wire (M.3 residual).  
+3. CRDT → sync P2P NSGDB (M.2 residual além do LWW in-process).  
+4. AgentJev/BGE/Vision blobs via `blob_deliberate` LOO.  
+5. llama-server e2e + AirLLM mmap real (S2.2).  
+6. **S1.2 REJECT:** nunca seed ISO.  
 7. Remote S2 infer no peer (M.4 hint só).
 
 ## Referências

@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# ISO s529: remigração NX.0 + Seek-Before-Generate host — volid NIXAIOS529
-# POLICY: sem blobs de modelo/firmware na ISO (runtime fetch deliberado).
+# Alias legado → 0.5.1 (NIXAIOS051). Preferir scripts/build-iso-050.sh.
 set -euo pipefail
-source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEST_ISO="/mnt/c/Users/msrov/Downloads/nixaios-minimal-s529-remig.iso"
-DEST_IMG="/mnt/c/Users/msrov/Downloads/nixaios-minimal-s529-remig-persist.img"
+echo "build-iso-s529.sh: redirect → build-iso-050.sh (NixAIOS 0.5.1)"
+exec bash "$ROOT/scripts/build-iso-050.sh"
 sed -i 's/\r$//' "$ROOT"/scripts/*.sh "$ROOT"/images/iso.nix "$ROOT"/modules/*.nix \
   "$ROOT"/packages/nosd/crates/nos-jarbas/ui/hud.slint \
   "$ROOT"/packages/nosd/crates/nos-jarbas/src/slint_app.rs 2>/dev/null || true

@@ -57,11 +57,7 @@ fn build_runtime_score(state: &AppState, phase: &str, msg: &str) -> NosScore {
         .mesh
         .fleet_verdict()
         .map(|v| v.as_str().to_string());
-    let llama = if nos_cortex::llama_server_base().is_some() {
-        format!("url_set+{}", state.hermes.hotswap.engine_name())
-    } else {
-        format!("absent+{}", state.hermes.hotswap.engine_name())
-    };
+    let llama = nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name());
     let early_boot = {
         let p = state.data_dir.join("boot-score.json");
         std::fs::read_to_string(&p)
@@ -284,7 +280,7 @@ fn dispatch(state: &AppState, req: Request) -> Response {
                     "fleet_machines": machines.len(),
                     "hub_loaded": state.hub.loaded_count(),
                     "engine": state.hermes.hotswap.engine_name(),
-                    "llama_server": if nos_cortex::llama_server_base().is_some() { "url_set" } else { "absent" },
+                    "llama_server": nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name()),
                     "s1_backend": s1_backend_label(),
                     "landlock": format!("{:?}", nosd_lib::landlock::applied_status()),
                     "s2_pending": state.hermes.s2.pending(),

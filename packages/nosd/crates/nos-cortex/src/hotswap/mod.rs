@@ -6,7 +6,9 @@ mod llama_server;
 
 pub use backend::{CpuEchoBackend, EngineKind, InferenceBackend, SwapError};
 pub use llama_cli::{find_llama_cli, LlamaCliBackend};
-pub use llama_server::{llama_server_base, sse_data_chunk, LlamaServerBackend, SseChunk};
+pub use llama_server::{
+    llama_server_base, llama_server_posture, sse_data_chunk, LlamaServerBackend, SseChunk,
+};
 
 use parking_lot::Mutex;
 use std::path::PathBuf;

@@ -132,9 +132,9 @@ impl LocaleVoiceSpec {
 
 fn read_etc_locale() -> Option<String> {
     // 1) Ficheiros explícitos do nosd / persistência / GNOME AccountsService
+    // 0.5.0 Linux-first: sem preferência FAT (NIXAIOSLOG).
     for path in [
         "/var/lib/nosd/locale.conf",
-        "/mnt/nixaios-log/nosd-persist/locale.conf",
         "/home/nixos/.config/gnome-initial-setup-locale",
         "/var/lib/AccountsService/users/nixos",
         "/etc/locale.conf",
@@ -191,10 +191,8 @@ pub fn find_piper_cli() -> Option<PathBuf> {
             return Some(pb);
         }
     }
-    for fixed in [
-        "/mnt/nixaios-log/nosd-persist/models/piper/piper",
-        "/var/lib/nosd/models/piper/piper",
-    ] {
+    // 0.5.0: Linux-first (sem FAT).
+    for fixed in ["/var/lib/nosd/models/piper/piper"] {
         let pb = PathBuf::from(fixed);
         if pb.is_file() {
             return Some(pb);

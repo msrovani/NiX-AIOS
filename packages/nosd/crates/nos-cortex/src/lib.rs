@@ -31,7 +31,7 @@ pub use fetch::{
 pub use header_scan::{ModelMeta, scan_path};
 pub use hotswap::{
     EngineKind, HotSwapController, InferenceBackend, LlamaCliBackend, SwapError, find_llama_cli,
-    llama_server_base, LlamaServerBackend,
+    llama_server_base, llama_server_posture, LlamaServerBackend,
 };
 pub use hub::ModelHub;
 pub use offload::plan_n_gpu_layers;

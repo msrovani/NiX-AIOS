@@ -187,11 +187,7 @@ async fn main() -> anyhow::Result<()> {
         fleet_verdict: None,
         summary: String::new(),
         s1_backend: nos_core::s1_backend_label().into(),
-        llama_server: if nos_cortex::llama_server_base().is_some() {
-            "url_set".into()
-        } else {
-            "absent".into()
-        },
+        llama_server: nos_cortex::llama_server_posture("boot"),
         landlock: format!("{:?}", nosd_lib::landlock::applied_status()),
         early_boot: None,
     }
@@ -378,6 +374,26 @@ async fn hermes_runtime_loop(
                 state.mesh.peer_count(),
                 state.mesh.fleet_machines().len() as u32,
             );
+            // M.3 SoulMirror thin — EventBus + slog (lab 2-nó e2e residual)
+            if n % 30 == 0 {
+                let machines = state.mesh.fleet_machines();
+                let snap = nos_mesh::SoulMirrorSnapshot::from_fleet(
+                    state.mesh.local_id(),
+                    "jarbas",
+                    "tick",
+                    &machines,
+                    n,
+                );
+                state.hermes.bus.publish(
+                    "SOUL_MIRROR",
+                    serde_json::json!({
+                        "slog": snap.slog_line,
+                        "fleet": snap.fleet_verdict,
+                        "peers": snap.peer_count,
+                    }),
+                );
+                info!(target: "nosd", "{}", snap.slog_line);
+            }
         }
         if n == 1 || n % 30 == 0 {
             info!(

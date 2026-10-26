@@ -16,6 +16,14 @@ pub fn llama_server_base() -> Option<String> {
         .filter(|s| !s.trim().is_empty())
 }
 
+/// Honesty S2.2: `absent` | `url_set` (env only — e2e daemon metal = residual).
+pub fn llama_server_posture(engine_name: &str) -> String {
+    match llama_server_base() {
+        Some(_) => format!("url_set+engine={engine_name}"),
+        None => format!("absent+engine={engine_name}"),
+    }
+}
+
 /// Extrai delta de texto de linha SSE `data: {...}` ou `data: [DONE]`.
 pub fn sse_data_chunk(line: &str) -> Option<SseChunk> {
     let line = line.trim();
@@ -153,5 +161,13 @@ mod tests {
     #[test]
     fn sse_done() {
         assert_eq!(sse_data_chunk("data: [DONE]"), Some(SseChunk::Done));
+    }
+
+    #[test]
+    fn posture_absent_without_env() {
+        std::env::remove_var("NOSD_LLAMA_SERVER");
+        let p = llama_server_posture("cpu-echo");
+        assert!(p.starts_with("absent+"), "{p}");
+        assert!(p.contains("cpu-echo"));
     }
 }

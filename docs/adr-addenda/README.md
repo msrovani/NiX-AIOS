@@ -1,5 +1,6 @@
 # ADR addenda — NixAIOS disposition
 
+Hub geral da documentação: [`../README.md`](../README.md).  
 Addenda curtas por cluster. Corpos históricos bare-metal **não** são reescritos.
 
 | Cluster | ADRs | Disposicao NixAIOS |

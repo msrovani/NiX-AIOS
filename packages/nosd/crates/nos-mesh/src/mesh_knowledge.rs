@@ -1,7 +1,7 @@
 //! Dedup / fingerprint para mesh knowledge (ADR-0081 parity).
 //!
-//! **CRDT mesh sync: NOT_DONE** — só fingerprint + wire helpers; merge CRDT fica
-//! para quando o substrato NSGDB expor replicação P2P real (REMIGRATION M.2).
+//! 0.5.0: merge CRDT thin em [`crate::crdt`] (LWW + VV). Sync P2P NSGDB pleno /
+//! lab 2-nó e2e = residual AWAITING_HW (REMIGRATION M.2).
 
 /// FNV-1a 64-bit sobre bytes de conteúdo (mesmo algoritmo que `nos-factory` body hash).
 pub fn fnv1a64(data: &[u8]) -> u64 {

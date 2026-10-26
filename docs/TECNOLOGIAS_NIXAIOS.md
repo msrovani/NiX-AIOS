@@ -1,5 +1,7 @@
 # TECNOLOGIAS — NixAIOS (espelho PORT/ADAPT)
 
+**Release 0.5.1** — volid `NIXAIOS051`; persistência Linux-first (`/var/lib/nosd`); FAT só `NIXAIOS_USE_FAT_PERSIST=1`. Ver [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md).
+
 Catálogo vivo do produto paralelo. Bare-metal continua em [`TECNOLOGIAS.md`](https://github.com/msrovani/neural-os-core/blob/main/TECNOLOGIAS.md) §1–15.
 
 **Canónico WASM:** ADR-0059 (Caminho A wasmi). **ADR-0032 = superseded** — não usar como inventário.
@@ -21,6 +23,7 @@ Camadas bare→NixOS: [`adr-addenda/0118-portability-layers.md`](adr-addenda/011
 | N.3j | Actuators PipeWire/GPU/recipe | NOVO | `actuators` RPC | **NX.4** host VERIFIED |
 | N.3c | Runtime blob/firmware deliberado (sem seed ISO) | NOVO | `nos-hermes::blob_deliberate` | **S1.2 REJECT**; fetch pós Cortex→Hermes→JARBAS HITL |
 | N.3d | nsgdb seg.bin L2/L3 (não JSONL default) | NOVO | `nos-memory::seg` | **DB.1** host VERIFIED default; MCP CRDT AWAITING |
+| N.3p | Persist Linux-first pós-Q5 (0.5.0) | NOVO | `transmute::resolve_models_dir` + Landlock `/mnt/nixaios-log` | **host VERIFIED** testes; metal EACCES mitigado; boot metal AWAITING_HW |
 | N.3e | PackageStore FNV+Ed25519+FederatedIndex | NOVO | `nos-factory::store` | **P.12** host VERIFIED; trusted key ring fleet residual |
 | N.3f | Mesh TOFU settle + FRACK UDP | NOVO | `nos-mesh` + `udp` | **M.1** host VERIFIED; lab 2-nó AWAITING |
 | N.3c | Seek-Before-Generate + store federado | NOVO | `nos-factory::seek/store` + Hermes | **F.3/P.12** mesh→GH/GL/crates/MCP; FederatedIndex; NetAbsent; SESSION_529 |

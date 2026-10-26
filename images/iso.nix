@@ -1,5 +1,5 @@
 # Offline ISO — firstboot + Slint HUD refinado (cage/iGPU, sem Chromium default).
-# Build: scripts/build-iso-s528.sh (volid NIXAIOS529 = NX.0 remigration honesty)
+# Build: scripts/build-iso-050.sh (volid NIXAIOS051 = release 0.5.1 Linux-first + docs)
 # POLICY: NÃO embutir modelos/firmware/voice blobs — runtime fetch deliberado
 # Cortex→Hermes→JARBAS (nos-hermes::blob_deliberate / model.fetch|firmware.fetch).
 { pkgs, lib, modulesPath, ... }:
@@ -10,12 +10,18 @@
 
   isoImage.makeEfiBootable = true;
   isoImage.makeUsbBootable = true;
-  isoImage.volumeID = "NIXAIOS529";
+  isoImage.volumeID = "NIXAIOS051";
 
-  # s529 metal: FAT NIXAIOSLOG → muitos "permissão negada" pós-firstboot.
-  # Persistência/logs só em Linux FS (/var/lib/nosd, /tmp). Sem partição FAT na DD.
+  # 0.5.1: FAT OFF — persistência só /var/lib/nosd (evita EACCES pós-Q5 no metal).
   services.nixaiosLogFat.enable = false;
   services.nixaiosTransmute.enable = true;
+
+  # Ganha sobre tmpfiles 0750 do neural-os.nix (live: nixos + nosd escrevem).
+  systemd.tmpfiles.rules = lib.mkAfter [
+    "d /var/lib/nosd 1777 nosd nosd -"
+    "d /var/lib/nosd/models 1777 nosd nosd -"
+    "d /var/lib/nosd/nsgdb 1777 nosd nosd -"
+  ];
 
   # NX.0: autoSwitch off on prod ISO; lab scripts (e.g. build-iso-*.sh) may override true.
   services.nosdNixRing = {

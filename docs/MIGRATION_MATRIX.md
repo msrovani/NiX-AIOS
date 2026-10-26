@@ -69,9 +69,9 @@ Produto paralelo em `nixaios/` — bare-metal permanece canônico. Evidência: A
 | 0112 BAR | ADAPT | CUDA malloc honesty |
 | 0117 BitFuzzy | DEFER hub | host-only |
 
-## Onda remigração s529 — ledger (fonte de verdade)
+## Onda remigração + release 0.5.1 — ledger (fonte de verdade)
 
-Plano Cursor `nixaios_remigração_34e29087` → status item-a-item:
+Plano Cursor `nixaios_remigração_34e29087` → status item-a-item; ship [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) (volid `NIXAIOS051`, persist Linux-first; base [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md)).
 
 **[`REMIGRATION_PLAN_LEDGER.md`](REMIGRATION_PLAN_LEDGER.md)** + **[`REMIGRATION_PLAN_ACCEPTANCE.md`](REMIGRATION_PLAN_ACCEPTANCE.md)**.
 

@@ -9,12 +9,15 @@ let
   waitScript = pkgs.writeShellScript "jarbas-wait-deps" ''
     set -euo pipefail
     # Root ExecStartPre (+): runtime dirs + seatd sock stale
-    mkdir -p /run/user/nosd /var/lib/nosd
-    chown nosd:nosd /run/user/nosd /var/lib/nosd || true
+    # 0.5.0: NAO apertar 750 — ISO live precisa 1777 para firstboot+nosd (EACCES pós-Q5).
+    mkdir -p /run/user/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb
+    chown nosd:nosd /run/user/nosd || true
+    chown -R nosd:nosd /var/lib/nosd 2>/dev/null || chown nosd:nosd /var/lib/nosd || true
     chmod 700 /run/user/nosd || true
-    chmod 750 /var/lib/nosd || true
+    chmod 1777 /var/lib/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb 2>/dev/null || true
     touch /var/lib/nosd/jarbas-cage.log
     chown nosd:nosd /var/lib/nosd/jarbas-cage.log || true
+    chmod a+rw /var/lib/nosd/jarbas-cage.log 2>/dev/null || true
     # Stale seatd.sock (crash) bloqueia seatd.service / seatd-launch
     if [ -S /run/seatd.sock ] && ! systemctl is-active --quiet seatd.service 2>/dev/null; then
       echo "jarbas-wait: removing stale /run/seatd.sock"

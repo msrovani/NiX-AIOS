@@ -1,58 +1,54 @@
 # NixAIOS
 
-> **Procedencia:** importado de [msrovani/neural-os-core](https://github.com/msrovani/neural-os-core) commit `bfd03f4a` (arvore `nixaios/`) em 2026-10-23. O bare-metal continua canonico la; este repo e a bancada NixOS (ADR-0118, addendum de mudanca de repositorio: https://github.com/msrovani/neural-os-core/blob/main/docs/architecture/0118-nixaios-nosd.md).
+> **Procedência:** importado de [msrovani/neural-os-core](https://github.com/msrovani/neural-os-core) commit `bfd03f4a` (árvore `nixaios/`) em 2026-10-23. O bare-metal continua canónico lá; este repo é a bancada NixOS ([ADR-0118](https://github.com/msrovani/neural-os-core/blob/main/docs/architecture/0118-nixaios-nosd.md)).
 
+Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 
-Produto **paralelo** ao neural-os-core bare-metal (não é fork). ADR-0118.
+**Release 0.5.1** — volid ISO `NIXAIOS051`, persistência Linux-first + docs modernas.  
+**Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.5.1](docs/RELEASE_0.5.1.md)
 
-**Plano remigração (s529):** status item-a-item em [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md) — DONE/PARTIAL/NOT_DONE dos 55 todos. UI “completed” ≠ aceite.
-
-## Quick start (Windows / WSL)
+## Quick start
 
 ```bash
-cd nixaios/packages/nosd
+cd packages/nosd
 cargo test --workspace
-# Windows TCP lab:
 cargo run -p nosd -- --foreground --tcp 127.0.0.1:7700 --data-dir ./data
 cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 health
 cargo run -p nosd --bin nosctl -- --tcp 127.0.0.1:7700 chat "oi"
 ```
 
-Sem GGUF/`llama-completion` → `[cpu-echo]`. Loop cognitivo WSL:
+Sem GGUF → `[cpu-echo]`. WSL / ISO / metal: ver [Getting started](docs/GETTING_STARTED.md) e [WSL](docs/WSL.md).
 
 ```bash
-bash nixaios/scripts/smoke-cognitive-loop.sh   # PASS = tokens + remember + recall
+bash scripts/smoke-cognitive-loop.sh
+bash scripts/build-iso-050.sh          # WSL; guard S1.2
 ```
 
-WASM: ADR-**0059** (não 0032). Frugal: 256 KiB = **4** páginas / fuel 100k.  
-QEMU PASS ≠ metal PASS (ADR-0113). WSL: [docs/WSL.md](docs/WSL.md).  
-CUDA: `smoke-cuda-honesty.sh` — host GPU OBSERVED ≠ `CUDA_ENGINE_ABSENT` (nixpkgs llama CPU); opt-in `nix build .#llama-cpp-cuda`.  
-Metal: `metal-iso-deep-preflight.sh` / `metal-usb-handoff.ps1` → Rufus **DD** + copytoram; boot = AWAITING_HW.
+## Stack (resumo)
 
-## Nix
+| Camada | Peças |
+|--------|--------|
+| Daemon | `nosd` Tokio + CapGate + Landlock |
+| Agente | Hermes OPAR → Cortex HotSwap GGUF |
+| UI | JARBAS Slint + Wayland `cage` (tty7) |
+| Memória / malha | nsgdb `seg.bin`, mesh UDP, CRDT thin |
+| NixOS | flake + modules + ISO minimal firstboot |
 
-```bash
-cd nixaios
-nix develop
-nix build .#nosd
-# ISO / CUDA opt-in (WSL):
-# nix build .#iso
-# nix build .#llama-cpp-cuda   # pesado; só p/ NOSD_LLAMA_NGL>0 VERIFIED
-```
-
-**Display / persona:** UI = **JARBAS** (cerimónia) → **Hermes** → **Cortex**.  
-Janelas = objetos HITL/mostrar (ex. Wi‑Fi+senha), não painel sysadmin.  
-Wayland+`cage` = transporte DRM (tty7, fail-closed). Ver `0118-jarbas-persona-ui.md` + `0118-wayland-cage-kiosk.md`.
-
-**Boot auto:** `nosd` → `jarbas-hub` (journal) → `jarbas-cage` (tty7, não bloqueia boot).  
-Health: `hermes=running`. `journalctl -u nosd -u jarbas-cage`.
-
-**HotSwap / HF (GGUF MVP):** probe → `nosctl suggest` → `fetch --repo … --file …` → `load PATH` / `unload`.  
-Engine path A = `llama-cli` subprocess; EXL2/vLLM = `EngineAbsent` até flake. CapGate `NET|FS` no fetch.  
-Ver `docs/adr-addenda/0118-hotswap-hf.md`.
+**Honesty (ADR-0113):** scaffold ≠ VERIFIED; QEMU/ISO PASS ≠ metal PASS.  
+Ledger: [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
 ## Layout
 
-- `packages/nosd/` — workspace Rust (`nosd`, hub, factory, wasm Frugal, memory/nsgdb facade, mesh, BEI, hermes, jarbas, voice)
-- `modules/` — systemd nosd, cage iGPU, ai-managed.nix
-- `docs/` — MIGRATION_MATRIX, TECNOLOGIAS_NIXAIOS, WSL
+```
+packages/nosd/   workspace Rust
+modules/         systemd nosd, cage, transmute, nix-ring
+images/iso.nix   ISO NIXAIOS051
+scripts/         build, smokes, metal
+docs/            documentação moderna + ADRs + honesty
+```
+
+## Contribuir e segurança
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [SECURITY.md](SECURITY.md) · [docs/SECURITY.md](docs/SECURITY.md)
+- [LICENSE](LICENSE) (AGPL-3.0)

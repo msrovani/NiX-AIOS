@@ -1,17 +1,21 @@
 //! Mesh P2P — contratos wire ADR-0081 (PORT sobre UDP std).
 
+pub mod crdt;
 pub mod fleet_health;
 pub mod frack;
 pub mod frag;
 pub mod laya_intent;
 pub mod mesh_knowledge;
+pub mod soul_mirror;
 pub mod udp;
 
+pub use crdt::{CrdtEntry, CrdtStore, VersionVector};
 pub use fleet_health::{
     encode_mch, fleet_worst, parse_mch, HealthVerdict, MachineHealth, MAGIC_MCH,
 };
 pub use laya_intent::{LayaIntent, WIRE_VERSION as LAYA_WIRE_VERSION};
 pub use mesh_knowledge::{content_fingerprint, fnv1a64, payload_fingerprint};
+pub use soul_mirror::SoulMirrorSnapshot;
 pub use frack::Frack;
 pub use frag::{FragHeader, FragReassembler};
 

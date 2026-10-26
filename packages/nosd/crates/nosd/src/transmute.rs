@@ -81,8 +81,21 @@ pub struct TransmuteRunResult {
     pub note: String,
 }
 
-/// Garante que `/mnt/nixaios-log/nosd-persist/models` é usado se a partição FAT/persist estiver montada.
+/// 0.5.0 Linux-first: modelos em `data_dir/models` por omissão.
+/// FAT `/mnt/nixaios-log` só com `NIXAIOS_USE_FAT_PERSIST=1` + mount + dirs graváveis pelo processo.
 pub fn resolve_models_dir(data_dir: &Path) -> (PathBuf, bool, String) {
+    let local_models = data_dir.join("models");
+    let _ = fs::create_dir_all(&local_models);
+
+    let fat_opt_in = std::env::var("NIXAIOS_USE_FAT_PERSIST")
+        .ok()
+        .as_deref()
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if !fat_opt_in {
+        return (local_models, false, data_dir.display().to_string());
+    }
+
     let fat_mnt = Path::new("/mnt/nixaios-log");
     let persist_root = fat_mnt.join("nosd-persist");
     let mounted = fat_mnt.is_dir()
@@ -95,12 +108,20 @@ pub fn resolve_models_dir(data_dir: &Path) -> (PathBuf, bool, String) {
 
     if mounted {
         let p_models = persist_root.join("models");
+        // Só usar FAT se o processo actual conseguir criar/escrever (evita EACCES pós-Q5).
         if fs::create_dir_all(&p_models).is_ok() {
-            return (p_models, true, persist_root.display().to_string());
+            let probe = p_models.join(".nosd-write-probe");
+            if fs::write(&probe, b"ok").is_ok() {
+                let _ = fs::remove_file(&probe);
+                return (p_models, true, persist_root.display().to_string());
+            }
         }
+        warn!(
+            target: "nosd",
+            "NIXAIOS_USE_FAT_PERSIST=1 mas FAT nao gravavel — fallback {}",
+            local_models.display()
+        );
     }
-    let local_models = data_dir.join("models");
-    let _ = fs::create_dir_all(&local_models);
     (local_models, false, data_dir.display().to_string())
 }
 
@@ -175,10 +196,17 @@ fn detect_active_wifi() -> Option<String> {
 }
 
 fn read_mode(data_dir: &Path) -> String {
-    for p in [
-        PathBuf::from("/mnt/nixaios-log/nosd-persist/aios-mode"),
-        data_dir.join("aios-mode"),
-    ] {
+    // Linux-first; FAT só se opt-in (espelha resolve_models_dir).
+    let mut paths = vec![data_dir.join("aios-mode")];
+    let fat_opt_in = std::env::var("NIXAIOS_USE_FAT_PERSIST")
+        .ok()
+        .as_deref()
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if fat_opt_in {
+        paths.push(PathBuf::from("/mnt/nixaios-log/nosd-persist/aios-mode"));
+    }
+    for p in paths {
         if let Ok(s) = fs::read_to_string(p) {
             let t = s.trim();
             if !t.is_empty() {
@@ -383,16 +411,22 @@ pub fn execute_transmute(
         }
     }
 
-    let note = if !persist_mounted {
-        "AVISO: NIXAIOSLOG não montado — modelos em /var/lib/nosd (voláteis). Hotswap pedido se ok."
-            .into()
-    } else if !errors.is_empty() {
+    let note = if !errors.is_empty() {
         format!(
-            "Transmute parcial ({} erro(s)); hotswap_triggered={hotswap_triggered}.",
-            errors.len()
+            "Transmute parcial ({} erro(s)); hotswap_triggered={hotswap_triggered}; models={}.",
+            errors.len(),
+            models_dir.display()
         )
     } else if hotswap_triggered {
-        "Downloads OK; hotswap GNOME→JARBAS disparado (ver /mnt/nixaios-log/hotswap.log).".into()
+        format!(
+            "Downloads OK; hotswap disparado (log /var/lib/nosd/hotswap.log); models={}.",
+            models_dir.display()
+        )
+    } else if !persist_mounted {
+        format!(
+            "Modelos em {} (Linux FS). Hotswap pedido se ok.",
+            models_dir.display()
+        )
     } else {
         "Downloads OK; hotswap não disparado (hotswap_now=false ou falha systemctl).".into()
     };
@@ -413,5 +447,33 @@ pub fn execute_transmute(
         tts_greeting_played,
         hotswap_triggered,
         note,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn resolve_models_dir_linux_first_without_fat_env() {
+        std::env::remove_var("NIXAIOS_USE_FAT_PERSIST");
+        let dir = tempdir().unwrap();
+        let (models, persist, root) = resolve_models_dir(dir.path());
+        assert!(!persist);
+        assert_eq!(models, dir.path().join("models"));
+        assert_eq!(root, dir.path().display().to_string());
+        assert!(models.is_dir());
+    }
+
+    #[test]
+    fn resolve_models_dir_fat_opt_in_falls_back_without_mount() {
+        std::env::set_var("NIXAIOS_USE_FAT_PERSIST", "1");
+        let dir = tempdir().unwrap();
+        let (models, persist, _) = resolve_models_dir(dir.path());
+        std::env::remove_var("NIXAIOS_USE_FAT_PERSIST");
+        // Sem /mnt/nixaios-log montado → Linux FS
+        assert!(!persist);
+        assert_eq!(models, dir.path().join("models"));
     }
 }
