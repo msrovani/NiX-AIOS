@@ -4,3 +4,5 @@ result-*
 data/
 *.qcow2
 packages/nosd/target/
+# pasta vazia residual de consolidação path (deletar se aparecer de novo)
+/nix-aios/
