@@ -20,6 +20,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.5.5 HITL & Fetch (2026-10-26):** S-04 parcial (grant single-use/kind/TTL via ui.action; replay negado; admin legacy hitl_confirmed), S-07 (basename/cap 8GiB/GGUF magic/partial cleanup). Evidencia: `nosd/tests/ipc_auth.rs` (7), `nos-cortex` fetch tests, `cargo test --workspace`, `nix build .#nosd`. Ring Nix continua desarmado.
 
+**0.5.6 QEMU green (2026-10-26):** R-09 OBSERVED - ISO 2.7G volid NIXAIOS051 (sha256 26be2f...), QEMU TCG com nosd Started, nosd-early Finished, JARBAS hub, multi-user; gate MQEMU PASS. Fixes: replaceVars (nixpkgs 26.11), UTF-8 nosd-early, LF em .nix/.sh, console=ttyS0. Evidencia: `docs/evidence/QEMU_0.5.6.md`. R-05 VM test PASS (health+chat, 61s). Q-03 CI criado. QEMU != metal.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

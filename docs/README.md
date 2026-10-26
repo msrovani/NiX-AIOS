@@ -1,7 +1,7 @@
 # Documentação NixAIOS
 
 Hub da documentação do produto paralelo **NixAIOS** (daemon `nosd` + ISO NixOS).  
-Versão corrente: **0.5.5** — [`RELEASE_0.5.5.md`](RELEASE_0.5.5.md) (base [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md)).
+Versão corrente: **0.5.6** — [`RELEASE_0.5.6.md`](RELEASE_0.5.6.md) (base [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md)).
 
 > Bare-metal canónico: [neural-os-core](https://github.com/msrovani/neural-os-core). Este repo = bancada NixOS (ADR-0118).
 

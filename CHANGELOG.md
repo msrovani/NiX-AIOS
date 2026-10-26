@@ -3,7 +3,31 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
-## [0.5.5] — Unreleased (HITL & Fetch)
+## [0.5.6] — 2026-10-26 (QEMU green)
+
+### Fixed
+
+- **nixpkgs 26.11:** `substituteAll` removido; `transmute-stage.nix` usa
+  `replaceVars` + `runCommand`.
+- `nosd-early.nix`: byte cp1252 inválido → UTF-8.
+- CRLF em `.nix`/`.sh` quebrava scripts gerados (`$'\r'`); normalizado para LF.
+- `images/iso.nix`: `console=ttyS0,115200n8` para QEMU headless.
+
+### Evidence
+
+- ISO 2.7 GiB, volid `NIXAIOS051`, SHA-256
+  `26be2fb47a6e2a3b194dd9b5b1ef1a853d1450cc7b34a24dbafb00e5f09fc11b`.
+- QEMU TCG: `Started Neural-OS Daemon`, `Finished NixAIOS early boot`,
+  `Started JARBAS hub`, `Reached target Multi-User System`; gate MQEMU PASS.
+- [`docs/evidence/QEMU_0.5.6.md`](docs/evidence/QEMU_0.5.6.md).
+
+### Pending
+
+- QEMU ≠ metal; chat/voz/cage/Wi-Fi não exercitados neste boot.
+- Firstboot tty1 não dispara em ttyS0.
+- S-04 completo, S-08/S-09, R-05 VM test, Q-03 CI.
+
+## [0.5.5] — 2026-10-26 (HITL & Fetch)
 
 ### Security
 

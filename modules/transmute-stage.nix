@@ -5,14 +5,16 @@ let
   cfg = config.services.nixaiosTransmute;
 
   # 0.5.2: hotswap script externo (modules/transmute/hotswap-aios.sh)
-  hotswapScript = pkgs.substituteAll {
-    name = "nosd-hotswap-aios";
-    src = ./transmute/hotswap-aios.sh;
-    isExecutable = true;
+  # nixpkgs 26.11 removeu substituteAll; replaceVars + runCommand.
+  hotswapRaw = pkgs.replaceVars ./transmute/hotswap-aios.sh {
     curl = pkgs.curl;
     kbd = pkgs.kbd;
     nosd = pkgs.nosd;
   };
+  hotswapScript = pkgs.runCommand "nosd-hotswap-aios" { } ''
+    cp ${hotswapRaw} $out
+    chmod +x $out
+  '';
 
   revertGuiScript = pkgs.writeShellScript "nosd-revert-gui" ''
     set -euo pipefail
@@ -24,10 +26,7 @@ let
   # Questionário texto: Q1 rede ? Q2 idioma/voz ? Q3 teclado ? Q4 fuso ? Q5 confirmar.
   # 0.5.x: rede primeiro; resume; log SEMPRE em /tmp (user nixos nao escreve /var/lib/nosd).
   # 0.5.2: firstboot script externo (modules/transmute/firstboot.sh)
-  firstbootRaw = pkgs.substituteAll {
-    name = "nos-firstboot";
-    src = ./transmute/firstboot.sh;
-    isExecutable = true;
+  firstbootRaw = pkgs.replaceVars ./transmute/firstboot.sh {
     utilLinux = pkgs.util-linux;
     networkmanager = pkgs.networkmanager;
     iproute2 = pkgs.iproute2;

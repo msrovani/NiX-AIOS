@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.5.5";
+            version = "0.5.6";
             src = ./packages/nosd;
             cargoLock.lockFile = ./packages/nosd/Cargo.lock;
             # Onda 5: JARBAS Slint no binário ISO (cage --ui).
@@ -110,6 +110,36 @@
           self.nixosModules.aios-host-perf
         ];
       };
+
+      checks = forAllSystems (system:
+        let
+          overlays = [ (import rust-overlay) ];
+          pkgs = import nixpkgs {
+            inherit system overlays;
+            config.allowUnfree = true;
+          };
+        in
+        {
+          nixaios-vm = pkgs.testers.nixosTest {
+            name = "nixaios-vm";
+            nodes.machine = { ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 0;
+              };
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            testScript = ''
+              machine.wait_for_unit("nosd.service")
+              machine.wait_for_file("/run/nosd/nosd.sock")
+              machine.succeed("${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock health")
+              machine.succeed("${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock chat oi")
+            '';
+          };
+        });
 
       nixosConfigurations.nixaios-iso = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";

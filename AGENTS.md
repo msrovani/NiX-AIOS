@@ -10,7 +10,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.5.5** (`v0.5.5`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.5.6** (`v0.5.6`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -82,10 +82,11 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **S-07** sanitização de `fetch_to_dir`: feito.
 - **S-08/S-09** suíte de segurança + socket 0660: pendente.
 - **R-03/R-04** `ai-managed` import + helper root: ring desarmado.
-- **R-05/R-09** VM test / ISO 051 / QEMU: pendente.
-- **Q-03** CI Nix/VM: pendente.
+- **R-09** ISO 051/QEMU: OBSERVED (0.5.6).
+- **R-05** NixOS VM test: feito (`checks.x86_64-linux.nixaios-vm`).
+- **Q-03** CI Nix/VM: criado; validar no GitHub.
 - **M4/M5**: AWAITING_HW.
 
-## Evidência 0.5.5
+## Evidência 0.5.6
 
-`docs/RELEASE_0.5.5.md`, `docs/RELEASE_0.5.4.md` e `docs/memory/SESSION_0.5.4_TRUST.md`.
+`docs/RELEASE_0.5.6.md`, `docs/RELEASE_0.5.5.md`, `docs/evidence/QEMU_0.5.6.md` e `docs/memory/SESSION_0.5.4_TRUST.md`.

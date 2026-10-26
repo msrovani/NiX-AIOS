@@ -1,5 +1,5 @@
-# nosd-early — IA no early boot (prompt mestre B.1): observe + BOOT SCORE pós-sysinit.
-# Honesty: NÃO carrega AgentJev/GGUF na ISO (S1.2 REJECT) — S1 = keyword até LOO runtime.
+# nosd-early - IA no early boot (prompt mestre B.1): observe + BOOT SCORE pÃ³s-sysinit.
+# Honesty: NÃƒO carrega AgentJev/GGUF na ISO (S1.2 REJECT) ? S1 = keyword atÃ© LOO runtime.
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.nosdEarly;
@@ -30,14 +30,14 @@ let
 
     if $CTL --socket "$SOCK" score >"$SCORE_OUT" 2>/tmp/nosd-early-score.err; then
       echo "BOOT SCORE OK ? $SCORE_OUT"
-      # Linha legível no journal (dmesg AIOS)
+      # Linha legÃ­vel no journal (dmesg AIOS)
       echo "BOOT_SCORE $(tr -d '\n' < "$SCORE_OUT" | head -c 500)"
     else
       echo "score FAIL" >&2
       cat /tmp/nosd-early-score.err >&2 || true
     fi
 
-    # 0.5.x: sem FAT — artefactos só em $DATA (/var/lib/nosd)
+    # 0.5.x: sem FAT ? artefactos sÃ³ em $DATA (/var/lib/nosd)
     echo "early: score/observe em $DATA (FAT OFF)"
 
     echo "nosd-early: S1=keyword (AgentJev mmap ISO = REJECT; fetch runtime HITL)"
@@ -50,7 +50,7 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Default S1 honesty até LOO AgentJev
+    # Default S1 honesty atÃ© LOO AgentJev
     environment.variables.NOSD_S1_BACKEND = lib.mkDefault "keyword";
 
     systemd.services.nosd-early-score = {
@@ -58,7 +58,7 @@ in
       after = [ "sysinit.target" "local-fs.target" "nosd.service" ];
       requires = [ "nosd.service" ];
       wants = [ "nosd.service" ];
-      # Antes do login TUI / cage — cockpit IA cedo
+      # Antes do login TUI / cage ? cockpit IA cedo
       before = [ "getty@tty1.service" "jarbas-cage.service" ];
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {

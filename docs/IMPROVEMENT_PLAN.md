@@ -36,8 +36,9 @@
 | S-04 HITL grant (single-use, kind, TTL) | **parcial** | `HitlGrantStore`, `ui.action`, `ipc_auth`; admin legacy `hitl_confirmed` |
 | S-07 fetch sanitization + cap + magic | **feito** | `nos-cortex/src/fetch.rs`, testes |
 | S-08 suíte de regressão | **em curso** | `ipc_auth` + unit tests HTTP/grant/fetch |
-| R-09 ISO/QEMU | pendente | |
-| Q-03 CI/Nix build/VM test | pendente | |
+| R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
+| R-05 NixOS VM test | **feito** | `checks.x86_64-linux.nixaios-vm` (health + chat, 61s) |
+| Q-03 CI GitHub | **criado** | `.github/workflows/ci.yml`; primeira execução no GitHub |
 
 ---
 

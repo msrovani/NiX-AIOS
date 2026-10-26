@@ -12,6 +12,9 @@
   isoImage.makeUsbBootable = true;
   isoImage.volumeID = "NIXAIOS051";
 
+  # R-09: QEMU headless precisa de console serial; metal continua em tty0.
+  boot.kernelParams = lib.mkAfter [ "console=ttyS0,115200n8" ];
+
   # 0.5.1: FAT OFF — persistência só /var/lib/nosd (evita EACCES pós-Q5 no metal).
   services.nixaiosLogFat.enable = false;
   services.nixaiosTransmute.enable = true;

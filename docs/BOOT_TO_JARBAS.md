@@ -1,6 +1,6 @@
 # Boot → JARBAS Jarvis-like — playbook NixAIOS
 
-**Produto:** IDEA **#707** / ADR-0118 · workspace **0.5.5+** · volid ISO **`NIXAIOS051`**.  
+**Produto:** IDEA **#707** / ADR-0118 · workspace **0.5.6+** · volid ISO **`NIXAIOS051`**.  
 **Aceite primário Jarvis-like:** **M3** (host/WSL + ISO live). **M4 metal** e **M5 frota** = continuidade honesty (nunca Ring0).  
 **Doctrine:** JARBAS → Hermes → Cortex · CapGate server-authored · S1.2 sem seed GGUF/AgentJev na ISO · `autoSwitch=false` · Frugal wasmi path A · taxonomia ADR-0113.
 

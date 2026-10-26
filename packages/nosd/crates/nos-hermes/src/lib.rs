@@ -997,6 +997,11 @@ mod tests {
             .chat(&g, "implemente uma arquitetura completa de migrate")
             .unwrap();
         assert!(!r.is_empty());
+        // O worker pode ainda não ter decrementado pending; espera limitada.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while t.eng.s2.pending() > 0 && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
         assert_eq!(t.eng.s2.pending(), 0);
     }
 
