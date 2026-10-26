@@ -70,11 +70,46 @@ pub fn hf_resolve_url(repo: &str, file: &str) -> String {
     )
 }
 
+/// Cap S-07: 8 GiB por download (modelo/firmware). Evita encher o disco.
+pub const MAX_DOWNLOAD_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
+/// S-07: apenas basename; sem path traversal, absoluto, `.`/`..`.
+fn safe_filename(filename: &str) -> Result<&str, FetchError> {
+    let name = filename.trim();
+    if name.is_empty() || name == "." || name == ".." {
+        return Err(FetchError::BadArgs("invalid filename"));
+    }
+    if name.contains('/') || name.contains('\\') || Path::new(name).is_absolute() {
+        return Err(FetchError::BadArgs("filename must be a basename"));
+    }
+    Ok(name)
+}
+
+/// S-07: `.gguf` só é aceite com magic `GGUF`.
+fn verify_gguf_magic(path: &Path) -> Result<(), FetchError> {
+    let is_gguf = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("gguf"))
+        .unwrap_or(false);
+    if !is_gguf {
+        return Ok(());
+    }
+    let mut f = File::open(path)?;
+    let mut magic = [0u8; 4];
+    f.read_exact(&mut magic)?;
+    if &magic != b"GGUF" {
+        return Err(FetchError::BadArgs("download is not a GGUF file"));
+    }
+    Ok(())
+}
+
 /// Download para `dest_dir/filename` (cria dir). CapGate NET/FS = caller.
 pub fn fetch_to_dir(url: &str, dest_dir: &Path, filename: &str) -> Result<PathBuf, FetchError> {
-    if url.is_empty() || filename.is_empty() {
-        return Err(FetchError::BadArgs("url/filename empty"));
+    if url.is_empty() {
+        return Err(FetchError::BadArgs("url empty"));
     }
+    let filename = safe_filename(filename)?;
     fs::create_dir_all(dest_dir)?;
     let dest = dest_dir.join(filename);
     if dest.exists() && dest.metadata().map(|m| m.len() > 1024).unwrap_or(false) {
@@ -89,6 +124,16 @@ pub fn fetch_to_dir(url: &str, dest_dir: &Path, filename: &str) -> Result<PathBu
     if !(200..300).contains(&resp.status()) {
         return Err(FetchError::Http(format!("status {}", resp.status())));
     }
+    if let Some(len) = resp
+        .header("Content-Length")
+        .and_then(|v| v.parse::<u64>().ok())
+    {
+        if len > MAX_DOWNLOAD_BYTES {
+            return Err(FetchError::Http(format!(
+                "content-length {len} exceeds cap {MAX_DOWNLOAD_BYTES}"
+            )));
+        }
+    }
     let tmp = dest.with_extension("partial");
     let mut file = File::create(&tmp)?;
     let mut reader = resp.into_reader();
@@ -101,10 +146,21 @@ pub fn fetch_to_dir(url: &str, dest_dir: &Path, filename: &str) -> Result<PathBu
         }
         file.write_all(&buf[..n])?;
         total = total.saturating_add(n as u64);
+        if total > MAX_DOWNLOAD_BYTES {
+            drop(file);
+            let _ = fs::remove_file(&tmp);
+            return Err(FetchError::Http(format!(
+                "download exceeds cap {MAX_DOWNLOAD_BYTES} bytes"
+            )));
+        }
     }
     file.sync_all()?;
     drop(file);
     fs::rename(&tmp, &dest)?;
+    if let Err(e) = verify_gguf_magic(&dest) {
+        let _ = fs::remove_file(&dest);
+        return Err(e);
+    }
     info!(target: "nosd", "fetch done bytes={} path={}", total, dest.display());
     Ok(dest)
 }
@@ -260,6 +316,7 @@ pub fn plan_models_for_capacity(cap: &NodeCapacity) -> ModelPlan {
 mod tests {
     use super::*;
     use crate::capacity::NodeCapacity;
+    use tempfile::tempdir;
 
     #[test]
     fn suggest_low_vram() {
@@ -276,5 +333,36 @@ mod tests {
     fn hf_url() {
         let u = hf_resolve_url("org/model", "model.Q4_K_M.gguf");
         assert!(u.contains("huggingface.co/org/model/resolve/main/model.Q4_K_M.gguf"));
+    }
+
+    #[test]
+    fn safe_filename_rejects_traversal() {
+        assert_eq!(safe_filename("model.gguf").unwrap(), "model.gguf");
+        for bad in ["", ".", "..", "../evil", "a/b", "a\\b", "/etc/passwd"] {
+            assert!(safe_filename(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn fetch_rejects_traversal_before_network() {
+        let dir = tempdir().unwrap();
+        let err = fetch_to_dir("http://127.0.0.1:1/x", dir.path(), "../evil").unwrap_err();
+        assert!(matches!(err, FetchError::BadArgs(_)));
+    }
+
+    #[test]
+    fn gguf_magic_is_checked() {
+        let dir = tempdir().unwrap();
+        let bad = dir.path().join("bad.gguf");
+        std::fs::write(&bad, b"NOPE").unwrap();
+        assert!(verify_gguf_magic(&bad).is_err());
+
+        let good = dir.path().join("good.gguf");
+        std::fs::write(&good, b"GGUF....").unwrap();
+        assert!(verify_gguf_magic(&good).is_ok());
+
+        let other = dir.path().join("firmware.bin");
+        std::fs::write(&other, b"NOPE").unwrap();
+        assert!(verify_gguf_magic(&other).is_ok());
     }
 }

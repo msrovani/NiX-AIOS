@@ -9,8 +9,16 @@ use std::net::{Shutdown, TcpListener, TcpStream};
 #[cfg(unix)]
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
+
+/// Ports ef?meros n?o s?o reservados; serializa os testes que sobem nosd.
+static SERIAL: Mutex<()> = Mutex::new(());
+
+fn serial() -> MutexGuard<'static, ()> {
+    SERIAL.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 struct Daemon {
     child: Child,
@@ -127,6 +135,7 @@ fn rpc(daemon: &Daemon, token: Option<&str>, method: &str, params: Value) -> Val
 
 #[test]
 fn tcp_without_token_is_denied() {
+    let _serial = serial();
     let daemon = start();
     let r = rpc(&daemon, None, "health", json!({}));
     assert_eq!(r["ok"], false, "{r}");
@@ -137,6 +146,7 @@ fn tcp_without_token_is_denied() {
 
 #[test]
 fn legacy_agent_does_not_authenticate() {
+    let _serial = serial();
     let daemon = start();
     for agent in ["hermes", "nosctl", "jarbas", ""] {
         let r = rpc_with(&daemon, None, Some(agent), "health", json!({}));
@@ -146,6 +156,7 @@ fn legacy_agent_does_not_authenticate() {
 
 #[test]
 fn valid_token_health_works() {
+    let _serial = serial();
     let daemon = start();
     let r = rpc(&daemon, Some(&daemon.token), "health", json!({}));
     assert_eq!(r["ok"], true, "{r}");
@@ -153,7 +164,89 @@ fn valid_token_health_works() {
 }
 
 #[test]
+fn hitl_grant_is_single_use_and_kind_bound() {
+    let _serial = serial();
+    let daemon = start();
+    let token = daemon.token.clone();
+
+    let opened = rpc(
+        &daemon,
+        Some(&token),
+        "ui.open",
+        json!({
+            "kind": "hitl_confirm",
+            "title": "self heal",
+            "grant_kind": "self.heal",
+        }),
+    );
+    assert_eq!(opened["ok"], true, "{opened}");
+    let wid = opened["result"]["id"].as_u64().expect("window id");
+
+    let acted = rpc(
+        &daemon,
+        Some(&token),
+        "ui.action",
+        json!({ "window_id": wid, "action": "submit", "values": {} }),
+    );
+    assert_eq!(acted["ok"], true, "{acted}");
+    let confirm = acted["result"]["confirm_id"]
+        .as_str()
+        .expect("confirm_id")
+        .to_string();
+
+    let heal = rpc(
+        &daemon,
+        Some(&token),
+        "self.heal.evaluate",
+        json!({
+            "id": "x",
+            "action": "nix_fragment",
+            "target": "/etc/nixos/ai-managed.nix",
+            "confirm_id": confirm,
+        }),
+    );
+    assert_eq!(heal["ok"], true, "{heal}");
+
+    let replay = rpc(
+        &daemon,
+        Some(&token),
+        "self.heal.evaluate",
+        json!({
+            "id": "x",
+            "action": "nix_fragment",
+            "target": "/etc/nixos/ai-managed.nix",
+            "confirm_id": confirm,
+        }),
+    );
+    assert_eq!(replay["ok"], false, "grant must be single-use: {replay}");
+
+    let without = rpc(
+        &daemon,
+        Some(&token),
+        "self.heal.evaluate",
+        json!({ "id": "x", "action": "nix_fragment", "target": "/etc/nixos/ai-managed.nix" }),
+    );
+    assert_eq!(without["ok"], false, "no grant must be denied: {without}");
+}
+
+#[test]
+fn wifi_requires_hitl_grant_without_admin_legacy() {
+    let _serial = serial();
+    let daemon = start();
+    let r = rpc(
+        &daemon,
+        Some(&daemon.token),
+        "wifi.connect",
+        json!({ "ssid": "lab", "password": "x" }),
+    );
+    assert_eq!(r["ok"], false, "{r}");
+    let err = r["error"].as_str().unwrap_or("");
+    assert!(err.contains("HITL") || err.contains("SITE_POLICY"), "{r}");
+}
+
+#[test]
 fn nix_ring_is_disarmed_by_default() {
+    let _serial = serial();
     let daemon = start();
     let r = rpc(
         &daemon,
@@ -255,6 +348,7 @@ fn unix_rpc(
 #[cfg(unix)]
 #[test]
 fn unix_token_grants_admin_and_peer_creds_do_not() {
+    let _serial = serial();
     let daemon = start_unix();
     let uid = unsafe { libc::getuid() };
 
@@ -291,6 +385,7 @@ fn unix_token_grants_admin_and_peer_creds_do_not() {
 
 #[test]
 fn rotate_revokes_old_token() {
+    let _serial = serial();
     let daemon = start();
     let rotated = rpc(&daemon, Some(&daemon.token), "security.rotate", json!({}));
     assert_eq!(rotated["ok"], true, "{rotated}");

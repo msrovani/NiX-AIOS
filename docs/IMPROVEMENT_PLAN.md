@@ -33,8 +33,9 @@
 | Q-01 fmt + clippy + Slint feature | **feito** | `cargo fmt --check`, `clippy --all-features`, `cargo check -p nos-jarbas --features slint-ui` |
 | R-01 PATH (nosd + helper root + journal group) | **feito** | `neural-os.nix`, `cortex-nix-ring.nix` (falta VM test) |
 | R-02 syntax fail-closed | **feito** | `nix_managed.rs`, testes condicionais |
-| S-04 HITL nonce | pendente | próximo PR |
-| S-07 fetch sanitization | pendente | |
+| S-04 HITL grant (single-use, kind, TTL) | **parcial** | `HitlGrantStore`, `ui.action`, `ipc_auth`; admin legacy `hitl_confirmed` |
+| S-07 fetch sanitization + cap + magic | **feito** | `nos-cortex/src/fetch.rs`, testes |
+| S-08 suíte de regressão | **em curso** | `ipc_auth` + unit tests HTTP/grant/fetch |
 | R-09 ISO/QEMU | pendente | |
 | Q-03 CI/Nix build/VM test | pendente | |
 

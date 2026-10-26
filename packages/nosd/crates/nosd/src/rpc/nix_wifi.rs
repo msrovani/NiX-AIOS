@@ -61,6 +61,15 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "nix.apply" | "nix.confirm" => {
+            // S-04: apply root exige grant server-authored, não booleano do cliente.
+            if !super::hitl_grant_ok(state, gate, &req, "nix.apply") {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("HITL required: confirm_id from ui.action (kind=nix.apply)".into()),
+                    result: json!({ "need": "confirm_id", "kind": "nix.apply" }),
+                });
+            }
             // Anel Cortex: arma apply root (HITL confirm = mesmo path, policy já gated)
             let method = req.method.as_str();
             match if method == "nix.confirm" {
@@ -93,31 +102,43 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 },
             }
         }
-        "nix.build_vm" => match nix_managed::request_build_vm(&state.data_dir) {
-            Ok(r) => {
-                opar_after_ok(
-                    state,
-                    "nix.build_vm",
-                    true,
-                    "staging_ready",
-                    "build_vm",
-                    &format!("req={}", r.request_path),
-                    "ok",
-                );
-                Response {
+        "nix.build_vm" => {
+            if !super::hitl_grant_ok(state, gate, &req, "nix.build_vm") {
+                return Some(Response {
                     id: req.id,
-                    ok: true,
-                    error: None,
-                    result: serde_json::to_value(&r).unwrap_or(json!(null)),
-                }
+                    ok: false,
+                    error: Some(
+                        "HITL required: confirm_id from ui.action (kind=nix.build_vm)".into(),
+                    ),
+                    result: json!({ "need": "confirm_id", "kind": "nix.build_vm" }),
+                });
             }
-            Err(e) => Response {
-                id: req.id,
-                ok: false,
-                error: Some(e.to_string()),
-                result: json!(null),
-            },
-        },
+            match nix_managed::request_build_vm(&state.data_dir) {
+                Ok(r) => {
+                    opar_after_ok(
+                        state,
+                        "nix.build_vm",
+                        true,
+                        "staging_ready",
+                        "build_vm",
+                        &format!("req={}", r.request_path),
+                        "ok",
+                    );
+                    Response {
+                        id: req.id,
+                        ok: true,
+                        error: None,
+                        result: serde_json::to_value(&r).unwrap_or(json!(null)),
+                    }
+                }
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(e.to_string()),
+                    result: json!(null),
+                },
+            }
+        }
         "systemctl.scoped" => {
             let unit = req
                 .params
@@ -129,7 +150,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("verb")
                 .and_then(|v| v.as_str())
                 .unwrap_or("status");
-            let hitl = req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) == Some(true);
+            let hitl = super::hitl_grant_ok(state, gate, &req, "systemctl");
             match actuators::systemctl_scoped(gate, state.ipc_generation(), unit, verb, hitl) {
                 Ok(intent) => {
                     let ran = if intent.would_run {
@@ -275,11 +296,15 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .unwrap_or("")
                     .into(),
             };
-            let hitl = req
-                .params
-                .get("hitl_confirmed")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
+            let hitl = super::hitl_grant_ok(state, gate, &req, "self.heal");
+            if !hitl {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("HITL required: confirm_id from ui.action (kind=self.heal)".into()),
+                    result: json!({ "need": "confirm_id", "kind": "self.heal" }),
+                });
+            }
             let gate = CapGate::new(
                 CapBits::NIX_WRITE.union(CapBits::HITL),
                 state.ipc_generation(),
@@ -345,6 +370,16 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             },
         },
         "wifi.connect" => {
+            if !super::hitl_grant_ok(state, gate, &req, "wifi.connect") {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(
+                        "HITL required: confirm_id from ui.action (kind=wifi.connect)".into(),
+                    ),
+                    result: json!({ "need": "confirm_id", "kind": "wifi.connect" }),
+                });
+            }
             let ssid = req
                 .params
                 .get("ssid")

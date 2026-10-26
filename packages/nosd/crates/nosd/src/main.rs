@@ -192,6 +192,7 @@ async fn main() -> anyhow::Result<()> {
         daemon_uid,
         admin_gid,
         nix_ring_armed,
+        hitl: nosd_lib::rpc::HitlGrantStore::default(),
         caps: nos_core::CapRegistry::new(),
         package_store: parking_lot::Mutex::new(nos_factory::PackageStore::new()),
         shutting_down: AtomicBool::new(false),

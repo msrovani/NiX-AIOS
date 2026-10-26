@@ -76,6 +76,17 @@ impl WindowBroker {
         self.open.lock().iter().cloned().collect()
     }
 
+    /// S-04: liga o tipo de grant ao spec já aberto (ex.: `self.heal`).
+    pub fn set_grant_kind(&self, id: u64, grant_kind: &str) -> bool {
+        let mut q = self.open.lock();
+        if let Some(w) = q.iter_mut().find(|w| w.id == id) {
+            w.grant_kind = grant_kind.to_string();
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn close(&self, id: u64) -> bool {
         let mut q = self.open.lock();
         let before = q.len();
@@ -115,6 +126,7 @@ impl WindowBroker {
             "values": safe_values,
             "source": spec.source,
             "escalate": spec.escalate,
+            "grant_kind": spec.grant_kind,
         });
         self.bus.publish(topics::UI_ACTION, payload.clone());
         let reply_topic = if spec.topic_reply.is_empty() {
@@ -140,6 +152,7 @@ impl WindowBroker {
             "applied": false,
             "reason": "hitl_accepted_pending_backend",
             "kind": format!("{:?}", spec.kind),
+            "grant_kind": spec.grant_kind,
             "result": payload,
         }))
     }

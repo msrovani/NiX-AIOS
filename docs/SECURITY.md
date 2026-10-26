@@ -47,6 +47,24 @@ token da sessão; não expor o lab à WAN.
 | Landlock (`NOSD_LANDLOCK=1`) | dataDir + `/var/lib/nosd` + `/tmp` + FAT mount + `/etc/nixos` RO | — |
 | User | `nosd` | sessão kiosk |
 
+## HITL (S-04, parcial)
+
+`ui.action` com `Submit` numa janela HITL emite um **grant** server-authored
+(`confirm_id`, `confirm_expires_ms`): single-use, kind-bound, TTL 5 min.
+`self.heal.evaluate`, `wifi.connect`, `nix.apply`/`confirm`/`build_vm`,
+`transmute.run` e `systemctl.scoped` exigem esse grant. Replay, kind errado e
+expirado são negados.
+
+`hitl_confirmed` sobrevive **apenas** como compatibilidade de `LocalAdmin`
+(root/token); JARBAS/LocalUser não usa booleano. Remover esse legado é a próxima
+fatia de S-04.
+
+## Fetch (S-07)
+
+`fetch_to_dir` aceita apenas basename, cap de 8 GiB, `Content-Length`/stream
+cap, `.partial` + rename, magic `GGUF` para `.gguf` e limpeza em falha. Path
+traversal (`../`, `/`, `\`) é rejeitado antes da rede.
+
 ## Ring Nix (S-06)
 
 `nix.apply`, `nix.confirm`, `nix.build_vm` e `nix.rollback` devolvem

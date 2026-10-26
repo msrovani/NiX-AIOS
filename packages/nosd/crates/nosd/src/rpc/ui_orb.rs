@@ -124,12 +124,25 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 state.hermes.ui_open(gate, kind, source, title, body)
             };
             match opened {
-                Ok(w) => Response {
-                    id: req.id,
-                    ok: true,
-                    error: None,
-                    result: serde_json::to_value(&w).unwrap_or(json!(null)),
-                },
+                Ok(mut w) => {
+                    // S-04: o opener pode fixar o tipo de grant da janela.
+                    if let Some(grant_kind) = req
+                        .params
+                        .get("grant_kind")
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                    {
+                        w.grant_kind = grant_kind.to_string();
+                        let _ = state.hermes.windows.set_grant_kind(w.id, grant_kind);
+                    }
+                    Response {
+                        id: req.id,
+                        ok: true,
+                        error: None,
+                        result: serde_json::to_value(&w).unwrap_or(json!(null)),
+                    }
+                }
                 Err(e) => Response {
                     id: req.id,
                     ok: false,
@@ -184,6 +197,22 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .any(|w| w.id == wid && w.kind == nos_core::WindowKind::HitlWifi);
             match state.hermes.ui_action(gate, act) {
                 Ok(mut v) => {
+                    // S-04: Submit de janela HITL emite grant single-use.
+                    if action == nos_core::WindowActionKind::Submit {
+                        let kind = v
+                            .get("grant_kind")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        if !kind.is_empty() {
+                            let (confirm_id, expires_ms) = state.hitl.issue(&kind);
+                            if let Some(obj) = v.as_object_mut() {
+                                obj.insert("confirm_id".into(), json!(confirm_id));
+                                obj.insert("confirm_expires_ms".into(), json!(expires_ms));
+                                obj.insert("grant_kind".into(), json!(kind));
+                            }
+                        }
+                    }
                     if wifi_submit {
                         let ssid = values
                             .get("ssid")

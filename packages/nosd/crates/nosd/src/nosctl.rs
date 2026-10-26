@@ -142,8 +142,11 @@ enum Cmd {
     NixPropose {
         nix: String,
     },
-    /// Arma apply root (nosd-nix-apply.service).
-    NixApply,
+    /// Arma apply root (nosd-nix-apply.service). Exige `--confirm` (admin).
+    NixApply {
+        #[arg(long)]
+        confirm: bool,
+    },
     /// Rotaciona token TCP/HTTP + geração (LocalAdmin). Devolve o novo token.
     #[command(name = "security-rotate")]
     SecurityRotate,
@@ -154,6 +157,9 @@ enum Cmd {
         ssid: String,
         #[arg(long, default_value = "")]
         password: String,
+        /// Confirmação HITL (admin). Em JARBAS use ui.action/confirm_id.
+        #[arg(long)]
+        confirm: bool,
     },
     /// Estado STT (Whisper) + TTS (Piper) + idioma detectado.
     #[command(name = "voice-status")]
@@ -313,16 +319,28 @@ async fn main() -> anyhow::Result<()> {
             serde_json::json!({ "nix": nix }),
             1 << 5, // NIX_WRITE
         ),
-        Cmd::NixApply => ("nix.apply", serde_json::json!({}), 1 << 5),
+        Cmd::NixApply { confirm } => (
+            "nix.apply",
+            serde_json::json!({ "hitl_confirmed": confirm }),
+            1 << 5,
+        ),
         Cmd::SecurityRotate => (
             "security.rotate",
             serde_json::json!({}),
             (1 << 5) | (1 << 6),
         ),
         Cmd::WifiScan => ("wifi.scan", serde_json::json!({}), 0),
-        Cmd::WifiConnect { ssid, password } => (
+        Cmd::WifiConnect {
+            ssid,
+            password,
+            confirm,
+        } => (
             "wifi.connect",
-            serde_json::json!({ "ssid": ssid, "password": password }),
+            serde_json::json!({
+                "ssid": ssid,
+                "password": password,
+                "hitl_confirmed": confirm,
+            }),
             1 << 6, // HITL
         ),
         Cmd::VoiceStatus => ("voice.status", serde_json::json!({}), 0),

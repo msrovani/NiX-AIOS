@@ -1,4 +1,4 @@
-# Arquitectura — NixAIOS 0.5.4
+# Arquitectura — NixAIOS 0.5.5
 
 ## Posicionamento
 

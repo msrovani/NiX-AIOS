@@ -60,6 +60,10 @@ pub struct WindowSpec {
     /// CapGate Escalate — JARBAS deve pedir confirmação explícita.
     #[serde(default)]
     pub escalate: bool,
+    /// S-04: tipo de grant que `ui.action` pode emitir (`wifi.connect`,
+    /// `self.heal`, `nix.apply`, ...). Vazio = janela informativa.
+    #[serde(default)]
+    pub grant_kind: String,
     #[serde(default)]
     pub topic_reply: String,
 }
@@ -103,6 +107,7 @@ impl WindowSpec {
             fields: vec![],
             source,
             escalate: false,
+            grant_kind: String::new(),
             topic_reply: topics::UI_HITL_RESULT.into(),
         }
     }
@@ -133,6 +138,7 @@ impl WindowSpec {
             ],
             source,
             escalate: true,
+            grant_kind: "wifi.connect".into(),
             topic_reply: topics::UI_HITL_RESULT.into(),
         }
     }
@@ -151,8 +157,15 @@ impl WindowSpec {
             fields: vec![],
             source,
             escalate: true,
+            grant_kind: "hitl.confirm".into(),
             topic_reply: topics::UI_HITL_RESULT.into(),
         }
+    }
+
+    /// S-04: override do tipo de grant (ex.: `self.heal`, `nix.apply`).
+    pub fn with_grant_kind(mut self, grant_kind: impl Into<String>) -> Self {
+        self.grant_kind = grant_kind.into();
+        self
     }
 }
 

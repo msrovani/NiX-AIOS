@@ -34,6 +34,19 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token security-rotate
 
 TCP em endereço não-loopback exige `--ipc-token` explícito.
 
+## HITL grant (0.5.5)
+
+Uma janela HITL (`ui.open`/`ui.card`) com `grant_kind` (ex.: `self.heal`,
+`wifi.connect`, `nix.apply`, `transmute`) devolve, no `ui.action` Submit:
+
+```json
+{ "confirm_id": "…", "confirm_expires_ms": 123..., "grant_kind": "self.heal" }
+```
+
+A ação destrutiva correspondente deve enviar `confirm_id` no `params`. O grant é
+single-use, kind-bound e expira em 5 min; replay/kind errado = deny.
+`hitl_confirmed` é legado e só funciona para `LocalAdmin` (root/token).
+
 ## CLI (`nosctl`)
 
 ```bash
@@ -90,8 +103,8 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 | Comando | Método | Notas |
 |---------|--------|-------|
 | `nix-propose` | `nix.propose` | staging |
-| `nix-apply` | `nix.apply` | NIX_WRITE + helper root |
-| `wifi-scan` / `wifi-connect` | `wifi.*` | HITL |
+| `nix-apply --confirm` | `nix.apply` | NIX_WRITE + helper root; ring desarmado por default |
+| `wifi-scan` / `wifi-connect --confirm` | `wifi.*` | HITL; `confirm_id` em JARBAS |
 | `transmute-status` | `transmute.status` | |
 | `transmute [--confirm] [--no-download] [--locale]` | `transmute.run` | NET\|FS\|NIX_WRITE; HITL obrigatório p/ download |
 

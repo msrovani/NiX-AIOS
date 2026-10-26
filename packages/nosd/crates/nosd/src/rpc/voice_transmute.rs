@@ -199,6 +199,14 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "transmute.run" => {
+            if !super::hitl_grant_ok(state, gate, &req, "transmute") {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("HITL required: confirm_id from ui.action (kind=transmute)".into()),
+                    result: json!({ "need": "confirm_id", "kind": "transmute" }),
+                });
+            }
             let opts: transmute::TransmuteRunOptions =
                 serde_json::from_value(req.params.clone()).unwrap_or_default();
             let res = transmute::execute_transmute(

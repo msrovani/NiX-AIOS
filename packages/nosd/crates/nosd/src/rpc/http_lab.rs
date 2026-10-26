@@ -208,3 +208,25 @@ fn is_local_origin(origin: &str) -> bool {
         || origin.starts_with("http://localhost:")
         || origin.starts_with("http://[::1]:")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn header_value_is_case_insensitive() {
+        let head = "POST /rpc HTTP/1.1\r\nContent-Type: application/json\r\nOrigin: http://127.0.0.1:7701\r\n\r\n";
+        assert_eq!(header_value(head, "content-type"), Some("application/json"));
+        assert_eq!(header_value(head, "origin"), Some("http://127.0.0.1:7701"));
+        assert_eq!(header_value(head, "x-missing"), None);
+    }
+
+    #[test]
+    fn local_origin_only() {
+        assert!(is_local_origin("http://127.0.0.1:7701"));
+        assert!(is_local_origin("http://localhost:7701"));
+        assert!(is_local_origin("http://[::1]:7701"));
+        assert!(!is_local_origin("http://evil.example"));
+        assert!(!is_local_origin("https://127.0.0.1:7701"));
+    }
+}

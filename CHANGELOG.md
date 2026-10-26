@@ -3,6 +3,38 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.5.5] — Unreleased (HITL & Fetch)
+
+### Security
+
+- **S-04 (parcial):** HITL server-authored com grant de uso único, TTL 5 min e
+  kind-bound, emitido por `ui.action` e devolvido como `confirm_id`.
+  `self.heal`, `wifi.connect`, `nix.apply/confirm/build-vm` e `transmute.run`
+  exigem grant; replay e kind errado são negados. `hitl_confirmed` permanece
+  apenas como compatibilidade de `LocalAdmin` (root/token) e será removido na
+  próxima fatia.
+- **S-07:** `fetch_to_dir` aceita só basename (sem `../`, `/`, `\`), cap de
+  8 GiB, `Content-Length`/stream cap, escrita `.partial` + rename, verificação
+  de magic `GGUF` para `.gguf` e limpeza em falha.
+
+### Added
+
+- `HitlGrantStore` + testes (single-use, kind-bound).
+- `nosd/tests/ipc_auth.rs`: fluxo `ui.open` → `ui.action` → `confirm_id` →
+  `self.heal.evaluate`, replay negado, sem grant negado, ring desarmado.
+- Testes de `safe_filename`, traversal, GGUF magic e parser HTTP.
+
+### Changed
+
+- `nosctl wifi-connect --confirm` e `nosctl nix-apply --confirm` (admin legado).
+- Workspace/flake `0.5.5`.
+
+### Pending (honesty)
+
+- S-04 completo: remover `hitl_confirmed` do admin e wire `transmute`/UI cards.
+- S-08/S-09: suíte de regressão dedicada + socket `0660`.
+- R-09/QEMU, Q-03 CI/VM, R-03/R-04 ring, M4/M5.
+
 ## [0.5.4] — 2026-10-26 (Trust & Truth)
 
 > 0.5.3 foi o nome de trabalho; o ship real é 0.5.4.
