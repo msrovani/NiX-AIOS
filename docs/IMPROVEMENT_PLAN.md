@@ -35,6 +35,8 @@
 | R-02 syntax fail-closed | **feito** | `nix_managed.rs`, testes condicionais |
 | S-04 HITL grant (single-use, kind, TTL) | **parcial** | `HitlGrantStore`, `ui.action`, blobs/fetch, `ipc_auth`; admin legacy `hitl_confirmed` |
 | Voz VM (status/tts/stt) | **feito (manual)** | `voice-status Ready`, TTS 1.2s; STT jfk 23min TCG; `VOICE_0.6.0-alpha.2.md` |
+| M3 HUD Slint em cage/DRM (QEMU) | **OBSERVED** | `jarbas-cage` active, cage 1280x800, screenshot do scanout; `evidence/CAGE_SLINT_0.6.0-alpha.4.md` |
+| Slint no binário da ISO | **feito** | `cargoBuildFlags` (o `cargoExtraArgs` era ignorado no nixpkgs 26.11) |
 | S-07 fetch sanitization + cap + magic | **feito** | `nos-cortex/src/fetch.rs`, testes |
 | S-08 suíte de regressão | **em curso** | `ipc_auth` + unit tests HTTP/grant/fetch |
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |

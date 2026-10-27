@@ -3,6 +3,30 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.4] — 2026-10-27 (Boot→JARBAS Slint em cage/DRM)
+
+### Fixed
+
+- **`/run/user` fantasma:** logind monta um tmpfs em `/run/user` no 1º login e
+  escondia `/run/user/nosd`; o wrap morria com `mkdir: EACCES`. Runtime dir
+  passou a `/run/nosd/user` (tmpfiles + `ExecStartPre` root).
+- **`PATH` sem `systemctl`** fazia o `waitScript` apagar `/run/seatd.sock`
+  vivo (seatd-launch depois falhava). `pkgs.systemd` no `path` + caminho
+  absoluto.
+- **`StartLimitBurst`/`StartLimitIntervalSec` em `serviceConfig`** (ignorados
+  pelo systemd) → agora no unit; anti-loop real (`start-limit-hit`).
+- **`cargoExtraArgs` removido no nixpkgs 26.11** era ignorado: ISO saía sem
+  `slint-ui`. `cargoBuildFlags` → HUD Slint no binário.
+- **Panic tokio aninhado** (`rpc.rs`): `#[tokio::main]` + `rpc_blocking`.
+- **winit→X11/Xwayland** e **`LIBGL_ALWAYS_SOFTWARE` a quebrar EGL**: forçar
+  `WINIT_UNIX_BACKEND=wayland` (só no filho) e `WLR_RENDERER=pixman` no retry.
+
+### Added
+
+- HUD: header fixo no topo, orb 0.55, linhas elididas, `XDG_CACHE_HOME`
+  gravável (fontconfig).
+- Evidência com screenshot do scanout QEMU.
+
 ## [0.6.0-alpha.3] — 2026-10-27 (Hot download + voz)
 
 ### Added

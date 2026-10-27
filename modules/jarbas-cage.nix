@@ -10,16 +10,20 @@ let
     set -euo pipefail
     # Root ExecStartPre (+): runtime dirs + seatd sock stale
     # 0.5.0: NAO apertar 750 � ISO live precisa 1777 para firstboot+nosd (EACCES p�s-Q5).
-    mkdir -p /run/user/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb
-    chown nosd:nosd /run/user/nosd || true
+    # 0.6: XDG_RUNTIME_DIR em /run/nosd/user (NAO /run/user/nosd).
+    # /run/user e tmpfs montado pelo logind no 1o login e ESCONDE o que
+    # tmpfiles/ExecStartPre criou antes (cage: mkdir /run/user EACCES).
+    mkdir -p /run/nosd/user /var/lib/nosd/models /var/lib/nosd/nsgdb /var/lib/nosd/cache
+    chown nosd:nosd /var/lib/nosd/cache || true
+    chown nosd:nosd /run/nosd/user || true
     chown -R nosd:nosd /var/lib/nosd 2>/dev/null || chown nosd:nosd /var/lib/nosd || true
-    chmod 700 /run/user/nosd || true
+    chmod 700 /run/nosd/user || true
     chmod 1777 /var/lib/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb 2>/dev/null || true
     touch /var/lib/nosd/jarbas-cage.log
     chown nosd:nosd /var/lib/nosd/jarbas-cage.log || true
     chmod a+rw /var/lib/nosd/jarbas-cage.log 2>/dev/null || true
     # Stale seatd.sock (crash) bloqueia seatd.service / seatd-launch
-    if [ -S /run/seatd.sock ] && ! systemctl is-active --quiet seatd.service 2>/dev/null; then
+    if [ -S /run/seatd.sock ] && ! ${pkgs.systemd}/bin/systemctl is-active --quiet seatd.service 2>/dev/null; then
       echo "jarbas-wait: removing stale /run/seatd.sock"
       rm -f /run/seatd.sock
     fi
@@ -70,17 +74,24 @@ let
     # User=nosd: NUNCA /run/*.log (root-only) � tee Permission denied derruba o unit (metal s529).
     # s529: s� /var/lib/nosd (FAT OFF)
     LOG=/var/lib/nosd/jarbas-cage.log
-    touch "$LOG" 2>/dev/null || LOG=/run/user/nosd/jarbas-cage.log
-    touch "$LOG" 2>/dev/null || LOG=/tmp/jarbas-cage-$UID.log
-    exec > >(tee -a "$LOG") 2>&1
+    : >>"$LOG" 2>/dev/null || LOG=/tmp/jarbas-cage-$UID.log
+    if : >>"$LOG" 2>/dev/null; then exec >>"$LOG" 2>&1; fi
+    trap 'rc=$?; echo "=== jarbas exit rc=$rc ==="' EXIT
     echo "=== jarbas-cinematic start $(date -Is 2>/dev/null || echo now) uid=$(id -u) log=$LOG ==="
-    export XDG_RUNTIME_DIR=/run/user/nosd
+    export XDG_RUNTIME_DIR=/run/nosd/user
     export XDG_SESSION_TYPE=wayland
     export XDG_CURRENT_DESKTOP=cage
     export NOSD_SOCKET=/run/nosd/nosd.sock
+    # Fontconfig: HOME=/var/empty -> "No writable cache directories" a cada arranque.
+    export XDG_CACHE_HOME=/var/lib/nosd/cache
     export RUST_LOG="''${RUST_LOG:-info}"
     export PATH="${pkgs.curl}/bin:${pkgs.cage}/bin:${pkgs.seatd}/bin:$PATH"
-    mkdir -p "$XDG_RUNTIME_DIR"
+    if ! mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null; then
+      echo "jarbas: XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR nao criavel; fallback /var/lib/nosd/run" >&2
+      XDG_RUNTIME_DIR=/var/lib/nosd/run
+      export XDG_RUNTIME_DIR
+      mkdir -p "$XDG_RUNTIME_DIR"
+    fi
     chmod 700 "$XDG_RUNTIME_DIR" || true
 
     DRM="$(${pickDrm})"
@@ -92,6 +103,8 @@ let
     export WLR_NO_HARDWARE_CURSORS=1
     unset LIBGL_ALWAYS_SOFTWARE || true
     echo "jarbas-cinematic: DRM=$DRM mode=${cfg.uiMode}"
+    echo "jarbas: XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR ($(stat -c %U:%G:%a "$XDG_RUNTIME_DIR" 2>/dev/null || echo missing))"
+    echo "jarbas: seatd sock=$( [ -S /run/seatd.sock ] && echo yes || echo no ) seatd=$(${pkgs.systemd}/bin/systemctl is-active seatd.service 2>/dev/null || true)"
     ls -la /dev/dri 2>/dev/null || true
     $CURL -sf -o /dev/null http://127.0.0.1:7701/ && echo "orb_lab: OK" || echo "orb_lab: DOWN"
 
@@ -117,26 +130,25 @@ let
       }
       run_slint() {
         echo "jarbas-slint: DRM=$WLR_DRM_DEVICES soft=''${JARBAS_FORCE_SOFTWARE:-0}"
-        run_cage ${cfg.nosdPackage}/bin/nos-jarbas --ui --socket /run/nosd/nosd.sock --interval-secs 2
+        # WAYLAND_DISPLAY SO no filho: se estiver no env do cage, o cage
+        # arranca em modo aninhado (cliente Wayland) em vez de DRM/KMS.
+        run_cage ${pkgs.coreutils}/bin/env WINIT_UNIX_BACKEND=wayland "WAYLAND_DISPLAY=''${WAYLAND_DISPLAY:-wayland-0}" ${cfg.nosdPackage}/bin/nos-jarbas --ui --socket /run/nosd/nosd.sock --interval-secs 2
       }
-      # 1) GL/iGPU  2) software fallback (evita loop mudo se GPU falhar)
+      # winit escolhe X11 se WAYLAND_DISPLAY estiver vazio -> Xwayland ->
+      # glamor/kms_swrast falha e o HUD morre. Forcar Wayland.
+      export WINIT_UNIX_BACKEND=wayland
+      # 1) GL/iGPU (metal)  2) software + pixman (QEMU/no-GL).
+      # NAO usar LIBGL_ALWAYS_SOFTWARE: quebra o EGL do wlroots (kms_swrast).
       unset SLINT_BACKEND || true
       unset LIBGL_ALWAYS_SOFTWARE || true
       if run_slint; then exit 0; fi
-      echo "jarbas-slint: GL/cage falhou � retry winit-software" >&2
+      echo "jarbas-slint: GL/cage falhou - retry winit-software + WLR_RENDERER=pixman" >&2
       export JARBAS_FORCE_SOFTWARE=1
       export SLINT_BACKEND=winit-software
-      export LIBGL_ALWAYS_SOFTWARE=1
-      if [ -S /run/seatd.sock ]; then
-        exec "$CAGE_BIN" -s -- \
-          ${cfg.nosdPackage}/bin/nos-jarbas --ui --socket /run/nosd/nosd.sock --interval-secs 2
-      elif [ -x "$SEAT_WRAP" ]; then
-        exec "$SEAT_WRAP" -- "$CAGE_BIN" -s -- \
-          ${cfg.nosdPackage}/bin/nos-jarbas --ui --socket /run/nosd/nosd.sock --interval-secs 2
-      else
-        exec "$CAGE_BIN" -s -- \
-          ${cfg.nosdPackage}/bin/nos-jarbas --ui --socket /run/nosd/nosd.sock --interval-secs 2
-      fi
+      export WLR_RENDERER=pixman
+      unset LIBGL_ALWAYS_SOFTWARE || true
+      run_slint
+      exit $?
     fi
 
     if [ ! -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
@@ -145,7 +157,7 @@ let
       sleep 1
     fi
 
-    mkdir -p /run/user/nosd/chromium-jarbas
+    mkdir -p "$XDG_RUNTIME_DIR/chromium-jarbas"
     echo "jarbas-cinematic: launching chromium kiosk $LAB"
     exec ${pkgs.cage}/bin/cage -s -- ${pkgs.chromium}/bin/chromium \
       --kiosk \
@@ -159,7 +171,7 @@ let
       --enable-features=WebRTCPipeWireCapturer \
       --enable-gpu \
       --ignore-gpu-blocklist \
-      --user-data-dir=/run/user/nosd/chromium-jarbas \
+      --user-data-dir="$XDG_RUNTIME_DIR/chromium-jarbas" \
       "$LAB"
   '';
 
@@ -225,13 +237,15 @@ in
       "seat"
       "audio"
       "input"
+      # StandardInput=tty em /dev/tty7 precisa de acesso ao grupo tty.
+      "tty"
     ];
 
     fonts.packages = with pkgs; [ dejavu_fonts ];
 
     systemd.tmpfiles.rules = [
-      "d /run/user/nosd 0700 nosd nosd -"
-      "d /run/user/nosd/chromium-jarbas 0700 nosd nosd -"
+      "d /run/nosd/user 0700 nosd nosd -"
+      "d /run/nosd/user/chromium-jarbas 0700 nosd nosd -"
     ];
 
     environment.systemPackages = with pkgs; [
@@ -246,10 +260,13 @@ in
     services.udev.extraRules = ''
       KERNEL=="video[0-9]*", GROUP="video", MODE="0660"
       KERNEL=="media[0-9]*", GROUP="video", MODE="0660"
+      # QEMU/devtmpfs cria tty7 0600; cage (nosd) precisa abrir stdin.
+      KERNEL=="tty7", GROUP="tty", MODE="0620"
     '';
 
     systemd.services.jarbas-hub = lib.mkIf cfg.hubFallback {
       description = "JARBAS hub slog (sem DRM)";
+      path = [ pkgs.systemd pkgs.coreutils pkgs.util-linux pkgs.seatd ];
       wantedBy = [ "multi-user.target" ];
       after = [ "nosd.service" ];
       wants = [ "nosd.service" ];
@@ -267,6 +284,11 @@ in
 
     systemd.services.jarbas-cage = {
       description = "JARBAS kiosk (${cfg.uiMode} / iGPU cage)";
+      # Regra 5: nada de comandos nus; waitScript usa mkdir/chown/systemctl.
+      path = [ pkgs.systemd pkgs.coreutils pkgs.util-linux pkgs.seatd ];
+      # Anti-loop: [Unit], nao [Service] (systemd ignora em serviceConfig).
+      startLimitIntervalSec = 180;
+      startLimitBurst = 3;
       wantedBy = lib.mkIf cfg.autoStart [ "multi-user.target" ];
       after = [
         "nosd.service"
@@ -295,23 +317,23 @@ in
         # Anti-loop: Chromium reiniciava em spam (prompt+mouse sem UI est�vel)
         Restart = "on-failure";
         RestartSec = "10s";
-        StartLimitIntervalSec = 180;
-        StartLimitBurst = 3;
         TimeoutStopSec = "20s";
         # seat = libseat/seatd; sem isto DRM master falha mesmo com DeviceAllow.
-        SupplementaryGroups = "video audio render input seat";
+        SupplementaryGroups = "video audio render input seat tty";
         # Confinamento host thin (I.3): Preferir cage vivo a ProtectSystem=strict
         # (quebra seatd/DRM no metal � li��o PAMName/seat). Landlock syscall = nosd bin.
         ProtectHome = true;
         NoNewPrivileges = true;
-        DeviceAllow = [ "char-drm rw" "char-input rw" ];
+        # DeviceAllow implica DevicePolicy=closed; tty7 (StandardInput=tty) tem
+        # de estar na allowlist, senão systemd falha com 208/STDIN.
+        DeviceAllow = [ "char-drm rw" "char-input rw" "char-tty rw" ];
         OOMScoreAdjust = -500;
         # PATH: wrap usa paths absolutos; curl bare no PATH evita regress�o
         Environment = [
-          "XDG_RUNTIME_DIR=/run/user/nosd"
+          "XDG_RUNTIME_DIR=/run/nosd/user"
           "NOSD_SOCKET=/run/nosd/nosd.sock"
           "RUST_LOG=info,jarbas=info"
-          "PATH=${pkgs.curl}/bin:${pkgs.coreutils}/bin:${pkgs.cage}/bin:${pkgs.seatd}/bin"
+          "PATH=${pkgs.systemd}/bin:${pkgs.curl}/bin:${pkgs.coreutils}/bin:${pkgs.cage}/bin:${pkgs.seatd}/bin"
         ];
       };
     };

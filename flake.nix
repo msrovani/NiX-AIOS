@@ -28,11 +28,17 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.3";
+            version = "0.6.0-alpha.4";
             src = ./packages/nosd;
             cargoLock.lockFile = ./packages/nosd/Cargo.lock;
             # Onda 5: JARBAS Slint no binário ISO (cage --ui).
-            cargoExtraArgs = "--workspace --features nos-jarbas/slint-ui";
+            # nixpkgs 26.11 removeu cargoExtraArgs (era ignorado em silêncio →
+            # HUD caía em slog "built without feature slint-ui").
+            cargoBuildFlags = [
+              "--workspace"
+              "--features"
+              "nos-jarbas/slint-ui"
+            ];
             nativeBuildInputs = with pkgs; [
               pkg-config
               rust

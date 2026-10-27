@@ -9,6 +9,8 @@ SMP="${SMP:-2}"
 # serial console (headless) by default; set DISPLAY_MODE=gtk for WSLg window
 DISPLAY_MODE="${DISPLAY_MODE:-serial}"
 LOG="${LOG:-/tmp/nixaios-qemu.log}"
+# QEMU extra args (ex.: "-device virtio-gpu-pci" para testar cage/DRM).
+QEMU_EXTRA="${QEMU_EXTRA:-}"
 
 if [[ ! -f "$ISO" ]]; then
   echo "ISO missing: $ISO" >&2
@@ -72,5 +74,6 @@ exec qemu-system-x86_64 \
   -boot d \
   -netdev user,id=net0 \
   -device virtio-net-pci,netdev=net0 \
+  ${QEMU_EXTRA} \
   "${DISP[@]}" \
   2>&1 | tee "$LOG"

@@ -81,10 +81,11 @@ export component HudWindow inherits Window {
     }
 
     stage := Rectangle {
-        width: min(root.width, root.height) * 0.62;
+        width: min(root.width, root.height) * 0.55;
         height: self.width;
         x: (root.width - self.width) / 2;
-        y: (root.height - self.height) / 2 - 36px;
+        // abaixo do header (o header deixa de o cobrir)
+        y: (root.height - self.height) / 2 - 30px;
         background: transparent;
 
         Rectangle {
@@ -136,12 +137,16 @@ export component HudWindow inherits Window {
         }
     }
 
-    // Header
+    // Header — altura fixa: sem isto o layout estica até ao fundo e o
+    // texto (estado/score) cai por cima do orb.
     VerticalLayout {
-        padding-top: 20px;
+        y: 0px;
+        height: 150px;
+        padding-top: 14px;
         padding-left: 28px;
         padding-right: 28px;
         spacing: 2px;
+        alignment: start;
         Text {
             text: "JARBAS";
             color: #ffffff;
@@ -163,12 +168,14 @@ export component HudWindow inherits Window {
             color: #94a3b8;
             font-size: 14px;
             horizontal-alignment: center;
+            overflow: elide;
         }
         if root.score_line != "": Text {
             text: root.score_line;
             color: #64748b;
             font-size: 12px;
             horizontal-alignment: center;
+            overflow: elide;
         }
     }
 

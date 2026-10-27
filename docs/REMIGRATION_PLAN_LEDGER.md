@@ -28,6 +28,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.6.0-alpha.3 Hot download + voz (2026-10-27):** S-04 blobs/fetch com grant single-use (replay -> HITL), nosctl fetch --confirm-id / ui-open --grant-kind. Voz: voice-stt/voice-tts CLI, VM status Ready + TTS WAV 1.2s; STT jfk 23min TCG (manual). accept-m3 no VM. Evidencia: `docs/evidence/VOICE_0.6.0-alpha.2.md`, `VM_GGUF_0.6.0-alpha.2.md`. Cage/Wi-Fi/metal/S-08/S-09 pendentes.
 
+**0.6.0-alpha.4 Boot→JARBAS Slint cage/DRM (2026-10-27):** M3 visual em QEMU (Ring3_Linux/qemu OBSERVED): `jarbas-cage` active, cage DRM/KMS 1280x800, HUD Slint (`nos-jarbas --ui`, winit-software + WLR_RENDERER=pixman) com screenshot do scanout. Fixes: XDG_RUNTIME_DIR /run/nosd/user (logind escondia /run/user/nosd), PATH com systemctl (waitScript apagava seatd.sock vivo), StartLimit* no unit, cargoBuildFlags (cargoExtraArgs ignorado no nixpkgs 26.11 -> ISO sem slint-ui), panic tokio aninhado, winit->X11, LIBGL_ALWAYS_SOFTWARE. Evidencia: `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`. Metal/GL real, Wi-Fi, S-08/S-09, ring e M4/M5 pendentes.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

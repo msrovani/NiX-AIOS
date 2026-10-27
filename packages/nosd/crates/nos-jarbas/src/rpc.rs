@@ -68,12 +68,20 @@ impl Endpoint {
     }
 
     /// Sync wrapper for Slint UI thread (blocks briefly).
+    ///
+    /// Reutiliza um runtime current-thread por thread e — importante — não pode
+    /// ser chamado de dentro de um runtime tokio (`block_on` aninhado panicava:
+    /// "Cannot start a runtime from within a runtime"). O `main` do Slint não
+    /// entra no runtime; quem é async usa `rpc()`.
     #[cfg(feature = "slint-ui")]
     pub fn rpc_blocking(&self, req: Request) -> anyhow::Result<Response> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
-        rt.block_on(self.rpc(req))
+        thread_local! {
+            static RT: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("tokio current-thread runtime");
+        }
+        RT.with(|rt| rt.block_on(self.rpc(req)))
     }
 }
 

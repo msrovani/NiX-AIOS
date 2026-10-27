@@ -36,8 +36,17 @@ struct Args {
     ui: bool,
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+/// Runtime próprio por chamada async (NÃO `#[tokio::main]`).
+///
+/// O HUD Slint é o event loop e usa `rpc_blocking`; se o runtime tokio
+/// estivesse "entrado" no thread principal, `block_on` aninhado fazia panic.
+fn tokio_rt() -> anyhow::Result<tokio::runtime::Runtime> {
+    Ok(tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?)
+}
+
+fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
@@ -58,27 +67,29 @@ async fn main() -> anyhow::Result<()> {
 
     if args.once {
         let mut id = 1u64;
-        let resp = endpoint
-            .rpc(next_req(
-                &mut id,
-                "chat",
-                1 | 16,
-                serde_json::json!({ "prompt": args.chat }),
-            ))
-            .await?;
-        if resp.ok {
-            info!(target: "jarbas", "reply={}", resp.result);
-        } else {
-            warn!(target: "jarbas", "err={:?}", resp.error);
-            std::process::exit(1);
-        }
-        return Ok(());
+        return tokio_rt()?.block_on(async move {
+            let resp = endpoint
+                .rpc(next_req(
+                    &mut id,
+                    "chat",
+                    1 | 16,
+                    serde_json::json!({ "prompt": args.chat }),
+                ))
+                .await?;
+            if resp.ok {
+                info!(target: "jarbas", "reply={}", resp.result);
+                Ok(())
+            } else {
+                warn!(target: "jarbas", "err={:?}", resp.error);
+                Err(anyhow::anyhow!("chat failed"))
+            }
+        });
     }
 
     if args.ui {
         #[cfg(feature = "slint-ui")]
         {
-            // Slint owns the event loop — leave tokio runtime
+            // Slint owns the event loop — sem runtime tokio activo neste thread.
             return slint_app::run(endpoint, args.interval_secs);
         }
         #[cfg(not(feature = "slint-ui"))]
@@ -90,5 +101,5 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    hud_slog::run(endpoint, args.interval_secs).await
+    tokio_rt()?.block_on(hud_slog::run(endpoint, args.interval_secs))
 }

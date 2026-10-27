@@ -129,7 +129,10 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                                         hitl_kind = kind.to_string();
                                         status_extra = format!("HITL · {title}");
                                     } else {
-                                        status_extra = title.to_string();
+                                        // Janela informativa: não repetir o nome da app.
+                                        if !title.eq_ignore_ascii_case("jarbas") {
+                                            status_extra = title.to_string();
+                                        }
                                     }
                                 }
                             }

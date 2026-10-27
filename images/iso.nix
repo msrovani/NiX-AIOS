@@ -77,11 +77,12 @@
   system.activationScripts.nosdModels = ''
     mkdir -p /var/lib/nosd/models
     mkdir -p /var/lib/nosd/nsgdb
-    mkdir -p /run/user/nosd
+    # 0.6: /run/nosd/user (nao /run/user/nosd: tmpfs do logind esconde).
+    mkdir -p /run/nosd/user
     # Live ISO: nixos + nosd precisam escrever (sem FAT)
     chmod 1777 /var/lib/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb || true
-    chown nosd:nosd /run/user/nosd || true
-    chmod 700 /run/user/nosd || true
+    chown nosd:nosd /run/nosd/user || true
+    chmod 700 /run/nosd/user || true
   '';
 
   environment.systemPackages = with pkgs; [
