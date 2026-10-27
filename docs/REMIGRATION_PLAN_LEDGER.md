@@ -40,6 +40,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.6.0-alpha.8 S-04 fechado (2026-10-27):** `hitl_confirmed` deixa de autorizar - nem root/token; a unica prova e `confirm_id` server-authored (ui.open + ui.action, single-use, kind-bound, TTL 5min). Gate SITE_POLICY passa a exigir grant por dominio; nosctl perde `--confirm` e ganha `consent <kind>`; firstboot obtem grant e usa `--confirm-id`. Prova na ISO: firstboot -> grant -> transmute RPC OK -> hotswap -> HUD; e dois negativos (sem grant e grant bogus) recusados no HITL mesmo como root. Bug extra corrigido: nosctl entrava em panico com EPIPE (grep -q/head). Evidencia: `docs/evidence/HITL_0.6.0-alpha.8.md`. Ring continua desarmado.
 
+**SKYNET plano de frota (2026-10-27):** `docs/SKYNET_DISTRIBUTED_PLAN.md` - pesquisa + decisoes para processamento distribuido: TP so intra-host, PP em LAN, remote-prompt em WAN; identidade Ed25519 + Noise IK + NoProto v2 assinado; Merkle-CRDT delta + bloom; JobEnvelope com quotas e resultado assinado; wasmi/WASI para skills e app swap; telepatia = canal de estado (LayaIntent/CRDT/KVREF) em vez de prompt; matriz de ameacas com 12 testes negativos. Fases M6-M10; M10 bloqueada por hardware. Nada implementado nesta entrada.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---
