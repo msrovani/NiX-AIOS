@@ -25,6 +25,8 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     "status": "ok",
                     "mesh": state.mesh.health_json(),
                     "mesh_peers": state.mesh.peer_count(),
+                    "mesh_pinned": state.mesh.pinned_peers(),
+                    "mesh_node_id": state.mesh.identity_id(),
                     "fleet_verdict": fleet_verdict.map(|v| v.as_str()),
                     "fleet_machines": machines.len(),
                     "hub_loaded": state.hermes.hub.loaded_count(),

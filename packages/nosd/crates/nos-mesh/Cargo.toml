@@ -11,3 +11,4 @@ serde_json = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
+ed25519-compact = { workspace = true, features = ["random"] }

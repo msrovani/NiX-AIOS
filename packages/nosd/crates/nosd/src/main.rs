@@ -54,6 +54,31 @@ struct Args {
     admin_gid: Option<u32>,
 }
 
+/// Segundos/allowlist do mesh vêm do ambiente do unit (root-controlled).
+fn mesh_identity() -> anyhow::Result<Option<nos_mesh::Identity>> {
+    let require = std::env::var("NOSD_MESH_REQUIRE_SIG").ok().as_deref() == Some("1");
+    let key_path = std::env::var("NOSD_MESH_KEY")
+        .unwrap_or_else(|_| "/var/lib/nosd/keys/mesh.key".to_string());
+    let allow: std::collections::HashSet<u32> = std::env::var("NOSD_MESH_ALLOWLIST")
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|x| x.trim().parse().ok())
+        .collect();
+    let path = std::path::Path::new(&key_path);
+    if !require && !path.exists() {
+        return Ok(None);
+    }
+    let id = nos_mesh::Identity::load_or_create(path, allow, require)?;
+    tracing::info!(
+        target: "nosd",
+        "mesh identity id={} require_sig={} allow={}",
+        id.node_id(),
+        id.require_sig(),
+        id.allow_len()
+    );
+    Ok(Some(id))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -158,7 +183,20 @@ async fn main() -> anyhow::Result<()> {
         mem_dir,
         cap_gen: 1,
     })?;
-    let mesh = MeshEngine::new(args.node_id);
+    // M6: identidade Ed25519. Sem `NOSD_MESH_REQUIRE_SIG=1`/chave existente,
+    // o mesh fica no modo compat (HB sem assinatura) para nao quebrar o lab.
+    let identity = match mesh_identity() {
+        Ok(id) => id,
+        Err(e) => {
+            // Fail-closed: se pediram assinatura e nao ha chave, nao arrancar
+            // em modo aberto.
+            anyhow::bail!("M6 mesh identity: {e}");
+        }
+    };
+    let mesh = match identity {
+        Some(id) => MeshEngine::with_identity(args.node_id, Default::default(), id),
+        None => MeshEngine::new(args.node_id),
+    };
 
     let score = NosScore {
         phase: "ready".into(),

@@ -4,6 +4,7 @@ pub mod crdt;
 pub mod fleet_health;
 pub mod frack;
 pub mod frag;
+pub mod ident;
 pub mod laya_intent;
 pub mod mesh_knowledge;
 pub mod soul_mirror;
@@ -15,6 +16,7 @@ pub use fleet_health::{
 };
 pub use frack::Frack;
 pub use frag::{FragHeader, FragReassembler};
+pub use ident::{Identity, PinError, Pinned};
 pub use laya_intent::{LayaIntent, WIRE_VERSION as LAYA_WIRE_VERSION};
 pub use mesh_knowledge::{content_fingerprint, fnv1a64, payload_fingerprint};
 pub use soul_mirror::SoulMirrorSnapshot;
@@ -24,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::info;
+use tracing::{info, warn};
 
 pub const MAGIC_HB: &[u8] = b"HB\0";
 pub const MAGIC_FRAG: &[u8] = frag::MAGIC;
@@ -98,12 +100,27 @@ pub struct MeshEngine {
     last_laya: Arc<Mutex<Option<LayaIntent>>>,
     /// CRDT thin local (SoulMirror / M.2) — sync P2P residual.
     crdt: Arc<Mutex<CrdtStore>>,
+    /// M6: identidade Ed25519 (None = HB sem assinatura, compat lab).
+    ident: Option<ident::Identity>,
+    /// M6: pinagem TOFU + anti-replay (seq monotónico por peer).
+    pinned: Arc<ident::Pinned>,
+    /// M6: contador de HB local.
+    hb_seq: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Default for MeshEngine {
     fn default() -> Self {
         Self::new(15)
     }
+}
+
+struct SignedHb<'a> {
+    id: u32,
+    seq: u64,
+    pk: &'a [u8],
+    msg: &'a [u8],
+    sig: &'a [u8],
+    cap: Option<CapacityScore>,
 }
 
 impl MeshEngine {
@@ -127,7 +144,32 @@ impl MeshEngine {
             peer_fleet: Arc::new(Mutex::new(HashMap::new())),
             last_laya: Arc::new(Mutex::new(None)),
             crdt: Arc::new(Mutex::new(CrdtStore::new())),
+            ident: None,
+            pinned: Arc::new(ident::Pinned::new()),
+            hb_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
         }
+    }
+
+    /// M6: mesh com identidade; HB passa a ser assinado e verificado.
+    /// O `local_id` passa a ser **derivado da chave** (o `--node-id` deixa de
+    /// mandar quando ha identidade): id escolhido pelo operador nao e identidade.
+    pub fn with_identity(
+        _local_id: u32,
+        capacity: CapacityScore,
+        identity: ident::Identity,
+    ) -> Self {
+        let derived = identity.node_id();
+        let mut m = Self::with_capacity(derived, capacity);
+        m.ident = Some(identity);
+        m
+    }
+
+    pub fn identity_id(&self) -> Option<u32> {
+        self.ident.as_ref().map(|i| i.node_id())
+    }
+
+    pub fn pinned_peers(&self) -> usize {
+        self.pinned.peer_count()
     }
 
     pub fn local_id(&self) -> u32 {
@@ -331,12 +373,71 @@ impl MeshEngine {
     pub fn encode_heartbeat(&self) -> Vec<u8> {
         let mut v = MAGIC_HB.to_vec();
         v.extend_from_slice(&self.local_id.to_le_bytes());
+        let seq = self
+            .hb_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        v.extend_from_slice(&seq.to_le_bytes());
         v.extend_from_slice(b"PK\0");
         v.extend_from_slice(b"CAP\0");
         v.extend_from_slice(&self.local_capacity.cpu_units.to_le_bytes());
         v.extend_from_slice(&self.local_capacity.mem_mib.to_le_bytes());
         v.extend_from_slice(&self.local_capacity.net_score.to_le_bytes());
+        if let Some(ref id) = self.ident {
+            let pk = id.public_key();
+            v.extend_from_slice(ident::KEY_MARK);
+            v.extend_from_slice(&pk);
+            let sig_off = v.len();
+            v.extend_from_slice(ident::SIG_MARK);
+            let sig = id.sign(&v[..sig_off]);
+            v.extend_from_slice(&sig);
+        }
         v
+    }
+
+    /// M6: HB assinado (`KEY\0 pk SIG\0 sig`). `None` se for HB antigo.
+    fn parse_signed_hb(buf: &[u8]) -> Option<SignedHb<'_>> {
+        if buf.len() < 7 + 8 + 36 + 68 || &buf[0..3] != MAGIC_HB {
+            return None;
+        }
+        let key_pos = buf.windows(4).position(|w| w == ident::KEY_MARK)?;
+        let sig_off = key_pos + 4 + 32;
+        if buf.len() < sig_off + 4 + 64 || &buf[sig_off..sig_off + 4] != ident::SIG_MARK {
+            return None;
+        }
+        if buf.len() != sig_off + 4 + 64 {
+            return None;
+        }
+        let id = u32::from_le_bytes(buf[3..7].try_into().ok()?);
+        let seq = u64::from_le_bytes(buf[7..15].try_into().ok()?);
+        Some(SignedHb {
+            id,
+            seq,
+            pk: &buf[key_pos + 4..sig_off],
+            msg: &buf[..sig_off],
+            sig: &buf[sig_off + 4..],
+            cap: parse_hb_capacity(buf),
+        })
+    }
+
+    fn on_hb_signed(&self, hb: SignedHb<'_>) {
+        let Some(ref ident) = self.ident else {
+            // Sem identidade local: aceitar como HB normal (lab).
+            self.on_heartbeat_inner(hb.id, true, hb.cap);
+            return;
+        };
+        if !ident::verify(hb.pk, hb.msg, hb.sig) {
+            warn!(target: "nosd", "mesh HB assinatura invalida id={}", hb.id);
+            return;
+        }
+        if !ident.allow(hb.id) {
+            warn!(target: "nosd", "mesh HB id={} fora da allowlist", hb.id);
+            return;
+        }
+        if let Err(e) = self.pinned.check(hb.id, hb.pk, hb.seq) {
+            warn!(target: "nosd", "mesh HB id={} rejeitado ({e:?})", hb.id);
+            return;
+        }
+        self.on_heartbeat_inner(hb.id, true, hb.cap);
     }
 
     pub fn try_parse_heartbeat(buf: &[u8]) -> Option<(u32, bool)> {
@@ -423,9 +524,27 @@ impl MeshEngine {
             }
             return None;
         }
+        if let Some(hb) = Self::parse_signed_hb(buf) {
+            if hb.id != self.local_id {
+                self.on_hb_signed(hb);
+            }
+            return None;
+        }
         if let Some((id, pk, cap)) = Self::try_parse_heartbeat_full(buf) {
             if id != self.local_id {
-                self.on_heartbeat_inner(id, pk, cap);
+                if self
+                    .ident
+                    .as_ref()
+                    .map(|i| i.require_sig())
+                    .unwrap_or(false)
+                {
+                    warn!(
+                        target: "nosd",
+                        "mesh HB id={id} sem assinatura (NOSD_MESH_REQUIRE_SIG=1) - ignorado"
+                    );
+                } else {
+                    self.on_heartbeat_inner(id, pk, cap);
+                }
             }
             return None;
         }
@@ -721,5 +840,86 @@ mod tests {
         assert!(!m.tofu_settled(), "recem-ligado ainda nao settle");
         std::thread::sleep(std::time::Duration::from_millis(TOFU_SETTLE_MS + 300));
         assert!(m.tofu_settled(), "deve settle ao fim de TOFU_SETTLE_MS");
+    }
+
+    #[test]
+    fn signed_hb_is_verified_and_pinned() {
+        use crate::ident::Identity;
+        use std::collections::HashSet;
+        let a = Identity::from_seed([11u8; 32], HashSet::new(), true);
+        let b = Identity::from_seed([12u8; 32], HashSet::new(), true);
+        let ma = MeshEngine::with_identity(11, CapacityScore::default(), a);
+        let mb = MeshEngine::with_identity(12, CapacityScore::default(), b);
+        let hb = ma.encode_heartbeat();
+        mb.on_datagram(&hb);
+        assert_eq!(mb.peer_count(), 1, "HB assinado deve registar peer");
+        assert_eq!(mb.pinned_peers(), 1, "deve fixar (TOFU) a chave");
+    }
+
+    #[test]
+    fn tampered_hb_is_rejected() {
+        use crate::ident::Identity;
+        use std::collections::HashSet;
+        let a = Identity::from_seed([21u8; 32], HashSet::new(), true);
+        let b = Identity::from_seed([22u8; 32], HashSet::new(), true);
+        let ma = MeshEngine::with_identity(21, CapacityScore::default(), a);
+        let mb = MeshEngine::with_identity(22, CapacityScore::default(), b);
+        let mut hb = ma.encode_heartbeat();
+        let mid = hb.len() / 2;
+        hb[mid] ^= 0x01;
+        mb.on_datagram(&hb);
+        assert_eq!(mb.peer_count(), 0, "HB adulterado nao pode entrar");
+        assert_eq!(mb.pinned_peers(), 0);
+    }
+
+    #[test]
+    fn unsigned_hb_rejected_when_signature_required() {
+        use crate::ident::Identity;
+        use std::collections::HashSet;
+        let plain = MeshEngine::with_capacity(31, CapacityScore::default());
+        let a = Identity::from_seed([32u8; 32], HashSet::new(), true);
+        let guarded = MeshEngine::with_identity(31, CapacityScore::default(), a);
+        let hb = plain.encode_heartbeat();
+        guarded.on_datagram(&hb);
+        assert_eq!(
+            guarded.peer_count(),
+            0,
+            "REQUIRE_SIG=1 ignora HB sem assinatura"
+        );
+    }
+
+    #[test]
+    fn allowlist_blocks_unknown_signed_peer() {
+        use crate::ident::Identity;
+        use std::collections::HashSet;
+        let a = Identity::from_seed([41u8; 32], HashSet::new(), true);
+        let b = Identity::from_seed([42u8; 32], HashSet::new(), true);
+        let b_id = b.node_id();
+        let ma = MeshEngine::with_identity(41, CapacityScore::default(), a);
+        // allowlist so com um id que nao e o do peer
+        let allow: HashSet<u32> = [b_id.wrapping_add(1)].into_iter().collect();
+        let mb = MeshEngine::with_identity(
+            42,
+            CapacityScore::default(),
+            Identity::from_seed([42u8; 32], allow, true),
+        );
+        mb.on_datagram(&ma.encode_heartbeat());
+        assert_eq!(mb.peer_count(), 0, "id fora da allowlist nao entra");
+    }
+
+    #[test]
+    fn dbg_signed_wire_shape() {
+        use crate::ident::Identity;
+        use std::collections::HashSet;
+        let a = Identity::from_seed([51u8; 32], HashSet::new(), true);
+        let m = MeshEngine::with_identity(51, CapacityScore::default(), a);
+        let hb = m.encode_heartbeat();
+        let parsed = MeshEngine::parse_signed_hb(&hb);
+        assert!(
+            parsed.is_some(),
+            "len={} head={:?}",
+            hb.len(),
+            String::from_utf8_lossy(&hb[..8.min(hb.len())])
+        );
     }
 }

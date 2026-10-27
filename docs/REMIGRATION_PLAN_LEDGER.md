@@ -42,6 +42,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **SKYNET plano de frota (2026-10-27):** `docs/SKYNET_DISTRIBUTED_PLAN.md` - pesquisa + decisoes para processamento distribuido: TP so intra-host, PP em LAN, remote-prompt em WAN; identidade Ed25519 + Noise IK + NoProto v2 assinado; Merkle-CRDT delta + bloom; JobEnvelope com quotas e resultado assinado; wasmi/WASI para skills e app swap; telepatia = canal de estado (LayaIntent/CRDT/KVREF) em vez de prompt; matriz de ameacas com 12 testes negativos. Fases M6-M10; M10 bloqueada por hardware. Nada implementado nesta entrada.
 
+**M6 identidade de nos (2026-10-27):** implementado no tree (nao tagged): `nos-mesh::ident` com Ed25519 (`ed25519-compact`), id derivado da chave, HB assinado (`KEY\0 pk` + `SIG\0 sig`) com `seq` monotónico, pinagem TOFU, allowlist (`NOSD_MESH_ALLOWLIST`) e recusa de HB sem assinatura (`NOSD_MESH_REQUIRE_SIG=1`, fail-closed se a chave falhar). `health` expoe `mesh_pinned`/`mesh_node_id`. Prova: 8 testes unitarios em `nos-mesh` + check `mesh-2vm-signed` (peers=1, pinned=1, HB forjado sem assinatura ignorado). Evidencia: `docs/evidence/M6_IDENTITY_0.6.0-alpha.8.md`. Falta confidencialidade (Noise) e revogacao; M7-M9 seguem o plano `docs/SKYNET_DISTRIBUTED_PLAN.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

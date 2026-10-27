@@ -95,6 +95,10 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   GL/iGPU real, VT/teclado fisicos e metal = AWAITING_HW.
 - **M5 lab**: check `mesh-2vm` (2 VMs, UDP 19000) OBSERVED: peers=1, TOFU
   pk-bound, Master/Worker. **Frota real e CRDT wire** continuam pendentes.
+- **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
+  anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
+  revogacao ainda. M7 (jobs remotos) e seguintes: ver
+  `docs/SKYNET_DISTRIBUTED_PLAN.md`.
 - **M4/M5**: AWAITING_HW.
 
 ## Evidência 0.6.0-alpha.8
