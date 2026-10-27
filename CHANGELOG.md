@@ -19,6 +19,16 @@ Versionamento [SemVer](https://semver.org/).
   `transmute`; usar `--confirm-id`. Novo `nosctl consent <kind>`.
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
+## [Unreleased] — frota (M6/M7)
+
+### Added
+
+- **M6:** identidade Ed25519 (`nos-mesh::ident`), HB assinado com `seq`,
+  pinagem TOFU, anti-replay e allowlist; `mesh-2vm-signed` PASS.
+- **M7:** jobs remotos (`nos-mesh::job`) com frames assinados sobre TCP,
+  `NOSD_JOB_BIND`, RPC `job.submit` e `nosctl job-submit`;
+  `mesh-2vm-jobs` PASS (A sem modelo, B responde verificado).
+
 ## [Unreleased] — M5 lab (mesh 2-VM)
 
 ### Added

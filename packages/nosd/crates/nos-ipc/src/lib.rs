@@ -57,8 +57,8 @@ impl Request {
             | "route.explain" | "cognitive.tick" | "artifact.validate" | "ui.list" | "ui.card"
             | "wifi.scan" | "voice.status" | "transmute.status" | "orb.get" | "orb.set"
             | "orb.sense" => CapBits::NONE,
-            "infer.submit" | "chat" | "chat.submit" | "chat.poll" | "model.unload"
-            | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
+            "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
+            | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
             "model.load" => CapBits::INFER.union(CapBits::FS),
             "model.fetch" | "model.search" | "firmware.fetch" => CapBits::NET.union(CapBits::FS),
             "blob.deliberate" => CapBits::NONE,

@@ -278,6 +278,69 @@
             '';
           };
 
+          # M7: jobs remotos com frames assinados sobre TCP. B executa
+          # localmente (chat/cpu-echo) e devolve resultado assinado; A verifica.
+          mesh-2vm-jobs = pkgs.testers.nixosTest {
+            name = "nixaios-mesh-jobs";
+            nodes.a = { pkgs, lib, ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              virtualisation.vlans = [ 1 ];
+              networking.interfaces.eth1.ipv4.addresses = [
+                { address = "192.168.50.1"; prefixLength = 24; }
+              ];
+              networking.firewall.enable = false;
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 1;
+                meshBind = "0.0.0.0:19000";
+                meshBroadcast = "192.168.50.255:19000";
+              };
+              systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
+                "NOSD_MESH_REQUIRE_SIG=1"
+              ];
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            nodes.b = { pkgs, lib, ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              virtualisation.vlans = [ 1 ];
+              networking.interfaces.eth1.ipv4.addresses = [
+                { address = "192.168.50.2"; prefixLength = 24; }
+              ];
+              networking.firewall.enable = false;
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 1;
+                meshBind = "0.0.0.0:19000";
+                meshBroadcast = "192.168.50.255:19000";
+              };
+              systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
+                "NOSD_MESH_REQUIRE_SIG=1"
+                "NOSD_JOB_BIND=0.0.0.0:19001"
+              ];
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            testScript = ''
+              start_all()
+              a.wait_for_unit("nosd.service")
+              b.wait_for_unit("nosd.service")
+              a.wait_for_file("/run/nosd/nosd.sock")
+              b.wait_for_file("/run/nosd/nosd.sock")
+              ca = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
+              a.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
+              b.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
+              b.wait_until_succeeds("journalctl -u nosd -o cat | grep -q 'job listener bind='", timeout=60)
+              r = a.succeed(ca + " job-submit 192.168.50.2:19001 'oi do no A'")
+              assert '\"verified\": true' in r, r
+              assert '\"ok\": true' in r, r
+              a.fail(ca + " job-submit 192.168.50.2:19001 $(head -c 9000 /dev/zero | tr '\\0' x)")
+              a.fail(ca + " job-submit 192.168.50.2:19999 oi")
+            '';
+          };
+
           # M5 (lab): 2 VMs na mesma VLAN — HB UDP mesh, TOFU pk-bound e
           # eleição stub por capacidade. CRDT wire sync é residual (não testado).
           mesh-2vm = pkgs.testers.nixosTest {

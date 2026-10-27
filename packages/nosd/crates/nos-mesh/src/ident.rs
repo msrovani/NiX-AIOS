@@ -165,6 +165,25 @@ impl Pinned {
         }
     }
 
+    /// Verifica a chave sem consumir `seq` (usado pelos jobs TCP): fixa no
+    /// primeiro contacto (TOFU) ou exige a mesma chave.
+    pub fn check_key(&self, id: u32, pk: &[u8]) -> Result<(), PinError> {
+        if short_id(pk) != id {
+            return Err(PinError::IdMismatch);
+        }
+        let mut g = self.inner.lock();
+        match g.get(&id) {
+            Some(pin) if pin.pk != pk => Err(PinError::KeyChanged),
+            Some(_) => Ok(()),
+            None => {
+                let mut p = [0u8; 32];
+                p.copy_from_slice(pk);
+                g.insert(id, Pin { pk: p, last_seq: 0 });
+                Ok(())
+            }
+        }
+    }
+
     pub fn peer_count(&self) -> usize {
         self.inner.lock().len()
     }

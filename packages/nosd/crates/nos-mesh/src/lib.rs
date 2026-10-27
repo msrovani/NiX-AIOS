@@ -5,6 +5,7 @@ pub mod fleet_health;
 pub mod frack;
 pub mod frag;
 pub mod ident;
+pub mod job;
 pub mod laya_intent;
 pub mod mesh_knowledge;
 pub mod soul_mirror;
@@ -170,6 +171,15 @@ impl MeshEngine {
 
     pub fn pinned_peers(&self) -> usize {
         self.pinned.peer_count()
+    }
+
+    /// M7: store de chaves partilhado com o listener de jobs (mesma confiança).
+    pub fn pinned(&self) -> Arc<ident::Pinned> {
+        self.pinned.clone()
+    }
+
+    pub fn identity(&self) -> Option<ident::Identity> {
+        self.ident.clone()
     }
 
     pub fn local_id(&self) -> u32 {

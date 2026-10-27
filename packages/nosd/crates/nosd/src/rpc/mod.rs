@@ -3,6 +3,7 @@ mod chat;
 mod factory_store;
 mod health;
 mod http_lab;
+mod job;
 mod model;
 mod nix_wifi;
 mod security;
@@ -519,6 +520,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         return r;
     }
     if let Some(r) = nix_wifi::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = job::dispatch(state, req.clone()) {
         return r;
     }
     if let Some(r) = voice_transmute::dispatch(state, &gate, req.clone()) {

@@ -146,6 +146,17 @@ enum Cmd {
     NixPropose {
         nix: String,
     },
+    /// M7: envia um job para um peer (link TCP autenticado, resultado assinado).
+    #[command(name = "job-submit")]
+    JobSubmit {
+        /// Endereço do worker: `IP:PORT` (ex. 192.168.50.2:19001).
+        addr: String,
+        prompt: String,
+        #[arg(long, default_value_t = 30000)]
+        deadline_ms: u64,
+        #[arg(long, default_value_t = 256)]
+        budget_tokens: u32,
+    },
     /// S-04: pede um grant HITL em texto (abre a janela + submete).
     /// Imprime {"result":{"confirm_id":"..."}} para usar em --confirm-id.
     Consent {
@@ -221,6 +232,21 @@ enum Cmd {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let (method, params, caps) = match &args.cmd {
+        Cmd::JobSubmit {
+            addr,
+            prompt,
+            deadline_ms,
+            budget_tokens,
+        } => (
+            "job.submit",
+            serde_json::json!({
+                "addr": addr,
+                "prompt": prompt,
+                "deadline_ms": deadline_ms,
+                "budget_tokens": budget_tokens,
+            }),
+            1, // INFER
+        ),
         // Consent precisa de 2 RPCs: tratado antes deste match.
         Cmd::Consent { .. } => ("consent.noop", serde_json::json!({}), 0),
         Cmd::Health => ("health", serde_json::json!({}), 0u32),

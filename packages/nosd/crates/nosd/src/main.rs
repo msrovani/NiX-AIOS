@@ -237,6 +237,44 @@ async fn main() -> anyhow::Result<()> {
         hermes_ticks: std::sync::atomic::AtomicU64::new(0),
     });
 
+    // M7: listener de jobs (TCP, frames assinados). Opt-in por env.
+    if let Ok(bind) = std::env::var("NOSD_JOB_BIND") {
+        if !bind.is_empty() {
+            if let Some(id) = state.mesh.identity() {
+                let pinned = state.mesh.pinned();
+                let st = state.clone();
+                let exec = std::sync::Arc::new(
+                    move |prompt: &str, _budget: u32| -> Result<String, String> {
+                        let gate = nos_core::CapGate::new(
+                            nos_core::CapBits(
+                                nos_core::CapBits::INFER.0 | nos_core::CapBits::MEMORY.0,
+                            ),
+                            st.hermes.cap_gen,
+                        );
+                        match st.hermes.chat_submit(&gate, prompt) {
+                            Ok(v) => Ok(v
+                                .get("text")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_string()),
+                            Err(e) => Err(e.to_string()),
+                        }
+                    },
+                );
+                tokio::spawn(async move {
+                    if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec).await {
+                        tracing::warn!(target: "nosd", "job listener: {e}");
+                    }
+                });
+            } else {
+                tracing::warn!(
+                    target: "nosd",
+                    "NOSD_JOB_BIND sem identidade - listener de jobs desligado"
+                );
+            }
+        }
+    }
+
     let mesh_udp = if !args.mesh_bind.is_empty() {
         match nos_mesh::udp::start_mesh_udp(
             &args.mesh_bind,

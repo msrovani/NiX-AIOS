@@ -12,3 +12,4 @@ parking_lot = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
 ed25519-compact = { workspace = true, features = ["random"] }
+uuid = { workspace = true, features = ["v4"] }
