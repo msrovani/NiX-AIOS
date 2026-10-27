@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.1";
+            version = "0.6.0-alpha.2";
             src = ./packages/nosd;
             cargoLock.lockFile = ./packages/nosd/Cargo.lock;
             # Onda 5: JARBAS Slint no binário ISO (cage --ui).
@@ -118,6 +118,11 @@
             inherit system overlays;
             config.allowUnfree = true;
           };
+          # Fixture de teste (não entra na ISO): tiny GGUF CPU.
+          tinyGguf = pkgs.fetchurl {
+            url = "https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf";
+            hash = "sha256-ZpZ/vs5tvpeIZZP9u3NYlYSSfikRnsMfCAkHMtGGFzk=";
+          };
         in
         {
           nixaios-vm = pkgs.testers.nixosTest {
@@ -130,13 +135,27 @@
                 hermesTickSecs = 0;
               };
               environment.systemPackages = [ self.packages.${system}.nosd ];
+              # 0.6: tiny GGUF em /var/lib/nosd/models; nosd faz spawn de llama-server.
+              system.activationScripts.nixaiosTinyModel = ''
+                mkdir -p /var/lib/nosd/models
+                cp ${tinyGguf} /var/lib/nosd/models/stories15M-q4_0.gguf
+                chown -R nosd:nosd /var/lib/nosd/models
+                chmod 0755 /var/lib/nosd/models
+                chmod 0644 /var/lib/nosd/models/stories15M-q4_0.gguf
+              '';
               system.stateVersion = "25.11";
             };
             testScript = ''
               machine.wait_for_unit("nosd.service")
               machine.wait_for_file("/run/nosd/nosd.sock")
-              machine.succeed("${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock health")
-              machine.succeed("${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock chat oi")
+              nosctl = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
+              machine.succeed(nosctl + " health")
+              machine.succeed(nosctl + " health | grep -q 'llama-server-http'")
+              machine.succeed(nosctl + " chat 'Once upon a time' | grep -q '\"text\"'")
+              machine.succeed(nosctl + " unload")
+              machine.succeed(nosctl + " health | grep -q 'cpu-echo'")
+              machine.succeed(nosctl + " load /var/lib/nosd/models/stories15M-q4_0.gguf")
+              machine.succeed(nosctl + " health | grep -q 'llama-server-http'")
             '';
           };
         });

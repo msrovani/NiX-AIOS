@@ -68,24 +68,25 @@ in
       wantedBy = [ "multi-user.target" "graphical.target" ];
       # Sobe apos local-fs (NAO esperar network-online; orb lab e opt-in cinematic)
       after = [ "local-fs.target" ];
+      # R-01: serviços NixOS não herdam o PATH de login; declarar ferramentas.
+      # (É atributo do serviço, NÃO de serviceConfig.)
+      path = with pkgs; [
+        networkmanager
+        nix
+        util-linux
+        gnutar
+        alsa-utils
+        pipewire
+        llama-cpp
+        whisper-cpp
+        espeak-ng
+      ];
       serviceConfig = {
         Type = "notify";
         NotifyAccess = "main";
         User = "nosd";
         Group = "nosd";
         ExecStart = "${cfg.package}/bin/nosd --foreground --socket ${cfg.socket} --data-dir ${cfg.dataDir} --node-id ${toString cfg.nodeId} --hermes-tick-secs ${toString cfg.hermesTickSecs} --mesh-bind ${cfg.meshBind} --mesh-broadcast ${cfg.meshBroadcast}";
-        # R-01: serviços NixOS não herdam o PATH de login; declarar ferramentas.
-        path = with pkgs; [
-          networkmanager
-          nix
-          util-linux
-          gnutar
-          alsa-utils
-          pipewire
-          llama-cpp
-          whisper-cpp
-          espeak-ng
-        ];
         Restart = "always";
         RestartSec = "2s";
         TimeoutStartSec = "60s";

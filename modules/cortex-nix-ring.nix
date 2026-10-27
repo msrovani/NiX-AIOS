@@ -136,12 +136,12 @@ in
     systemd.services.nosd-nix-apply = {
       description = "Apply nosd staging → ai-managed.nix + nixos-rebuild switch";
       after = [ "local-fs.target" "nosd.service" ];
+      # R-01: nixos-rebuild/mountpoint não estão no defaultPath.
+      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${applyScript}";
         Nice = 5;
-        # R-01: nixos-rebuild/mountpoint não estão no defaultPath.
-        path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
       };
     };
 
@@ -156,11 +156,11 @@ in
 
     systemd.services.nosd-nix-rollback = {
       description = "nixos-rebuild --rollback when nix-rollback.request exists";
+      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${rollbackScript}";
         Nice = 5;
-        path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
       };
     };
 

@@ -64,6 +64,8 @@ pub struct LlamaServerBackend {
     base: String,
     _model: PathBuf,
     n_predict: u32,
+    /// Chave do llama-server (spawn gera; externo pode vir do env).
+    api_key: Option<String>,
     cancel: Arc<AtomicBool>,
     /// Child próprio (spawn) — None quando é um servidor externo.
     child: parking_lot::Mutex<Option<Child>>,
@@ -88,10 +90,14 @@ impl LlamaServerBackend {
             base,
             model.display()
         );
+        let api_key = std::env::var("NOSD_LLAMA_SERVER_KEY")
+            .ok()
+            .filter(|s| !s.trim().is_empty());
         Ok(Self {
             base: base.trim_end_matches('/').to_string(),
             _model: model,
             n_predict,
+            api_key,
             cancel: Arc::new(AtomicBool::new(false)),
             child: parking_lot::Mutex::new(None),
         })
@@ -107,22 +113,39 @@ impl LlamaServerBackend {
         let bin = find_bin().ok_or(SwapError::EngineAbsent("llama-server bin"))?;
         let port = pick_port()?;
         let ngl = ngl_from_env();
+        let api_key = std::env::var("NOSD_LLAMA_SERVER_KEY")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string());
         let mut cmd = Command::new(&bin);
         cmd.arg("--host")
             .arg("127.0.0.1")
             .arg("--port")
             .arg(port.to_string())
             .arg("-m")
-            .arg(&model);
+            .arg(&model)
+            // Segurança: loopback + API key + sem Web UI.
+            .arg("--api-key")
+            .arg(&api_key)
+            .arg("--no-webui");
         if ngl > 0 {
             cmd.arg("-ngl").arg(ngl.to_string());
+        }
+        if let Ok(ctx) = std::env::var("NOSD_LLAMA_CTX") {
+            if let Ok(n) = ctx.parse::<u32>() {
+                if n > 0 {
+                    cmd.arg("-c").arg(n.to_string());
+                }
+            }
         }
         cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
         let mut child = cmd.spawn().map_err(SwapError::Io)?;
         let base = format!("http://127.0.0.1:{port}");
+        let auth = format!("Bearer {api_key}");
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             if let Ok(resp) = ureq::get(&format!("{base}/health"))
+                .set("Authorization", &auth)
                 .timeout(Duration::from_secs(2))
                 .call()
             {
@@ -139,7 +162,7 @@ impl LlamaServerBackend {
         }
         info!(
             target: "nosd",
-            "llama-server spawned pid={:?} base={} model={} ngl={}",
+            "llama-server spawned pid={:?} base={} model={} ngl={} api_key=set",
             child.id(),
             base,
             model.display(),
@@ -149,6 +172,7 @@ impl LlamaServerBackend {
             base,
             _model: model,
             n_predict: n_predict_from_env(),
+            api_key: Some(api_key),
             cancel: Arc::new(AtomicBool::new(false)),
             child: parking_lot::Mutex::new(Some(child)),
         })
@@ -239,9 +263,11 @@ impl InferenceBackend for LlamaServerBackend {
         let agent = ureq::AgentBuilder::new()
             .timeout_read(Duration::from_secs(120))
             .build();
-        let resp = agent
-            .post(&url)
-            .set("Content-Type", "application/json")
+        let mut req = agent.post(&url).set("Content-Type", "application/json");
+        if let Some(key) = &self.api_key {
+            req = req.set("Authorization", &format!("Bearer {key}"));
+        }
+        let resp = req
             .send_string(&body.to_string())
             .map_err(|_| SwapError::Infer("llama-server http"))?;
         if !(200..300).contains(&resp.status()) {

@@ -2930,7 +2930,7 @@ dependencies = [
 
 [[package]]
 name = "nos-bei"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "parking_lot",
  "serde",
@@ -2939,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "nos-bus"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "parking_lot",
  "serde",
@@ -2949,7 +2949,7 @@ dependencies = [
 
 [[package]]
 name = "nos-core"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -2958,7 +2958,7 @@ dependencies = [
 
 [[package]]
 name = "nos-cortex"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "anyhow",
  "libloading",
@@ -2971,11 +2971,12 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
 name = "nos-factory"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "ed25519-compact",
  "nos-core",
@@ -2990,7 +2991,7 @@ dependencies = [
 
 [[package]]
 name = "nos-hermes"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "nos-bei",
  "nos-bus",
@@ -3011,7 +3012,7 @@ dependencies = [
 
 [[package]]
 name = "nos-ipc"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "bytes",
  "nos-core",
@@ -3022,7 +3023,7 @@ dependencies = [
 
 [[package]]
 name = "nos-jarbas"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -3037,7 +3038,7 @@ dependencies = [
 
 [[package]]
 name = "nos-memory"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "parking_lot",
  "serde",
@@ -3050,7 +3051,7 @@ dependencies = [
 
 [[package]]
 name = "nos-mesh"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "nos-core",
  "parking_lot",
@@ -3062,7 +3063,7 @@ dependencies = [
 
 [[package]]
 name = "nos-observe"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -3070,7 +3071,7 @@ dependencies = [
 
 [[package]]
 name = "nos-voice"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -3082,7 +3083,7 @@ dependencies = [
 
 [[package]]
 name = "nos-wasm"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "nos-core",
  "thiserror 1.0.69",
@@ -3093,7 +3094,7 @@ dependencies = [
 
 [[package]]
 name = "nosd"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

@@ -3,6 +3,35 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.2] — 2026-10-27 (GGUF real no VM)
+
+### Fixed
+
+- **R-01 (crítico):** `path` estava dentro de `serviceConfig`; systemd ignorava
+  (`Unknown key 'path'`) e `nosd` não via `llama-server`, `nmcli`, `nix`, etc.
+  Movido para o atributo do serviço (`systemd.services.nosd.path`) e para os
+  helpers `nosd-nix-apply`/`nosd-nix-rollback`.
+- **Landlock:** allowlist RO para `/nix/store`, `/run/current-system`, `/etc`,
+  `/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/run`, `/var/log`, `/dev`.
+  Sem isto, subprocessos (`llama-server`, `nmcli`, `systemctl`) falhavam com
+  `landlock Verified` (exec/read negado).
+- **llama-server:** spawn com `--api-key` (aleatória, nunca logada) e
+  `--no-webui`; health e infer enviam `Authorization: Bearer`; remove o aviso
+  de CORS aberto.
+
+### Added
+
+- **VM GGUF real:** `checks.x86_64-linux.nixaios-vm` instala
+  `stories15M-q4_0.gguf` (fixture, não ISO), valida `llama-server-http`,
+  `chat`, `unload` e reload.
+- `NOSD_LLAMA_CTX` opcional para `llama-server -c`.
+
+### Evidence
+
+- VM test: `llama-server spawned ... api_key=set`, `engine=llama-server-http`,
+  `infer ... ok=true`, unload/reload, health após cada passo.
+- Latência CPU/TGC ~38s no tiny model (não é SLO de produto).
+
 ## [0.6.0-alpha.1] — 2026-10-26 (Engine persistent)
 
 ### Added

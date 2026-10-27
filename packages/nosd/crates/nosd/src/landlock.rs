@@ -170,10 +170,22 @@ fn linux_restrict(data_dir: &Path) -> Result<(), String> {
     let mut paths: Vec<(std::path::PathBuf, u64)> = vec![
         (data_dir.to_path_buf(), rw),
         (Path::new("/var/lib/nosd").to_path_buf(), rw),
-        (Path::new("/etc/nixos").to_path_buf(), ro),
         (Path::new("/tmp").to_path_buf(), rw),
         // 0.5.0: FAT opt-in (NIXAIOS_USE_FAT_PERSIST) — sem isto fetch → EACCES pós-Q5
         (Path::new("/mnt/nixaios-log").to_path_buf(), rw),
+        // 0.6: subprocessos (llama-server/nmcli/systemctl/journalctl) precisam
+        // de ler executáveis, libs, /etc e runtimes. RO — nunca escrita.
+        (Path::new("/nix/store").to_path_buf(), ro),
+        (Path::new("/run/current-system").to_path_buf(), ro),
+        (Path::new("/etc").to_path_buf(), ro),
+        (Path::new("/usr").to_path_buf(), ro),
+        (Path::new("/lib").to_path_buf(), ro),
+        (Path::new("/lib64").to_path_buf(), ro),
+        (Path::new("/bin").to_path_buf(), ro),
+        (Path::new("/sbin").to_path_buf(), ro),
+        (Path::new("/run").to_path_buf(), ro),
+        (Path::new("/var/log").to_path_buf(), ro),
+        (Path::new("/dev").to_path_buf(), ro),
     ];
     // Dedup
     paths.sort_by(|a, b| a.0.cmp(&b.0));
