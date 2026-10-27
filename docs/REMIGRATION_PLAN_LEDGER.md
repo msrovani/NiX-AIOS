@@ -32,6 +32,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.6.0-alpha.5 Boot→firstboot→JARBAS headless (2026-10-27):** a ISO completa boot → firstboot automático → transmute → hotswap → jarbas-cage/DRM → HUD Slint sem intervenção. Fixes: firstboot em ttyS0/hvc (gatilhos só viam /dev/ttyN), nosd-hotswap-aios sem `path` (exit 127: env bash), hotswap reiniciava o nosd que servia o RPC (nosctl exit=1), transmute tratava systemctl sem root como erro (o .path é o mecanismo), `packages/nosd/target` copiado read-only para a store (nix build após cargo test), chvt antes do cage (1º frame preto em VT1). Evidencia: `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`. Metal, Wi-Fi, S-08/S-09, ring e M4/M5 continuam pendentes.
 
+**0.6.0-alpha.6 S-08/S-09 hardening (2026-10-27):** socket Unix passa a 0660 (chmod apos bind, aborta se falhar) e suite de regressao alargada: socket 0660, metodo desconhecido fail-closed, admin sem token negado, frame u32::MAX -> TooLarge, required_cap -> DENY_UNKNOWN. Sem features novas. Evidencia: `cargo test --workspace`, `nix build .#iso` (tests em Linux), gate MQEMU. Ring continua desarmado; S-04 legacy e M4/M5 pendentes.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

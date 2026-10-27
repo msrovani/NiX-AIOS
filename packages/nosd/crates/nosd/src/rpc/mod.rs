@@ -300,7 +300,18 @@ pub async fn serve_tcp(addr: String, state: Arc<AppState>) -> anyhow::Result<()>
 
 #[cfg(unix)]
 pub async fn serve_unix(path: String, state: Arc<AppState>) -> anyhow::Result<()> {
+    // S-09: o socket é 0660 (dono nosd:grupo nosd). A autorização continua a
+    // ser SO_PEERCRED + caps, mas fechar o modo evita que "outros" escrevam
+    // no socket de um daemon que corre com privilégios largos.
+    if let Some(dir) = std::path::Path::new(&path).parent() {
+        std::fs::create_dir_all(dir)?;
+    }
     let listener = tokio::net::UnixListener::bind(&path)?;
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o660))
+            .map_err(|e| anyhow::anyhow!("S-09: chmod 0660 {path}: {e}"))?;
+    }
     loop {
         if state.shutting_down.load(Ordering::Relaxed) {
             break;

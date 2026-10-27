@@ -3,6 +3,17 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.6] — 2026-10-27 (S-08/S-09 hardening)
+
+### Security
+
+- **S-09 socket `0660`:** `serve_unix` faz `chmod 0660` após o bind e aborta se
+  falhar. Só `nosd` e o grupo `nosd` ligam ao IPC (auth continua `SO_PEERCRED`
+  + caps).
+- **S-08 regressões:** socket 0660, métier desconhecido fail-closed, admin sem
+  token negado, frame com tamanho `u32::MAX` rejeitado, `DENY_UNKNOWN` para
+  método não listado.
+
 ## [0.6.0-alpha.5] — 2026-10-27 (Boot→firstboot→JARBAS headless)
 
 ### Fixed

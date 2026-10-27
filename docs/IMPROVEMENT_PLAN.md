@@ -28,6 +28,7 @@
 | S-03 `security.rotate` + revogação | **feito** | `rpc/security.rs`, teste de rotação |
 | S-05: HTTP lab off por default; `/rpc` com token, sem CORS, 400/401/403/415 | **feito** | `main.rs`, `rpc/http_lab.rs`, `jarbas-cage.nix` |
 | S-06 ring Nix desarmado (`NOSD_NIX_RING` opt-in) | **feito** | `rpc/nix_wifi.rs`, `ipc_auth.rs` |
+| S-09 socket IPC `0660` | **feito** | `serve_unix` chmod 0660 + teste `unix_socket_is_0660` |
 | Token-first no Unix (CLI/admin) + sudo no transmute do ISO | **feito** | `authenticate`, `transmute-stage.nix` |
 | Q-10 testes determinísticos (S1/memória) | **feito** | 10/10 `nos-core`, 5/5 `nos-memory` |
 | Q-01 fmt + clippy + Slint feature | **feito** | `cargo fmt --check`, `clippy --all-features`, `cargo check -p nos-jarbas --features slint-ui` |
@@ -40,7 +41,7 @@
 | Boot→firstboot→JARBAS headless (QEMU) | **OBSERVED** | firstboot auto, transmute OK, hotswap DONE, cage active; `evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md` |
 | firstboot em ttyS0/hvc | **feito** | gatilhos `ttyS*`/`hvc*`; `firstbootAuto` na ISO |
 | S-07 fetch sanitization + cap + magic | **feito** | `nos-cortex/src/fetch.rs`, testes |
-| S-08 suíte de regressão | **em curso** | `ipc_auth` + unit tests HTTP/grant/fetch |
+| S-08 suíte de regressão | **feito** | `ipc_auth` (10-11) + `nos-ipc` (3) + HTTP/grant/fetch |
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
 | R-05 NixOS VM test | **feito** | `checks.x86_64-linux.nixaios-vm` (health + chat, 61s) |
 | Q-03 CI GitHub | **criado** | `.github/workflows/ci.yml`; primeira execução no GitHub |

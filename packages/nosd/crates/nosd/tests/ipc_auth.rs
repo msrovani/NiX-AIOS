@@ -458,3 +458,41 @@ fn rotate_revokes_old_token() {
     let fresh = rpc(&daemon, Some(&new_token), "health", json!({}));
     assert_eq!(fresh["ok"], true, "new token must work: {fresh}");
 }
+
+// ---- S-08/S-09: regressoes de endurecimento ------------------------------
+
+#[cfg(unix)]
+#[test]
+fn unix_socket_is_0660() {
+    use std::os::unix::fs::PermissionsExt;
+    let _serial = serial();
+    let daemon = start_unix();
+    let sock = daemon.socket.as_ref().expect("socket unix");
+    let mode = std::fs::metadata(sock)
+        .expect("stat socket")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o660, "S-09: socket deve ser 0660 (foi {mode:o})");
+}
+
+#[test]
+fn unknown_method_is_denied_not_ignored() {
+    let _serial = serial();
+    let daemon = start();
+    // Fail-closed: um metodo inexistente nao pode devolver ok=true.
+    let r = rpc(&daemon, Some(&daemon.token), "nao.existe", json!({}));
+    assert_eq!(r["ok"], false, "unknown method must fail closed: {r}");
+}
+
+#[test]
+fn admin_method_requires_token() {
+    let _serial = serial();
+    let daemon = start();
+    // `security.rotate` e admin: sem token TCP tem de ser negado antes do efeito.
+    let r = rpc(&daemon, None, "security.rotate", json!({}));
+    assert_eq!(r["ok"], false, "admin sem token: {r}");
+    // E o token antigo continua a funcionar (nada rodou).
+    let h = rpc(&daemon, Some(&daemon.token), "health", json!({}));
+    assert_eq!(h["ok"], true, "{h}");
+}

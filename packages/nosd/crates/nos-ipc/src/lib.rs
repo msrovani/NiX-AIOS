@@ -134,4 +134,26 @@ mod tests {
         let back: Request = decode_body(&body).unwrap();
         assert_eq!(back.method, "health");
     }
+
+    #[test]
+    fn rejects_oversized_frame() {
+        // 0xFFFFFFFF (u32::MAX) nao pode ser aceite como tamanho de frame.
+        let buf = [0xffu8, 0xff, 0xff, 0xff];
+        assert!(matches!(take_frame(&buf), Err(IpcError::TooLarge)));
+    }
+
+    #[test]
+    fn unknown_method_is_deny_unknown() {
+        // Fail-closed: metodo nao listado nunca herda caps.
+        let req = Request {
+            id: 1,
+            method: "nao.existe".into(),
+            caps: 0,
+            cap_gen: 0,
+            agent: String::new(),
+            token: None,
+            params: serde_json::json!({}),
+        };
+        assert_eq!(req.required_cap(), CapBits::DENY_UNKNOWN);
+    }
 }

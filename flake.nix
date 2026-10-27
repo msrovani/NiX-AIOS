@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.5";
+            version = "0.6.0-alpha.6";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".
@@ -182,6 +182,8 @@
               machine.wait_for_file("/run/nosd/nosd.sock")
               nosctl = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
               machine.succeed(nosctl + " health")
+              # S-09: socket IPC 0660 (dono nosd:grupo nosd).
+              machine.succeed("test \"$(stat -c %a /run/nosd/nosd.sock)\" = 660")
               machine.succeed(nosctl + " health | grep -q 'llama-server-http'")
               machine.succeed(nosctl + " chat 'Once upon a time' | grep -q '\"text\"'")
               machine.succeed(nosctl + " unload")
