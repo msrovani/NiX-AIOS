@@ -31,9 +31,21 @@ let
     if [ ! -f "$REQ" ]; then
       exit 0
     fi
+    # S-06/S-04: ring desarmado por omissao. O pedido vive num diretorio
+    # world-writable, por isso o helper NAO pode confiar so no ficheiro.
+    if [ "''${NOSD_NIX_RING:-0}" != "1" ]; then
+      log "ring Nix desarmado (NOSD_NIX_RING != 1) - pedido ignorado"
+      rm -f "$REQ"
+      exit 0
+    fi
+    exec 9>"$DATA/nix-apply.lock"
+    if ! ${pkgs.util-linux}/bin/flock -n 9; then
+      log "apply ja em curso (lock) - a sair"
+      exit 0
+    fi
     staging=$(grep '^staging=' "$REQ" | head -1 | cut -d= -f2-)
-    target=$(grep '^target=' "$REQ" | head -1 | cut -d= -f2-)
-    target="''${target:-/etc/nixos/ai-managed.nix}"
+    # R-04: target e FIXO; nunca vem do pedido.
+    target=/etc/nixos/ai-managed.nix
     if [ -z "$staging" ] || [ ! -f "$staging" ]; then
       log "FAIL missing staging"
       rm -f "$REQ"
@@ -44,6 +56,14 @@ let
       rm -f "$REQ"
       exit 1
     fi
+    case "$staging" in
+      "$DATA"/*) ;;
+      *)
+        log "FAIL staging fora de $DATA ($staging) - recusado"
+        rm -f "$REQ"
+        exit 1
+        ;;
+    esac
     mkdir -p "$(dirname "$target")"
     cp -f "$staging" "$target"
     chmod 0640 "$target" || true
@@ -59,7 +79,7 @@ let
         fi
         log "build-vm OK"
       fi
-      if nixos-rebuild switch 2>&1 | tee -a "$LOG_LOCAL"; then
+      if ${pkgs.coreutils}/bin/timeout 900 nixos-rebuild switch 2>&1 | tee -a "$LOG_LOCAL"; then
         log "switch OK"
         write_generation
       else
@@ -82,9 +102,16 @@ let
     if [ ! -f "$REQ" ]; then
       exit 0
     fi
+    # S-06: rollback tambem so com o ring armado (senao um user em
+    # /var/lib/nosd 1777 podia forcar geracoes antigas).
+    if [ "''${NOSD_NIX_RING:-0}" != "1" ]; then
+      log "ring Nix desarmado (NOSD_NIX_RING != 1) - rollback ignorado"
+      rm -f "$REQ"
+      exit 0
+    fi
     log "rollback requested"
     if command -v nixos-rebuild >/dev/null 2>&1; then
-      if nixos-rebuild --rollback 2>&1 | tee -a "$LOG_LOCAL"; then
+      if ${pkgs.coreutils}/bin/timeout 600 nixos-rebuild --rollback 2>&1 | tee -a "$LOG_LOCAL"; then
         log "rollback OK"
       else
         log "rollback FAIL"
@@ -116,6 +143,16 @@ in
       default = true;
       description = "Export NOSD_NIX_REQUIRE_HITL=1 — Cortex must confirm before apply request";
     };
+    armRing = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Arma o ring Nix (S-06): exporta NOSD_NIX_RING=1 para os helpers root
+        `nosd-nix-apply`/`nosd-nix-rollback`. Enquanto false, os helpers
+        ignoram pedidos: /var/lib/nosd e world-writable na ISO e qualquer
+        user poderia escrever um pedido. So ligar com S-04 + R-03/R-04 verdes.
+      '';
+    };
     buildVmFirst = lib.mkOption {
       type = lib.types.bool;
       # NX.1 aceite: build-vm antes de switch em prod; lab pode desligar.
@@ -137,7 +174,8 @@ in
       description = "Apply nosd staging → ai-managed.nix + nixos-rebuild switch";
       after = [ "local-fs.target" "nosd.service" ];
       # R-01: nixos-rebuild/mountpoint não estão no defaultPath.
-      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
+      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux pkgs.coreutils ];
+      environment = lib.optionalAttrs cfg.armRing { NOSD_NIX_RING = "1"; };
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${applyScript}";
@@ -156,7 +194,8 @@ in
 
     systemd.services.nosd-nix-rollback = {
       description = "nixos-rebuild --rollback when nix-rollback.request exists";
-      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux ];
+      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux pkgs.coreutils ];
+      environment = lib.optionalAttrs cfg.armRing { NOSD_NIX_RING = "1"; };
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${rollbackScript}";

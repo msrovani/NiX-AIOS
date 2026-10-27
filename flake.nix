@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.6";
+            version = "0.6.0-alpha.7";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".
@@ -151,7 +151,15 @@
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
             nodes.machine = { lib, ... }: {
-              imports = [ self.nixosModules.neural-os ];
+              imports = [
+                self.nixosModules.neural-os
+                self.nixosModules.cortex-nix-ring
+              ];
+              # S-06/R-04: ring module presente mas DESARMADO (armRing=false).
+              services.nosdNixRing = {
+                enable = true;
+                autoSwitch = false;
+              };
               services.nosd = {
                 enable = true;
                 package = self.packages.${system}.nosd;
@@ -196,6 +204,13 @@
               # voice-stt real (whisper tiny) é manual/QEMU: ~23 min em TCG.
               machine.succeed(nosctl + " voice-tts --no-play hello > /tmp/voice-tts.json")
               machine.succeed("grep -q wav_b64 /tmp/voice-tts.json")
+              # S-06/R-04: com o ring desarmado (default), um pedido de apply
+              # posto por qualquer user em /var/lib/nosd (1777 na ISO) tem de
+              # ser ignorado: nada escrito em /etc/nixos e pedido removido.
+              machine.succeed("echo 'staging=/var/lib/nosd/pwn.nix' > /var/lib/nosd/nix-apply.request")
+              machine.succeed("systemctl start nosd-nix-apply.service || true")
+              machine.succeed("test ! -e /etc/nixos/ai-managed.nix")
+              machine.succeed("test ! -e /var/lib/nosd/nix-apply.request")
             '';
           };
         });

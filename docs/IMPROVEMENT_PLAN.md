@@ -28,6 +28,8 @@
 | S-03 `security.rotate` + revogação | **feito** | `rpc/security.rs`, teste de rotação |
 | S-05: HTTP lab off por default; `/rpc` com token, sem CORS, 400/401/403/415 | **feito** | `main.rs`, `rpc/http_lab.rs`, `jarbas-cage.nix` |
 | S-06 ring Nix desarmado (`NOSD_NIX_RING` opt-in) | **feito** | `rpc/nix_wifi.rs`, `ipc_auth.rs` |
+| R-03 decisao do ring | **feito** | ADR `adr-addenda/0118-nix-ring-decision.md`: desarmado |
+| R-04 helper root fail-closed | **parcial** | kill switch + target fixo + staging confinado + flock/timeout; falta teste apply/rollback |
 | S-09 socket IPC `0660` | **feito** | `serve_unix` chmod 0660 + teste `unix_socket_is_0660` |
 | Token-first no Unix (CLI/admin) + sudo no transmute do ISO | **feito** | `authenticate`, `transmute-stage.nix` |
 | Q-10 testes determinísticos (S1/memória) | **feito** | 10/10 `nos-core`, 5/5 `nos-memory` |

@@ -10,7 +10,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.6.0-alpha.6** (`v0.6.0-alpha.6`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.6.0-alpha.7** (`v0.6.0-alpha.7`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -83,7 +83,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **S-08/S-09** suite de seguranca + socket 0660: feito (alpha.6).
 - **E-01/E-02/E-04** engine persistente/lock/GGUF: e2e VM com tiny GGUF PASS.
 - **M-01** seg.bin fsync/cap: feito.
-- **R-03/R-04** `ai-managed` import + helper root: ring desarmado.
+- **R-03/R-04** ring Nix: **decisao = desarmado** (armRing=false); helper root
+  recusa pedidos sem NOSD_NIX_RING=1, target fixo, staging confinado, lock,
+  timeout. So ligar com S-04 completo + ADR.
 - **R-09** ISO 051/QEMU: OBSERVED (0.5.6).
 - **R-05** NixOS VM test: feito (`checks.x86_64-linux.nixaios-vm`).
 - **Q-03** CI Nix/VM: criado; validar no GitHub.
@@ -92,6 +94,6 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   GL/iGPU real, VT/teclado fisicos e metal = AWAITING_HW.
 - **M4/M5**: AWAITING_HW.
 
-## Evidência 0.6.0-alpha.6
+## Evidência 0.6.0-alpha.7
 
-`docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.
+`docs/RELEASE_0.6.0-alpha.7.md`, `docs/evidence/NIX_RING_0.6.0-alpha.7.md`, `docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.

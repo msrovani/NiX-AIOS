@@ -34,6 +34,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.6.0-alpha.6 S-08/S-09 hardening (2026-10-27):** socket Unix passa a 0660 (chmod apos bind, aborta se falhar) e suite de regressao alargada: socket 0660, metodo desconhecido fail-closed, admin sem token negado, frame u32::MAX -> TooLarge, required_cap -> DENY_UNKNOWN. Sem features novas. Evidencia: `cargo test --workspace`, `nix build .#iso` (tests em Linux), gate MQEMU. Ring continua desarmado; S-04 legacy e M4/M5 pendentes.
 
+**0.6.0-alpha.7 Ring Nix: decisao desarmado (2026-10-27):** R-03 decisao escrita (ADR addendum 0118-nix-ring-decision): ring fica OFF (armRing=false); religar so com S-04 completo + teste VM apply/rollback + ADR. R-04: o helper root deixou de confiar no pedido - kill switch NOSD_NIX_RING=1, target fixo /etc/nixos/ai-managed.nix, staging confinado ao dataDir, flock, timeout 900/600, PATH com coreutils. VM test prova que um pedido forjado em /var/lib/nosd (1777) e ignorado. Evidencia: `docs/evidence/NIX_RING_0.6.0-alpha.7.md`. R-03/R-04 NAO estao verdes.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---
