@@ -199,7 +199,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "transmute.run" => {
-            if !super::hitl_grant_ok(state, gate, &req, "transmute") {
+            if !super::hitl_grant_ok(state, &req, "transmute") {
                 return Some(Response {
                     id: req.id,
                     ok: false,

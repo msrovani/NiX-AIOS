@@ -30,7 +30,7 @@ caminho root sem autenticação” proíbe.
 ## Critérios para religar (armRing = true)
 
 - S-04 completo: grants server-authored em **todos** os caminhos admin, sem
-  `hitl_confirmed` legacy.
+  `hitl_confirmed` legacy — **cumprido em 0.6.0-alpha.8**.
 - R-03/R-04 verdes: teste VM que muda `networking.hostName`, aplica, verifica
   e faz rollback, com `build-vm` antes do switch.
 - `docs/SECURITY.md` com o fluxo, o kill switch e o procedimento de incidente.

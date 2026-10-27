@@ -14,8 +14,8 @@ pub use http_lab::serve_orb_lab;
 use crate::{actuators, nix_managed, transmute, wifi_nm};
 use nos_core::{
     disposition, lab_auto_switch_from_env, note_violation, s1_backend_label, ActDisposition,
-    ActDomain, CapBits, CapGate, CapRegistry, NosScore, PeerProfile, SafetyViolation, Sev,
-    UiSource, WindowSpec,
+    ActDomain, CapBits, CapRegistry, NosScore, PeerProfile, SafetyViolation, Sev, UiSource,
+    WindowSpec,
 };
 use nos_cortex::CapacityProber;
 use nos_factory::{ImportMeta, ImportProvenance, PackageStore, SandboxStatus, StoreError};
@@ -103,14 +103,32 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// S-04: aceita `confirm_id` server-authored; `hitl_confirmed` só como
-/// compatibilidade de LocalAdmin (root/token). Jarbas/LocalUser nunca usa bool.
-fn hitl_grant_ok(state: &AppState, gate: &CapGate, req: &Request, kind: &str) -> bool {
-    if let Some(id) = req.params.get("confirm_id").and_then(|v| v.as_str()) {
-        return state.hitl.consume(id, kind);
+/// S-04: HITL é **server-authored**. A única prova aceita é um `confirm_id`
+/// emitido por `ui.action` sobre uma janela aberta pelo servidor (kind-bound,
+/// single-use, TTL). `hitl_confirmed` do cliente é **ignorado** — nem root o
+/// transforma em consentimento (root já tem NIX_WRITE, mas não HITL).
+fn hitl_grant_ok(state: &AppState, req: &Request, kind: &str) -> bool {
+    match req.params.get("confirm_id").and_then(|v| v.as_str()) {
+        Some(id) => state.hitl.consume(id, kind),
+        None => false,
     }
-    gate.held.0 == CapBits::LEGIT_MASK
-        && req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) == Some(true)
+}
+
+/// Kind de grant por domínio de política (o mesmo usado pelos handlers).
+fn grant_kind_for(dom: ActDomain) -> &'static str {
+    match dom {
+        ActDomain::NixSwitch | ActDomain::NixRollback | ActDomain::NixPropose => "nix.apply",
+        ActDomain::WifiConnect => "wifi.connect",
+        ActDomain::FactorySeekInstall => "factory.install",
+        ActDomain::ModelFetch => "blob.fetch",
+        ActDomain::DeviceFirmware => "firmware.fetch",
+        ActDomain::SystemctlScoped => "systemctl",
+        ActDomain::PipeWireVolume => "pipewire.volume",
+        ActDomain::GpuPowerLimit => "gpu.power",
+        ActDomain::Repartition => "repartition",
+        ActDomain::MeshSkillSyncExec => "mesh.skill",
+        _ => "act",
+    }
 }
 
 /// Estado do token TCP/HTTP. A rotação invalida tokens antigos.
@@ -460,7 +478,7 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         let blob_domain = matches!(dom, ActDomain::ModelFetch | ActDomain::DeviceFirmware);
         if disp == ActDisposition::Escalate
             && !blob_domain
-            && req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) != Some(true)
+            && !hitl_grant_ok(state, &req, grant_kind_for(dom))
         {
             return Response {
                 id: req.id,
@@ -476,7 +494,7 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
                 dom,
                 ActDomain::NixSwitch | ActDomain::WifiConnect | ActDomain::FactorySeekInstall
             )
-            && req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) != Some(true)
+            && !hitl_grant_ok(state, &req, grant_kind_for(dom))
             && !(lab && matches!(dom, ActDomain::NixSwitch))
         {
             return Response {

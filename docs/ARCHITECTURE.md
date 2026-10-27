@@ -1,4 +1,4 @@
-# Arquitectura — NixAIOS 0.6.0-alpha.7
+# Arquitectura — NixAIOS 0.6.0-alpha.8
 
 ## Posicionamento
 

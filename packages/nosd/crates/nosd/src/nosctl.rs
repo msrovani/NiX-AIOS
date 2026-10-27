@@ -40,7 +40,7 @@ enum Cmd {
         limit: u32,
     },
     /// HTTPS / HF resolve → /var/lib/nosd/models (CapGate NET|FS).
-    /// Requer deliberação Cortex/Hermes + `--confirm` (JARBAS HITL) para download.
+    /// Requer deliberação Cortex/Hermes + grant (`--confirm-id`) para download.
     Fetch {
         #[arg(long)]
         url: Option<String>,
@@ -50,10 +50,8 @@ enum Cmd {
         file: Option<String>,
         #[arg(long)]
         filename: Option<String>,
-        /// Compatibilidade admin: confirmação HITL (LocalAdmin).
-        #[arg(long)]
-        confirm: bool,
         /// Grant server-authored de `ui.action` (kind=blob.fetch).
+        /// Obtenha com: nosctl consent blob.fetch
         #[arg(long)]
         confirm_id: Option<String>,
         #[arg(long, default_value_t = 500)]
@@ -148,10 +146,19 @@ enum Cmd {
     NixPropose {
         nix: String,
     },
-    /// Arma apply root (nosd-nix-apply.service). Exige `--confirm` (admin).
-    NixApply {
+    /// S-04: pede um grant HITL em texto (abre a janela + submete).
+    /// Imprime {"result":{"confirm_id":"..."}} para usar em --confirm-id.
+    Consent {
+        /// Ex.: transmute, blob.fetch, nix.apply, wifi.connect, self.heal.
+        kind: String,
         #[arg(long)]
-        confirm: bool,
+        title: Option<String>,
+    },
+    /// Arma apply root (nosd-nix-apply.service). Exige grant (--confirm-id).
+    NixApply {
+        /// Grant server-authored (kind=nix.apply). Ver `nosctl consent nix.apply`.
+        #[arg(long)]
+        confirm_id: Option<String>,
     },
     /// Rotaciona token TCP/HTTP + geração (LocalAdmin). Devolve o novo token.
     #[command(name = "security-rotate")]
@@ -163,9 +170,9 @@ enum Cmd {
         ssid: String,
         #[arg(long, default_value = "")]
         password: String,
-        /// Confirmação HITL (admin). Em JARBAS use ui.action/confirm_id.
+        /// Grant server-authored (kind=wifi.connect). Ver `nosctl consent wifi.connect`.
         #[arg(long)]
-        confirm: bool,
+        confirm_id: Option<String>,
     },
     /// Estado STT (Whisper) + TTS (Piper/Espeak) + idioma detectado.
     #[command(name = "voice-status")]
@@ -204,9 +211,9 @@ enum Cmd {
         no_hotswap: bool,
         #[arg(long)]
         locale: Option<String>,
-        /// JARBAS Confirm obrigatório se for descarregar blobs externos.
+        /// Grant server-authored (kind=transmute). Ver `nosctl consent transmute`.
         #[arg(long)]
-        confirm: bool,
+        confirm_id: Option<String>,
     },
 }
 
@@ -214,6 +221,8 @@ enum Cmd {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let (method, params, caps) = match &args.cmd {
+        // Consent precisa de 2 RPCs: tratado antes deste match.
+        Cmd::Consent { .. } => ("consent.noop", serde_json::json!({}), 0),
         Cmd::Health => ("health", serde_json::json!({}), 0u32),
         Cmd::Score => ("score", serde_json::json!({}), 0),
         Cmd::Observe => ("observe.snapshot", serde_json::json!({}), 0),
@@ -230,14 +239,10 @@ async fn main() -> anyhow::Result<()> {
             repo,
             file,
             filename,
-            confirm,
             confirm_id,
             estimated_mb,
         } => {
-            let mut p = serde_json::json!({
-                "hitl_confirmed": confirm,
-                "estimated_mb": estimated_mb,
-            });
+            let mut p = serde_json::json!({ "estimated_mb": estimated_mb });
             if let Some(id) = confirm_id {
                 p["confirm_id"] = serde_json::json!(id);
             }
@@ -352,9 +357,9 @@ async fn main() -> anyhow::Result<()> {
             serde_json::json!({ "nix": nix }),
             1 << 5, // NIX_WRITE
         ),
-        Cmd::NixApply { confirm } => (
+        Cmd::NixApply { confirm_id } => (
             "nix.apply",
-            serde_json::json!({ "hitl_confirmed": confirm }),
+            serde_json::json!({ "confirm_id": confirm_id }),
             1 << 5,
         ),
         Cmd::SecurityRotate => (
@@ -366,13 +371,13 @@ async fn main() -> anyhow::Result<()> {
         Cmd::WifiConnect {
             ssid,
             password,
-            confirm,
+            confirm_id,
         } => (
             "wifi.connect",
             serde_json::json!({
                 "ssid": ssid,
                 "password": password,
-                "hitl_confirmed": confirm,
+                "confirm_id": confirm_id,
             }),
             1 << 6, // HITL
         ),
@@ -403,7 +408,7 @@ async fn main() -> anyhow::Result<()> {
             no_download,
             no_hotswap,
             locale,
-            confirm,
+            confirm_id,
         } => (
             "transmute.run",
             serde_json::json!({
@@ -411,7 +416,7 @@ async fn main() -> anyhow::Result<()> {
                 "speak_greeting": true,
                 "hotswap_now": !no_hotswap,
                 "locale_override": locale,
-                "hitl_confirmed": confirm,
+                "confirm_id": confirm_id,
             }),
             (1 << 1) | (1 << 2) | (1 << 5), // NET | FS | NIX_WRITE
         ),
@@ -424,6 +429,43 @@ async fn main() -> anyhow::Result<()> {
             "nosctl: TCP requires --token/--token-file (or NOSD_IPC_TOKEN/NOSD_IPC_TOKEN_FILE)"
         );
         std::process::exit(2);
+    }
+
+    // S-04 (texto): abre a janela HITL no servidor e submete-a. O confirm_id
+    // e emitido pelo SERVIDOR (kind-bound, single-use, TTL). O cliente nunca
+    // manda um booleano de consentimento.
+    if let Cmd::Consent { kind, title } = &args.cmd {
+        let mut p = serde_json::json!({
+            "kind": "hitl_confirm",
+            "source": "hermes",
+            "grant_kind": kind,
+        });
+        if let Some(t) = title {
+            p["title"] = serde_json::json!(t);
+        }
+        let opened = rpc_call(&args, token.clone(), "ui.open", p, 0).await?;
+        if !opened.ok {
+            print_json(&opened)?;
+            std::process::exit(1);
+        }
+        let wid = opened
+            .result
+            .get("id")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let acted = rpc_call(
+            &args,
+            token.clone(),
+            "ui.action",
+            serde_json::json!({ "window_id": wid, "action": "submit", "values": {} }),
+            1 << 6,
+        )
+        .await?;
+        print_json(&acted)?;
+        if !acted.ok {
+            std::process::exit(1);
+        }
+        return Ok(());
     }
 
     let req = Request {
@@ -455,11 +497,63 @@ async fn main() -> anyhow::Result<()> {
             read_resp(&mut s).await?
         }
     };
-    println!("{}", serde_json::to_string_pretty(&resp)?);
+    print_json(&resp)?;
     if !resp.ok {
         std::process::exit(1);
     }
     Ok(())
+}
+
+/// Escreve a resposta JSON. `BrokenPipe` (grep -q/head/less) nao e erro:
+/// sem isto o `println!` entra em panico e o comando sai com 101.
+fn print_json(v: &impl serde::Serialize) -> anyhow::Result<()> {
+    use std::io::Write;
+    let s = serde_json::to_string_pretty(v)?;
+    let mut out = std::io::stdout().lock();
+    let r = out
+        .write_all(s.as_bytes())
+        .and_then(|_| out.write_all(b"\n"));
+    match r {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+async fn rpc_call(
+    args: &Args,
+    token: Option<String>,
+    method: &str,
+    params: serde_json::Value,
+    caps: u32,
+) -> anyhow::Result<Response> {
+    let req = Request {
+        id: 1,
+        method: method.into(),
+        caps,
+        cap_gen: 1,
+        agent: "nosctl".into(),
+        token,
+        params,
+    };
+    let enc = encode(&req)?;
+    if let Some(addr) = &args.tcp {
+        let mut s = tokio::net::TcpStream::connect(addr).await?;
+        s.write_all(&enc).await?;
+        return read_resp(&mut s).await;
+    }
+    #[cfg(unix)]
+    {
+        let mut s = tokio::net::UnixStream::connect(&args.socket).await?;
+        s.write_all(&enc).await?;
+        read_resp(&mut s).await
+    }
+    #[cfg(not(unix))]
+    {
+        let mut s = tokio::net::TcpStream::connect("127.0.0.1:7700").await?;
+        s.write_all(&enc).await?;
+        read_resp(&mut s).await
+    }
 }
 
 fn load_token(explicit: Option<String>, file: Option<PathBuf>) -> Option<String> {

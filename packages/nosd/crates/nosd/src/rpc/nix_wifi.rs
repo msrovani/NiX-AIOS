@@ -62,7 +62,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
         }
         "nix.apply" | "nix.confirm" => {
             // S-04: apply root exige grant server-authored, não booleano do cliente.
-            if !super::hitl_grant_ok(state, gate, &req, "nix.apply") {
+            if !super::hitl_grant_ok(state, &req, "nix.apply") {
                 return Some(Response {
                     id: req.id,
                     ok: false,
@@ -103,7 +103,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "nix.build_vm" => {
-            if !super::hitl_grant_ok(state, gate, &req, "nix.build_vm") {
+            if !super::hitl_grant_ok(state, &req, "nix.build_vm") {
                 return Some(Response {
                     id: req.id,
                     ok: false,
@@ -150,7 +150,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("verb")
                 .and_then(|v| v.as_str())
                 .unwrap_or("status");
-            let hitl = super::hitl_grant_ok(state, gate, &req, "systemctl");
+            let hitl = super::hitl_grant_ok(state, &req, "systemctl");
             match actuators::systemctl_scoped(gate, state.ipc_generation(), unit, verb, hitl) {
                 Ok(intent) => {
                     let ran = if intent.would_run {
@@ -296,7 +296,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .unwrap_or("")
                     .into(),
             };
-            let hitl = super::hitl_grant_ok(state, gate, &req, "self.heal");
+            let hitl = super::hitl_grant_ok(state, &req, "self.heal");
             if !hitl {
                 return Some(Response {
                     id: req.id,
@@ -370,7 +370,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             },
         },
         "wifi.connect" => {
-            if !super::hitl_grant_ok(state, gate, &req, "wifi.connect") {
+            if !super::hitl_grant_ok(state, &req, "wifi.connect") {
                 return Some(Response {
                     id: req.id,
                     ok: false,

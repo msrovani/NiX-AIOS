@@ -133,6 +133,30 @@ fn rpc(daemon: &Daemon, token: Option<&str>, method: &str, params: Value) -> Val
     rpc_with(daemon, token, None, method, params)
 }
 
+/// S-04: obtem um grant server-authored (ui.open + ui.action).
+fn grant(daemon: &Daemon, kind: &str) -> String {
+    let token = daemon.token.clone();
+    let opened = rpc(
+        daemon,
+        Some(&token),
+        "ui.open",
+        json!({ "kind": "hitl_confirm", "title": kind, "grant_kind": kind }),
+    );
+    assert_eq!(opened["ok"], true, "{opened}");
+    let wid = opened["result"]["id"].as_u64().expect("window id");
+    let acted = rpc(
+        daemon,
+        Some(&token),
+        "ui.action",
+        json!({ "window_id": wid, "action": "submit", "values": {} }),
+    );
+    assert_eq!(acted["ok"], true, "{acted}");
+    acted["result"]["confirm_id"]
+        .as_str()
+        .expect("confirm_id")
+        .to_string()
+}
+
 #[test]
 fn tcp_without_token_is_denied() {
     let _serial = serial();
@@ -308,11 +332,13 @@ fn wifi_requires_hitl_grant_without_admin_legacy() {
 fn nix_ring_is_disarmed_by_default() {
     let _serial = serial();
     let daemon = start();
+    // Com grant valido (S-04), o unico motivo de recusa e o ring desarmado.
+    let cid = grant(&daemon, "nix.apply");
     let r = rpc(
         &daemon,
         Some(&daemon.token),
         "nix.apply",
-        json!({ "hitl_confirmed": true }),
+        json!({ "confirm_id": cid }),
     );
     assert_eq!(r["ok"], false, "nix.apply must be disarmed: {r}");
     let err = r["error"].as_str().unwrap_or("");
@@ -495,4 +521,44 @@ fn admin_method_requires_token() {
     // E o token antigo continua a funcionar (nada rodou).
     let h = rpc(&daemon, Some(&daemon.token), "health", json!({}));
     assert_eq!(h["ok"], true, "{h}");
+}
+
+#[test]
+fn client_hitl_boolean_is_never_consent() {
+    let _serial = serial();
+    let daemon = start();
+    // S-04: root/token continua a ser LocalAdmin (tem NIX_WRITE) mas um
+    // booleano `hitl_confirmed` do cliente NAO e HITL.
+    let r = rpc(
+        &daemon,
+        Some(&daemon.token),
+        "transmute.run",
+        json!({
+            "download_models": false,
+            "speak_greeting": false,
+            "hotswap_now": false,
+            "hitl_confirmed": true,
+        }),
+    );
+    assert_eq!(r["ok"], false, "client boolean must not authorize: {r}");
+    let err = r["error"].as_str().unwrap_or("");
+    assert!(
+        err.contains("HITL") || err.contains("SITE_POLICY"),
+        "deve falhar no HITL, nao no efeito: {r}"
+    );
+
+    // E um grant de outro kind tambem nao serve (kind-bound).
+    let wrong = grant(&daemon, "wifi.connect");
+    let r2 = rpc(
+        &daemon,
+        Some(&daemon.token),
+        "transmute.run",
+        json!({
+            "download_models": false,
+            "speak_greeting": false,
+            "hotswap_now": false,
+            "confirm_id": wrong,
+        }),
+    );
+    assert_eq!(r2["ok"], false, "wrong-kind grant must be denied: {r2}");
 }

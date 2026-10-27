@@ -38,6 +38,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **M5 lab: mesh 2-VM (2026-10-27):** novo check `checks.x86_64-linux.mesh-2vm` (dois NixOS, VLAN 1, UDP 19000): `mesh_peers==1` nos dois nos, HB com PK (TOFU pk-bound) e eleicao stub (menor id=Master, outro Worker). TOFU settle 7.2s coberto por `nos-mesh::tofu_settles_after_window`. Sem alteracao de produto (ISO alpha.7). CRDT/SkillSync wire continua residual ("CRDT NOT_DONE" em fleet.health). Evidencia: `docs/evidence/MESH_2VM_0.6.0-alpha.7.md`. M4/M5 metal seguem AWAITING_HW.
 
+**0.6.0-alpha.8 S-04 fechado (2026-10-27):** `hitl_confirmed` deixa de autorizar - nem root/token; a unica prova e `confirm_id` server-authored (ui.open + ui.action, single-use, kind-bound, TTL 5min). Gate SITE_POLICY passa a exigir grant por dominio; nosctl perde `--confirm` e ganha `consent <kind>`; firstboot obtem grant e usa `--confirm-id`. Prova na ISO: firstboot -> grant -> transmute RPC OK -> hotswap -> HUD; e dois negativos (sem grant e grant bogus) recusados no HITL mesmo como root. Bug extra corrigido: nosctl entrava em panico com EPIPE (grep -q/head). Evidencia: `docs/evidence/HITL_0.6.0-alpha.8.md`. Ring continua desarmado.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

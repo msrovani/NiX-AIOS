@@ -45,7 +45,8 @@ Uma janela HITL (`ui.open`/`ui.card`) com `grant_kind` (ex.: `self.heal`,
 
 A ação destrutiva correspondente deve enviar `confirm_id` no `params`. O grant é
 single-use, kind-bound e expira em 5 min; replay/kind errado = deny.
-`hitl_confirmed` é legado e só funciona para `LocalAdmin` (root/token).
+**`hitl_confirmed` é ignorado** (S-04 fechado): nem root/token transforma um
+booleano do cliente em consentimento. Em texto: `nosctl consent <kind>`.
 
 ## CLI (`nosctl`)
 
@@ -103,10 +104,11 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 | Comando | Método | Notas |
 |---------|--------|-------|
 | `nix-propose` | `nix.propose` | staging |
-| `nix-apply --confirm` | `nix.apply` | NIX_WRITE + helper root; ring desarmado por default |
-| `wifi-scan` / `wifi-connect --confirm` | `wifi.*` | HITL; `confirm_id` em JARBAS |
+| `consent <kind>` | `ui.open`+`ui.action` | emite `confirm_id` (server-authored) |
+| `nix-apply --confirm-id` | `nix.apply` | NIX_WRITE + helper root; ring desarmado |
+| `wifi-scan` / `wifi-connect --confirm-id` | `wifi.*` | HITL por grant |
 | `transmute-status` | `transmute.status` | |
-| `transmute [--confirm] [--no-download] [--locale]` | `transmute.run` | NET\|FS\|NIX_WRITE; HITL obrigatório p/ download |
+| `transmute --confirm-id [--no-download] [--locale]` | `transmute.run` | NET\|FS\|NIX_WRITE; HITL por grant |
 
 `nix.propose` é **fail-closed**: sem `nix-instantiate` no PATH devolve
 `syntax_ok:false` (não há “structural OK”). `nix.apply`/`confirm`/`build-vm`/

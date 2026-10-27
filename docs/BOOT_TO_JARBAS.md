@@ -106,7 +106,7 @@ Anti-alucinação: UI completed ≠ aceite; `cargo test` ≠ metal; `cpu-echo` �
 |--|--|
 | GOAL | Rede/idioma/teclado/fuso; persist; neural quieto |
 | SEEK | `firstboot.step|done|partial`; `network.conf`; `locale.conf`; `host-configuration.nix` |
-| OK | Q1–Q4 gravados; Q5 transmute `--confirm` (download fail tolerado se cage sobe) |
+| OK | Q1–Q4 gravados; Q5 grant (`nosctl consent transmute`) + `transmute --confirm-id` (download fail tolerado se cage sobe) |
 | LOST | EACCES silent; abort sem partial; `gui_failed` permanente |
 | refs | #707 firstboot path |
 

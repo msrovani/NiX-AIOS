@@ -3,6 +3,22 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.8] — 2026-10-27 (S-04 fechado: HITL só por grant)
+
+### Security
+
+- **`hitl_confirmed` é ignorado no wire.** A única prova é `confirm_id`
+  server-authored (janela `hitl_confirm` + `ui.action`, single-use,
+  kind-bound, TTL 5 min). Nem root/token o converte em consentimento.
+- O gate `SITE_POLICY` (escalate/confirm) passou a exigir grant por
+  domínio (`nix.apply`, `wifi.connect`, `factory.install`, ...).
+
+### Changed
+
+- `nosctl`: `--confirm` removido de `fetch`/`nix-apply`/`wifi-connect`/
+  `transmute`; usar `--confirm-id`. Novo `nosctl consent <kind>`.
+- Firstboot obtém o grant com `nosctl consent transmute`.
+
 ## [Unreleased] — M5 lab (mesh 2-VM)
 
 ### Added

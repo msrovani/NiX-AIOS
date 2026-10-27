@@ -55,9 +55,10 @@ token da sessão; não expor o lab à WAN.
 `transmute.run` e `systemctl.scoped` exigem esse grant. Replay, kind errado e
 expirado são negados.
 
-`hitl_confirmed` sobrevive **apenas** como compatibilidade de `LocalAdmin`
-(root/token); JARBAS/LocalUser não usa booleano. Remover esse legado é a próxima
-fatia de S-04.
+**S-04 fechado (0.6.0-alpha.8):** `hitl_confirmed` é **ignorado** no wire. Nem
+root/token (LocalAdmin) transforma um booleano do cliente em consentimento —
+root já tem `NIX_WRITE`, mas HITL continua a exigir grant. Em texto, o fluxo é
+`nosctl consent <kind>` (abre a janela no servidor e submete-a).
 
 ## Fetch (S-07)
 
@@ -76,7 +77,8 @@ permitido, mas só escreve staging (sem root).
 ## Blobs e ISO (S1.2)
 
 - ISO **não** embute AgentJev / Piper seed / GGUF S1.
-- Runtime: `nos-hermes::blob_deliberate` → Cortex/Hermes → JARBAS `--confirm`.
+- Runtime: `nos-hermes::blob_deliberate` → Cortex/Hermes → JARBAS grant
+  (`confirm_id`, kind `blob.fetch`/`firmware.fetch`).
 - Guard de build: `scripts/guard-iso-no-s1-blob.sh`.
 
 ## Rede e fetch

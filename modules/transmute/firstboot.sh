@@ -347,19 +347,29 @@ EOF
       exit 1
     fi
 
-    # Q5 "Prosseguir?" = HITL humano ? passar --confirm (blob_deliberate ModelFetch).
-    # Sem --confirm o transmute aborta com await JARBAS HITL e o shell cai no prompt.
-    DL_ARGS="--confirm"
+    # Q5 "Prosseguir?" = o humano autorizou; o consentimento vai como GRANT
+    # server-authored (nosctl consent transmute -> --confirm-id).
+    # S-04: consentimento e do SERVIDOR. Abrimos a janela HITL e submetemos
+    # (o Q5 acima foi o humano; em auto, a politica firstbootAuto da imagem).
+    CID=$($SUDO @nosd@/bin/nosctl --socket /run/nosd/nosd.sock consent transmute 2>/dev/null \
+          | @python3@/bin/python3 -c 'import json,sys; r=json.load(sys.stdin); print((r.get("result") or {}).get("confirm_id",""))' 2>/dev/null || true)
+    if [ -n "$CID" ]; then
+      DL_ARGS="--confirm-id $CID"
+      log "HITL grant obtido (kind=transmute, single-use)"
+    else
+      DL_ARGS=""
+      log "AVISO: sem grant HITL - transmute vai recusar (S-04)"
+    fi
     # Lab/headless: nao descarregar GBs sem humano (opt-in explicito).
     if [ "$AUTO" = "1" ] && [ "${NOSD_FIRSTBOOT_DOWNLOAD:-0}" != "1" ]; then
-      DL_ARGS="--confirm --no-download"
+      DL_ARGS="$DL_ARGS --no-download"
       log "modo auto: transmute --no-download (NOSD_FIRSTBOOT_DOWNLOAD=1 habilita)"
     fi
     if ! net_connected; then
-      DL_ARGS="--confirm --no-download"
-      log "— Transmute offline (--confirm --no-download) —"
+      DL_ARGS="$DL_ARGS --no-download"
+      log "— Transmute offline (--confirm-id + --no-download) —"
     else
-      log "— Transmute (HITL Q5 + download MoE/Whisper/Piper + hot_load) —"
+      log "— Transmute (HITL grant + download MoE/Whisper/Piper + hot_load) —"
       log "  pode demorar; journalctl -u nosd -f"
     fi
 

@@ -4,8 +4,8 @@
 
 Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 
-**Release 0.6.0-alpha.7** — ring Nix desarmado (kill switch root); volid ISO `NIXAIOS051`.  
-**Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.6.0-alpha.7](docs/RELEASE_0.6.0-alpha.7.md)
+**Release 0.6.0-alpha.8** — S-04 fechado (HITL só por grant); volid ISO `NIXAIOS051`.  
+**Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.6.0-alpha.8](docs/RELEASE_0.6.0-alpha.8.md)
 
 ## Quick start
 

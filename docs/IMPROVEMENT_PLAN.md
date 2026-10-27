@@ -36,7 +36,7 @@
 | Q-01 fmt + clippy + Slint feature | **feito** | `cargo fmt --check`, `clippy --all-features`, `cargo check -p nos-jarbas --features slint-ui` |
 | R-01 PATH (nosd + helper root + journal group) | **feito** | `neural-os.nix`, `cortex-nix-ring.nix` (falta VM test) |
 | R-02 syntax fail-closed | **feito** | `nix_managed.rs`, testes condicionais |
-| S-04 HITL grant (single-use, kind, TTL) | **parcial** | `HitlGrantStore`, `ui.action`, blobs/fetch, `ipc_auth`; admin legacy `hitl_confirmed` |
+| S-04 HITL grant (single-use, kind, TTL) | **feito** | `hitl_grant_ok` só `confirm_id`; `hitl_confirmed` ignorado; `nosctl consent`; `ipc_auth` |
 | Voz VM (status/tts/stt) | **feito (manual)** | `voice-status Ready`, TTS 1.2s; STT jfk 23min TCG; `VOICE_0.6.0-alpha.2.md` |
 | M3 HUD Slint em cage/DRM (QEMU) | **OBSERVED** | `jarbas-cage` active, cage 1280x800, screenshot do scanout; `evidence/CAGE_SLINT_0.6.0-alpha.4.md` |
 | Slint no binário da ISO | **feito** | `cargoBuildFlags` (o `cargoExtraArgs` era ignorado no nixpkgs 26.11) |
@@ -330,7 +330,7 @@ Legenda: **P** = prioridade (P0/P1/P2), **E** = esforço (S ≤ 0,5d; M 1–2d; 
 **Entrada:** baseline atual.  
 **Saída (gate DG0):**
 - [ ] Request sem identidade/vazio/`hermes` → deny (teste).
-- [ ] `hitl_confirmed` não é mais aceito sozinho.
+- [x] `hitl_confirmed` não é mais aceito sozinho (alpha.8).
 - [ ] HTTP lab desligado por default; token; sem CORS `*`.
 - [ ] `nix.apply` desarmado (`ring_disabled`).
 - [ ] `run_syntax_check` fail-closed.

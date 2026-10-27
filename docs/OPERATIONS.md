@@ -22,7 +22,7 @@ Fluxo (`nos-firstboot`):
 2. Idioma/voz  
 3. Teclado  
 4. Fuso → grava `host-configuration.nix` (sem `nixos-rebuild switch` na live)  
-5. Confirmar → `nosctl transmute --confirm` → hotswap JARBAS  
+5. Confirmar → `nosctl consent transmute` → `nosctl transmute --confirm-id <id>` → hotswap JARBAS  
 
 Resume: `/var/lib/nosd/firstboot.step`.  
 Done: `/var/lib/nosd/firstboot.done`.  
