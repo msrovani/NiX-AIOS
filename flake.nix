@@ -213,6 +213,69 @@
               machine.succeed("test ! -e /var/lib/nosd/nix-apply.request")
             '';
           };
+
+          # M5 (lab): 2 VMs na mesma VLAN — HB UDP mesh, TOFU pk-bound e
+          # eleição stub por capacidade. CRDT wire sync é residual (não testado).
+          mesh-2vm = pkgs.testers.nixosTest {
+            name = "nixaios-mesh-2vm";
+            nodes.a = { pkgs, ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              virtualisation.vlans = [ 1 ];
+              networking.interfaces.eth1.ipv4.addresses = [
+                { address = "192.168.50.1"; prefixLength = 24; }
+              ];
+              networking.firewall.enable = false;
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 1;
+                nodeId = 11;
+                meshBind = "0.0.0.0:19000";
+                meshBroadcast = "192.168.50.255:19000";
+              };
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            nodes.b = { pkgs, ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              virtualisation.vlans = [ 1 ];
+              networking.interfaces.eth1.ipv4.addresses = [
+                { address = "192.168.50.2"; prefixLength = 24; }
+              ];
+              networking.firewall.enable = false;
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 1;
+                nodeId = 12;
+                meshBind = "0.0.0.0:19000";
+                meshBroadcast = "192.168.50.255:19000";
+              };
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            testScript = ''
+              start_all()
+              a.wait_for_unit("nosd.service")
+              b.wait_for_unit("nosd.service")
+              a.wait_for_file("/run/nosd/nosd.sock")
+              b.wait_for_file("/run/nosd/nosd.sock")
+              ca = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
+              cb = ca
+              # HB UDP: cada nó vê exatamente 1 peer (broadcast na VLAN).
+              a.wait_until_succeeds(ca + " health | grep -q '\"mesh_peers\": 1'", timeout=90)
+              b.wait_until_succeeds(cb + " health | grep -q '\"mesh_peers\": 1'", timeout=90)
+              # TOFU: HB com PK no wire (pk-bound). O settle (7.2s) que
+              # destranca ROLE/SkillSync é coberto pelo unit test
+              # `nos-mesh::tofu_settles_after_window` (o JSON `mesh` é uma
+              # string escapada, má para grep).
+              a.wait_until_succeeds("journalctl -u nosd -o cat | grep -q 'pk=true'", timeout=90)
+              # Eleição stub: capacidade igual -> menor node id (11) é Master.
+              a.wait_until_succeeds(ca + " health | grep -q 'Master'", timeout=90)
+              b.wait_until_succeeds(cb + " health | grep -q 'Worker'", timeout=90)
+              print(a.succeed(ca + " health"))
+            '';
+          };
         });
 
       nixosConfigurations.nixaios-iso = nixpkgs.lib.nixosSystem {

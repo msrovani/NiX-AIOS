@@ -36,6 +36,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.6.0-alpha.7 Ring Nix: decisao desarmado (2026-10-27):** R-03 decisao escrita (ADR addendum 0118-nix-ring-decision): ring fica OFF (armRing=false); religar so com S-04 completo + teste VM apply/rollback + ADR. R-04: o helper root deixou de confiar no pedido - kill switch NOSD_NIX_RING=1, target fixo /etc/nixos/ai-managed.nix, staging confinado ao dataDir, flock, timeout 900/600, PATH com coreutils. VM test prova que um pedido forjado em /var/lib/nosd (1777) e ignorado. Evidencia: `docs/evidence/NIX_RING_0.6.0-alpha.7.md`. R-03/R-04 NAO estao verdes.
 
+**M5 lab: mesh 2-VM (2026-10-27):** novo check `checks.x86_64-linux.mesh-2vm` (dois NixOS, VLAN 1, UDP 19000): `mesh_peers==1` nos dois nos, HB com PK (TOFU pk-bound) e eleicao stub (menor id=Master, outro Worker). TOFU settle 7.2s coberto por `nos-mesh::tofu_settles_after_window`. Sem alteracao de produto (ISO alpha.7). CRDT/SkillSync wire continua residual ("CRDT NOT_DONE" em fleet.health). Evidencia: `docs/evidence/MESH_2VM_0.6.0-alpha.7.md`. M4/M5 metal seguem AWAITING_HW.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

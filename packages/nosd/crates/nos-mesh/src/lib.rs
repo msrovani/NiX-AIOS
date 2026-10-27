@@ -710,4 +710,16 @@ mod tests {
         );
         assert_eq!(m.local_role(), PeerRole::Master);
     }
+
+    /// M5/ADR-0081: o settle do TOFU (janela de 7.2s) destranca ROLE/SkillSync.
+    #[test]
+    fn tofu_settles_after_window() {
+        let m = MeshEngine::new(1);
+        assert!(!m.tofu_settled(), "sem peers nao ha settle");
+        m.on_heartbeat(2, true);
+        assert_eq!(m.peer_tofu_count(), 1, "HB com PK -> peer pk-bound");
+        assert!(!m.tofu_settled(), "recem-ligado ainda nao settle");
+        std::thread::sleep(std::time::Duration::from_millis(TOFU_SETTLE_MS + 300));
+        assert!(m.tofu_settled(), "deve settle ao fim de TOFU_SETTLE_MS");
+    }
 }

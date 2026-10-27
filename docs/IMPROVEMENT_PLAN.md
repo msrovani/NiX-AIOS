@@ -45,6 +45,7 @@
 | S-07 fetch sanitization + cap + magic | **feito** | `nos-cortex/src/fetch.rs`, testes |
 | S-08 suíte de regressão | **feito** | `ipc_auth` (10-11) + `nos-ipc` (3) + HTTP/grant/fetch |
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
+| M5 lab mesh 2-VM | **OBSERVED (lab)** | `checks.x86_64-linux.mesh-2vm`; peers/TOFU/eleição; `evidence/MESH_2VM_0.6.0-alpha.7.md` |
 | R-05 NixOS VM test | **feito** | `checks.x86_64-linux.nixaios-vm` (health + chat, 61s) |
 | Q-03 CI GitHub | **criado** | `.github/workflows/ci.yml`; primeira execução no GitHub |
 | E-01 llama-server persistente | **feito (VM)** | tiny GGUF, spawn/health/chat/unload/reload; `docs/evidence/VM_GGUF_0.6.0-alpha.2.md` |

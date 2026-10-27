@@ -92,6 +92,8 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M3 Boot->JARBAS**: OBSERVED em QEMU (alpha.5: firstboot auto -> transmute
   -> hotswap -> cage/DRM -> HUD Slint; virtio-gpu + winit-software/pixman).
   GL/iGPU real, VT/teclado fisicos e metal = AWAITING_HW.
+- **M5 lab**: check `mesh-2vm` (2 VMs, UDP 19000) OBSERVED: peers=1, TOFU
+  pk-bound, Master/Worker. **Frota real e CRDT wire** continuam pendentes.
 - **M4/M5**: AWAITING_HW.
 
 ## Evidência 0.6.0-alpha.7

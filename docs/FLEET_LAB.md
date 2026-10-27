@@ -14,6 +14,14 @@ Dois nós NixAIOS (lab) com handshake SoulMirror e offload S2 opcional — sem a
 | **A** | Handshake + identity mirror (lab) | 2 peers reachability + mirror ack |
 | **B** | Offload S2 deliberado (CapGate) | route S2 → peer; local S1 intacto |
 
+## Check automático (2 VMs)
+
+`nix build .#checks.x86_64-linux.mesh-2vm` sobe dois NixOS na mesma VLAN
+(192.168.50.1/.2, UDP 19000) e valida: `mesh_peers == 1` nos dois, HB com
+`PK` (TOFU pk-bound) e eleição stub (menor node id = Master).
+Evidência: [`evidence/MESH_2VM_0.6.0-alpha.7.md`](evidence/MESH_2VM_0.6.0-alpha.7.md).
+CRDT/SkillSync wire continua residual (`fleet.health` = "CRDT NOT_DONE").
+
 ## Procedimento (lab)
 
 1. Dois hosts (ou VM+metal) com `nosd` + mesh enabled.

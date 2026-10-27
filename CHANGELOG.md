@@ -3,6 +3,31 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [Unreleased] — M5 lab (mesh 2-VM)
+
+### Added
+
+- **`checks.x86_64-linux.mesh-2vm`:** dois NixOS na mesma VLAN (UDP 19000)
+  validam `mesh_peers == 1`, HB com `PK` (TOFU) e eleição stub
+  (Master/Worker). Sem alteração do binário (ISO alpha.7).
+- **`nos-mesh::tofu_settles_after_window`:** regressão do settle de TOFU
+  (7.2 s) que destranca ROLE/SkillSync.
+
+### Evidence
+
+- [`docs/evidence/MESH_2VM_0.6.0-alpha.7.md`](docs/evidence/MESH_2VM_0.6.0-alpha.7.md)
+
+## [0.6.0-alpha.7] — 2026-10-27 (ring Nix desarmado + kill switch root)
+
+### Security
+
+- **R-03 (decisão):** o ring Nix fica **desarmado** (`armRing = false`);
+  ADR addendum `0118-nix-ring-decision.md` com os critérios para religar.
+- **R-04:** o helper root deixou de confiar no pedido — exige
+  `NOSD_NIX_RING=1`, `target` fixo, `staging` confinado ao data dir,
+  `flock`, `timeout` e PATH explícito. Rollback com a mesma gate.
+- VM test prova que um pedido forjado em `/var/lib/nosd` (1777) é ignorado.
+
 ## [0.6.0-alpha.6] — 2026-10-27 (S-08/S-09 hardening)
 
 ### Security
