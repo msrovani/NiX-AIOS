@@ -10,7 +10,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.6.0-alpha.2** (`v0.6.0-alpha.2`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.6.0-alpha.3** (`v0.6.0-alpha.3`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -78,7 +78,7 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
-- **S-04** HITL grant: parcial (admin legacy `hitl_confirmed` ainda existe).
+- **S-04** HITL grant: parcial (blobs/fetch com grant; admin legacy `hitl_confirmed` ainda existe).
 - **S-07** sanitização de `fetch_to_dir`: feito.
 - **S-08/S-09** suíte de segurança + socket 0660: pendente.
 - **E-01/E-02/E-04** engine persistente/lock/GGUF: e2e VM com tiny GGUF PASS.
@@ -89,6 +89,6 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **Q-03** CI Nix/VM: criado; validar no GitHub.
 - **M4/M5**: AWAITING_HW.
 
-## Evidência 0.6.0-alpha.2
+## Evidência 0.6.0-alpha.3
 
-`docs/RELEASE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`, `docs/RELEASE_0.5.6.md` e `docs/evidence/QEMU_0.5.6.md`.
+`docs/RELEASE_0.6.0-alpha.3.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.

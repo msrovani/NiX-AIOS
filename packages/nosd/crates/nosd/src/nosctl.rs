@@ -50,9 +50,12 @@ enum Cmd {
         file: Option<String>,
         #[arg(long)]
         filename: Option<String>,
-        /// Confirmação HITL JARBAS (obrigatória p/ Act download).
+        /// Compatibilidade admin: confirmação HITL (LocalAdmin).
         #[arg(long)]
         confirm: bool,
+        /// Grant server-authored de `ui.action` (kind=blob.fetch).
+        #[arg(long)]
+        confirm_id: Option<String>,
         #[arg(long, default_value_t = 500)]
         estimated_mb: u64,
     },
@@ -113,6 +116,9 @@ enum Cmd {
         title: Option<String>,
         #[arg(long)]
         body: Option<String>,
+        /// S-04: tipo de grant que `ui.action` pode emitir (ex. blob.fetch).
+        #[arg(long)]
+        grant_kind: Option<String>,
     },
     #[command(name = "ui-close")]
     UiClose {
@@ -161,9 +167,24 @@ enum Cmd {
         #[arg(long)]
         confirm: bool,
     },
-    /// Estado STT (Whisper) + TTS (Piper) + idioma detectado.
+    /// Estado STT (Whisper) + TTS (Piper/Espeak) + idioma detectado.
     #[command(name = "voice-status")]
     VoiceStatus,
+    /// STT de um WAV (ou gravação) — 0.6 dev/QEMU.
+    #[command(name = "voice-stt")]
+    VoiceStt {
+        #[arg(long)]
+        wav_path: Option<String>,
+        #[arg(long, default_value_t = 4)]
+        record_secs: u32,
+    },
+    /// TTS para WAV; `--no-play` não tenta tocar áudio.
+    #[command(name = "voice-tts")]
+    VoiceTts {
+        text: String,
+        #[arg(long)]
+        no_play: bool,
+    },
     /// Turno completo 100% local: STT (Whisper) -> MoE (Cortex) -> TTS (Piper).
     #[command(name = "voice-turn")]
     VoiceTurn {
@@ -210,12 +231,16 @@ async fn main() -> anyhow::Result<()> {
             file,
             filename,
             confirm,
+            confirm_id,
             estimated_mb,
         } => {
             let mut p = serde_json::json!({
                 "hitl_confirmed": confirm,
                 "estimated_mb": estimated_mb,
             });
+            if let Some(id) = confirm_id {
+                p["confirm_id"] = serde_json::json!(id);
+            }
             if let Some(u) = url {
                 p["url"] = serde_json::json!(u);
             }
@@ -269,13 +294,21 @@ async fn main() -> anyhow::Result<()> {
                 0,
             )
         }
-        Cmd::UiOpen { kind, title, body } => {
+        Cmd::UiOpen {
+            kind,
+            title,
+            body,
+            grant_kind,
+        } => {
             let mut p = serde_json::json!({ "kind": kind, "source": "hermes" });
             if let Some(t) = title {
                 p["title"] = serde_json::json!(t);
             }
             if let Some(b) = body {
                 p["body"] = serde_json::json!(b);
+            }
+            if let Some(g) = grant_kind {
+                p["grant_kind"] = serde_json::json!(g);
             }
             ("ui.open", p, 0)
         }
@@ -344,6 +377,19 @@ async fn main() -> anyhow::Result<()> {
             1 << 6, // HITL
         ),
         Cmd::VoiceStatus => ("voice.status", serde_json::json!({}), 0),
+        Cmd::VoiceStt {
+            wav_path,
+            record_secs,
+        } => (
+            "voice.stt",
+            serde_json::json!({ "wav_path": wav_path, "record_secs": record_secs }),
+            1,
+        ),
+        Cmd::VoiceTts { text, no_play } => (
+            "voice.tts",
+            serde_json::json!({ "text": text, "play": !*no_play }),
+            1,
+        ),
         Cmd::VoiceTurn {
             prompt,
             record_secs,

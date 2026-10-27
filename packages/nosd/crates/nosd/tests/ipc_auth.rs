@@ -230,6 +230,66 @@ fn hitl_grant_is_single_use_and_kind_bound() {
 }
 
 #[test]
+fn blob_fetch_requires_single_use_grant() {
+    let daemon = start();
+    let token = daemon.token.clone();
+
+    let opened = rpc(
+        &daemon,
+        Some(&token),
+        "ui.open",
+        json!({
+            "kind": "hitl_confirm",
+            "title": "blob fetch",
+            "grant_kind": "blob.fetch",
+        }),
+    );
+    assert_eq!(opened["ok"], true, "{opened}");
+    let wid = opened["result"]["id"].as_u64().expect("window id");
+
+    let acted = rpc(
+        &daemon,
+        Some(&token),
+        "ui.action",
+        json!({ "window_id": wid, "action": "submit", "values": {} }),
+    );
+    let confirm = acted["result"]["confirm_id"]
+        .as_str()
+        .expect("confirm_id")
+        .to_string();
+
+    // Grant válido passa o HITL e tenta a rede (falha em :1, não em HITL).
+    let fetch = rpc(
+        &daemon,
+        Some(&token),
+        "model.fetch",
+        json!({
+            "url": "http://127.0.0.1:1/tiny.gguf",
+            "filename": "tiny.gguf",
+            "confirm_id": confirm,
+        }),
+    );
+    assert_eq!(fetch["ok"], false, "{fetch}");
+    let err = fetch["error"].as_str().unwrap_or("");
+    assert!(!err.contains("await JARBAS HITL"), "{fetch}");
+
+    // Replay do mesmo grant deve voltar a pedir HITL.
+    let replay = rpc(
+        &daemon,
+        Some(&token),
+        "model.fetch",
+        json!({
+            "url": "http://127.0.0.1:1/tiny.gguf",
+            "filename": "tiny.gguf",
+            "confirm_id": confirm,
+        }),
+    );
+    assert_eq!(replay["ok"], false, "{replay}");
+    let err = replay["error"].as_str().unwrap_or("");
+    assert!(err.contains("await JARBAS HITL"), "{replay}");
+}
+
+#[test]
 fn wifi_requires_hitl_grant_without_admin_legacy() {
     let _serial = serial();
     let daemon = start();

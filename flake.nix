@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.2";
+            version = "0.6.0-alpha.3";
             src = ./packages/nosd;
             cargoLock.lockFile = ./packages/nosd/Cargo.lock;
             # Onda 5: JARBAS Slint no binário ISO (cage --ui).
@@ -123,25 +123,42 @@
             url = "https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf";
             hash = "sha256-ZpZ/vs5tvpeIZZP9u3NYlYSSfikRnsMfCAkHMtGGFzk=";
           };
+          tinyWhisper = pkgs.fetchurl {
+            url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin";
+            hash = "sha256-vgfgSOHlma1GNByNKhNWRQl6U4IhZ4t6zdGxkZxuGyE=";
+          };
+          jfkWav = pkgs.fetchurl {
+            url = "https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/samples/jfk.wav";
+            hash = "sha256-Wd+5pKyzb+Kir/wUusvuKSD/Q1yxPMMUoIwT9munhg4=";
+          };
         in
         {
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
-            nodes.machine = { ... }: {
+            nodes.machine = { lib, ... }: {
               imports = [ self.nixosModules.neural-os ];
               services.nosd = {
                 enable = true;
                 package = self.packages.${system}.nosd;
                 hermesTickSecs = 0;
               };
+              # JFK é EN; fixa o locale de voz no teste.
+              systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
+                "NOSD_LOCALE=en_US.UTF-8"
+              ];
               environment.systemPackages = [ self.packages.${system}.nosd ];
+              environment.etc."nixaios-accept-m3.sh".source = ./scripts/accept-m3.sh;
               # 0.6: tiny GGUF em /var/lib/nosd/models; nosd faz spawn de llama-server.
               system.activationScripts.nixaiosTinyModel = ''
                 mkdir -p /var/lib/nosd/models
                 cp ${tinyGguf} /var/lib/nosd/models/stories15M-q4_0.gguf
+                cp ${tinyWhisper} /var/lib/nosd/models/ggml-tiny.bin
+                cp ${jfkWav} /var/lib/nosd/models/test-jfk.wav
                 chown -R nosd:nosd /var/lib/nosd/models
                 chmod 0755 /var/lib/nosd/models
                 chmod 0644 /var/lib/nosd/models/stories15M-q4_0.gguf
+                chmod 0644 /var/lib/nosd/models/ggml-tiny.bin
+                chmod 0644 /var/lib/nosd/models/test-jfk.wav
               '';
               system.stateVersion = "25.11";
             };
@@ -156,6 +173,12 @@
               machine.succeed(nosctl + " health | grep -q 'cpu-echo'")
               machine.succeed(nosctl + " load /var/lib/nosd/models/stories15M-q4_0.gguf")
               machine.succeed(nosctl + " health | grep -q 'llama-server-http'")
+              machine.succeed("bash /etc/nixaios-accept-m3.sh")
+              machine.succeed(nosctl + " unload")
+              machine.succeed(nosctl + " voice-status | grep -q Ready")
+              # voice-stt real (whisper tiny) é manual/QEMU: ~23 min em TCG.
+              machine.succeed(nosctl + " voice-tts --no-play hello > /tmp/voice-tts.json")
+              machine.succeed("grep -q wav_b64 /tmp/voice-tts.json")
             '';
           };
         });

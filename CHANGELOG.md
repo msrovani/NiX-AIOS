@@ -3,6 +3,31 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.3] — 2026-10-27 (Hot download + voz)
+
+### Added
+
+- **S-04 blobs:** `model.fetch`/`firmware.fetch` exigem grant single-use
+  (`blob.fetch`/`firmware.fetch`) emitido por `ui.action`; replay volta a
+  `await JARBAS HITL`. `nosctl fetch --confirm-id`; `nosctl ui-open
+  --grant-kind`.
+- **Voz CLI:** `nosctl voice-stt --wav-path` e `nosctl voice-tts [--no-play]`.
+- **VM voz:** `voice-status Ready`; `voice-tts` WAV via espeak fallback
+  (1.23s); `voice-stt` com `ggml-tiny.bin`+`jfk.wav` passou (manual, 23 min
+  em TCG). Fixtures são de teste, não ISO.
+- **VM accept-m3:** `scripts/accept-m3.sh` executado no VM.
+
+### Evidence
+
+- [`docs/evidence/VOICE_0.6.0-alpha.2.md`](docs/evidence/VOICE_0.6.0-alpha.2.md)
+- `ipc_auth`: grant de blob + replay + `fetch` sem HITL.
+- `nixaios-vm` PASS (GGUF/chat/unload/reload, accept-m3, voice-status/tts).
+
+### Residual
+
+- Cage/DRM, firstboot tty, S-08/S-09, R-03/R-04, metal.
+- `voice-stt` real não entra no CI padrão (tempo TCG).
+
 ## [0.6.0-alpha.2] — 2026-10-27 (GGUF real no VM)
 
 ### Fixed

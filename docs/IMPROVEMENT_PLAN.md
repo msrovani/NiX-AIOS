@@ -33,7 +33,8 @@
 | Q-01 fmt + clippy + Slint feature | **feito** | `cargo fmt --check`, `clippy --all-features`, `cargo check -p nos-jarbas --features slint-ui` |
 | R-01 PATH (nosd + helper root + journal group) | **feito** | `neural-os.nix`, `cortex-nix-ring.nix` (falta VM test) |
 | R-02 syntax fail-closed | **feito** | `nix_managed.rs`, testes condicionais |
-| S-04 HITL grant (single-use, kind, TTL) | **parcial** | `HitlGrantStore`, `ui.action`, `ipc_auth`; admin legacy `hitl_confirmed` |
+| S-04 HITL grant (single-use, kind, TTL) | **parcial** | `HitlGrantStore`, `ui.action`, blobs/fetch, `ipc_auth`; admin legacy `hitl_confirmed` |
+| Voz VM (status/tts/stt) | **feito (manual)** | `voice-status Ready`, TTS 1.2s; STT jfk 23min TCG; `VOICE_0.6.0-alpha.2.md` |
 | S-07 fetch sanitization + cap + magic | **feito** | `nos-cortex/src/fetch.rs`, testes |
 | S-08 suíte de regressão | **em curso** | `ipc_auth` + unit tests HTTP/grant/fetch |
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |

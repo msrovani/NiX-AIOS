@@ -26,6 +26,8 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **0.6.0-alpha.2 GGUF real VM (2026-10-27):** R-01 corrigido (path em serviceConfig era ignorado), Landlock RO /nix/store/etc/run (subprocessos), llama-server API key+no-webui. VM test com stories15M: llama-server-http, chat, unload/reload PASS. Latencia CPU/TGC ~38s (nao SLO). Evidencia: `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`. Metal/CUDA/voz/cage/Wi-Fi = residual.
 
+**0.6.0-alpha.3 Hot download + voz (2026-10-27):** S-04 blobs/fetch com grant single-use (replay -> HITL), nosctl fetch --confirm-id / ui-open --grant-kind. Voz: voice-stt/voice-tts CLI, VM status Ready + TTS WAV 1.2s; STT jfk 23min TCG (manual). accept-m3 no VM. Evidencia: `docs/evidence/VOICE_0.6.0-alpha.2.md`, `VM_GGUF_0.6.0-alpha.2.md`. Cage/Wi-Fi/metal/S-08/S-09 pendentes.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

@@ -129,11 +129,14 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 estimated_mb: est_mb,
             };
             let cap = CapacityProber::probe();
-            let hitl = req
-                .params
-                .get("hitl_confirmed")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
+            let grant_kind = if matches!(kind, BlobKind::Firmware) {
+                "firmware.fetch"
+            } else {
+                "blob.fetch"
+            };
+            // Planning puro não consome grant; fetch exige grant single-use.
+            let hitl = req.method != "blob.deliberate"
+                && super::hitl_grant_ok(state, gate, &req, grant_kind);
             let scorer_absent = nos_core::s1_scorer_absent();
             let plan = deliberate_blob_fetch(&need, &cap, hitl, scorer_absent);
             let _ = remember_deliberation(&state.hermes.memory, &plan);
@@ -148,12 +151,13 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                         plan.fit,
                         iso_must_not_ship_blobs()
                     );
-                    let spec = WindowSpec::hitl_confirm(
+                    let mut spec = WindowSpec::hitl_confirm(
                         id,
                         format!("Blob fetch {:?}", need.kind),
                         body,
                         UiSource::Hermes,
                     );
+                    spec.grant_kind = grant_kind.to_string();
                     if let Ok(opened) =
                         state
                             .hermes

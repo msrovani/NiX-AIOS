@@ -4,8 +4,8 @@
 
 Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 
-**Release 0.6.0-alpha.2** — GGUF real no VM (llama-server); volid ISO `NIXAIOS051`.  
-**Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.6.0-alpha.2](docs/RELEASE_0.6.0-alpha.2.md)
+**Release 0.6.0-alpha.3** — Hot download + voz; volid ISO `NIXAIOS051`.  
+**Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.6.0-alpha.3](docs/RELEASE_0.6.0-alpha.3.md)
 
 ## Quick start
 
