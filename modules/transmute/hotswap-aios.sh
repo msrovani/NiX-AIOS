@@ -37,8 +37,12 @@ systemctl stop display-manager.service 2>/dev/null || true
 pkill -f 'gnome-shell|gdm-wayland-session|Xwayland' 2>/dev/null || true
 sleep 1
 
-echo "hotswap: restarting nosd…"
-systemctl restart nosd.service || true
+# NAO reiniciar nosd por rotina: o pedido de hotswap chega por RPC ao
+# proprio nosd (transmute) e o restart matava a resposta (nosctl exit=1).
+if ! @nosd@/bin/nosctl --socket /run/nosd/nosd.sock health >/dev/null 2>&1; then
+  echo "hotswap: nosd offline - a reiniciar..."
+  systemctl restart nosd.service || true
+fi
 for i in $(seq 1 30); do
   if @nosd@/bin/nosctl --socket /run/nosd/nosd.sock health >/dev/null 2>&1; then
     echo "hotswap: nosd health OK"

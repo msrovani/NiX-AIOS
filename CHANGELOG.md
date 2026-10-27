@@ -3,6 +3,37 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.5] — 2026-10-27 (Boot→firstboot→JARBAS headless)
+
+### Fixed
+
+- **firstboot em `ttyS0`:** os gatilhos só aceitavam `/dev/tty[0-9]*`; a ISO
+  arranca com `console=ttyS0` e o auto-login cai numa sessão serial, pelo que
+  o questionário **nunca corria**. Adicionado `ttyS*`/`hvc*` nos três sítios.
+- **`nosd-hotswap-aios.service` exit 127:** shebang `#!/usr/bin/env bash` sem
+  `bash`/`tee`/`systemctl` no `path` do unit. `path` explícito (e no
+  `nosd-boot-persist-check`).
+- **hotswap reiniciava o próprio `nosd`** que servia o `transmute` por RPC →
+  `nosctl exit=1`. Só reinicia se o health estiver offline.
+- **`transmute` contava o `systemctl` sem root/polkit como erro.** O hotswap é
+  disparado pelo `.path` (PathExists); `systemctl` passou a best-effort.
+- **`nix build` após `cargo test` no host:** `packages/nosd/target/` (GBs) era
+  copiado read-only para a store (`cp: Read-only file system`). `src` com
+  filtro (`builtins.path`).
+- **Primeiro frame preto** no arranque automático (VT activa): `chvt` para a
+  VT do kiosk no `ExecStartPre` root, antes do `cage`.
+
+### Added
+
+- `services.nixaiosTransmute.firstbootAuto` (ISO/lab): defaults + rede 8 s +
+  `transmute --no-download`; overrides `NOSD_FIRSTBOOT_ASK=1` /
+  `NOSD_FIRSTBOOT_DOWNLOAD=1`.
+- `ask_def` no firstboot (default por pergunta em modo auto).
+
+### Evidence
+
+- [`docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`](docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md)
+
 ## [0.6.0-alpha.4] — 2026-10-27 (Boot→JARBAS Slint em cage/DRM)
 
 ### Fixed

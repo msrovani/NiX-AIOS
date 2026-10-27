@@ -412,13 +412,22 @@ pub fn execute_transmute(
         ) {
             errors.push(format!("hotswap request write: {e}"));
         } else {
+            // Mecanismo primário: o ficheiro pedido + `nosd-hotswap-aios.path`
+            // (systemd PathExists) dispara o unit. NÃO é preciso root.
+            // `systemctl start` é best-effort: nosd corre como user `nosd` e
+            // sem polkit devolve "interactive authentication required" (1);
+            // isso não é falha do hotswap.
+            hotswap_triggered = true;
             match Command::new("systemctl")
                 .args(["start", "--no-block", "nosd-hotswap-aios.service"])
                 .status()
             {
-                Ok(st) if st.success() => hotswap_triggered = true,
-                Ok(st) => errors.push(format!("systemctl hotswap exit={st}")),
-                Err(e) => errors.push(format!("systemctl hotswap: {e}")),
+                Ok(st) if st.success() => {}
+                Ok(st) => warn!(
+                    target: "nosd",
+                    "systemctl hotswap {st} (sem root/polkit); .path trata do pedido"
+                ),
+                Err(e) => warn!(target: "nosd", "systemctl hotswap indisponível: {e}; .path trata"),
             }
         }
     }

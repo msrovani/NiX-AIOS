@@ -17,7 +17,12 @@
 
   # 0.5.1: FAT OFF — persistência só /var/lib/nosd (evita EACCES pós-Q5 no metal).
   services.nixaiosLogFat.enable = false;
-  services.nixaiosTransmute.enable = true;
+  services.nixaiosTransmute = {
+    enable = true;
+    # ISO live: firstboot sem prompts (defaults, --no-download).
+    # Metal/install real: false (questionario Q1-Q5).
+    firstbootAuto = true;
+  };
 
   # Ganha sobre tmpfiles 0750 do neural-os.nix (live: nixos + nosd escrevem).
   systemd.tmpfiles.rules = lib.mkAfter [

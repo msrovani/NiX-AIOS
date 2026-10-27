@@ -22,6 +22,11 @@ let
     touch /var/lib/nosd/jarbas-cage.log
     chown nosd:nosd /var/lib/nosd/jarbas-cage.log || true
     chmod a+rw /var/lib/nosd/jarbas-cage.log 2>/dev/null || true
+    # wlroots/seatd so faz page-flip na VT activa. Se o cage arranca com a
+    # VT1 em foreground (hotswap/firstboot), o 1o arranque fica PRETO e so um
+    # restart resolve. Tornar a VT do kiosk activa ANTES do ExecStart.
+    ${pkgs.kbd}/bin/chvt "$(printf %s ${cfg.tty} | tr -dc 0-9)" 2>/dev/null || true
+    sleep 0.3
     # Stale seatd.sock (crash) bloqueia seatd.service / seatd-launch
     if [ -S /run/seatd.sock ] && ! ${pkgs.systemd}/bin/systemctl is-active --quiet seatd.service 2>/dev/null; then
       echo "jarbas-wait: removing stale /run/seatd.sock"

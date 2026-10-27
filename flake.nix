@@ -28,8 +28,17 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.4";
-            src = ./packages/nosd;
+            version = "0.6.0-alpha.5";
+            # Sem filtro, `cargo test` no host deixa packages/nosd/target/
+            # (GBs) e o Nix copia-o read-only para a store; o build seguinte
+            # rebenta com "cp: ... target/...: Read-only file system".
+            src = builtins.path {
+              path = ./packages/nosd;
+              name = "nosd-src";
+              filter = path: _type:
+                let n = builtins.baseNameOf path; in
+                n != "target" && n != ".direnv" && n != "result";
+            };
             cargoLock.lockFile = ./packages/nosd/Cargo.lock;
             # Onda 5: JARBAS Slint no binário ISO (cage --ui).
             # nixpkgs 26.11 removeu cargoExtraArgs (era ignorado em silêncio →

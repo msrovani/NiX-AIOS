@@ -7,6 +7,25 @@
     if [ ! -x "$SUDO" ]; then SUDO=/run/current-system/sw/bin/sudo; fi
     if [ ! -x "$SUDO" ]; then SUDO=sudo; fi
     export PATH="/run/wrappers/bin:/run/current-system/sw/bin:$PATH"
+
+    # ---- Modo (0.6 alpha.5) ----------------------------------------------
+    # A ISO arranca com console=ttyS0 e o auto-login cai em /dev/ttyS0: sem
+    # isto o firstboot nunca corria (os padrões só viam /dev/tty[0-9]*).
+    # Serial/hvc = lab/headless -> não bloquear à espera de input.
+    TTY_DEV=$(tty 2>/dev/null || echo unknown)
+    AUTO=0
+    case "${NOSD_FIRSTBOOT_AUTO:-0}" in 1|yes|true) AUTO=1 ;; esac
+    case "${NOSD_FIRSTBOOT_ASK:-0}" in 1|yes|true) AUTO=0 ;; esac
+    if [ "${NOSD_FIRSTBOOT_ASK:-0}" != "1" ] && [ "$AUTO" != "1" ]; then
+      case "$TTY_DEV" in
+        /dev/ttyS*|/dev/hvc*) AUTO=1 ;;
+      esac
+      # Sem terminal controlável (systemd/CI): não pendurar o boot.
+      if [ ! -c /dev/tty ]; then AUTO=1; fi
+    fi
+    NET_WAIT=${NOSD_FIRSTBOOT_NET_WAIT:-30}
+    if [ "$AUTO" = "1" ]; then NET_WAIT=8; fi
+
     # 0.5.x: FAT OFF — log /tmp + persist /var/lib/nosd (Linux FS)
     LOG=/tmp/nos-firstboot.log
     touch "$LOG" 2>/dev/null || LOG=/tmp/firstboot-$USER.log
@@ -15,6 +34,16 @@
       echo "$@" | $SUDO tee -a /var/lib/nosd/firstboot.log >/dev/null 2>&1 || true
     }
     ask() { printf '%s' "$1" > /dev/tty; read -r "$2" < /dev/tty || eval "$2="; }
+    # $1=prompt $2=var $3=default (modo auto). Sem default => vazio.
+    ask_def() {
+      if [ "$AUTO" = "1" ]; then
+        printf -v "$2" '%s' "${3:-}"
+        log "   (auto) ${1}-> ${3:-<vazio>}"
+        return 0
+      fi
+      printf '%s' "$1" > /dev/tty
+      read -r "$2" < /dev/tty || eval "$2="
+    }
 
     # Lock em /tmp (nixos nao cria em /run sem perms)
     LOCK=/tmp/nos-firstboot.lock
@@ -30,7 +59,8 @@
     $SUDO chmod a+rw /var/lib/nosd/firstboot.log 2>/dev/null || true
     echo "firstboot: persist=/var/lib/nosd (FAT OFF (0.5.x))" > /dev/tty
 
-    log "=== nos-firstboot start $(date -Is 2>/dev/null || echo now) tty=$(tty 2>/dev/null || echo ?) log=$LOG ==="
+    log "=== nos-firstboot start $(date -Is 2>/dev/null || echo now) tty=$TTY_DEV log=$LOG ==="
+    log "modo=$([ "$AUTO" = 1 ] && echo auto || echo interactivo) net_wait=${NET_WAIT}s"
 
     if [ -f /var/lib/nosd/firstboot.done ]; then
       log "firstboot.done presente — a sair"
@@ -108,17 +138,17 @@
         log "   1) Wi-Fi (listar SSIDs)"
         log "   2) Esperar cabo Ethernet (30s)"
         log "   3) Continuar offline (sem download HF)"
-        ask "Escolha [1]: " ans
+        ask_def "Escolha [1]: " ans 1
         case "${ans:-1}" in
           2)
             log "   Aguardando Ethernet…"
-            for i in $(seq 1 30); do
+            for i in $(seq 1 $NET_WAIT); do
               if net_connected; then NET_OK=1; log "   Cabo OK (t=$i)"; break; fi
               sleep 1
             done
             if [ "$NET_OK" != "1" ]; then
               log "   Timeout cabo. Continuar offline? [S/n]"
-              ask "> " cont
+              ask_def "> " cont S
               case "${cont:-S}" in [Nn]*) log "Abortado."; exit 1 ;; esac
               save_file network.conf "connected=0"
             else
@@ -135,7 +165,7 @@
             mapfile -t WIFI_LIST < <(@networkmanager@/bin/nmcli -t -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null | awk -F: 'NF>=1 && $1!=""{print}' | head -20)
             if [ "${#WIFI_LIST[@]}" -eq 0 ]; then
               log "   Nenhum SSID. Offline? [S=sim / n=abortar]"
-              ask "> " skip
+              ask_def "> " skip S
               case "${skip:-S}" in [Nn]*) exit 1 ;; esac
               save_file network.conf "connected=0"
             else
@@ -148,7 +178,7 @@
                 i=$((i+1))
               done
               log "   S) offline"
-              ask "Escolha: " pick
+              ask_def "Escolha: " pick S
               if [ "$pick" = "S" ] || [ "$pick" = "s" ] || [ -z "${pick:-}" ]; then
                 save_file network.conf "connected=0"
               elif [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "${#WIFI_LIST[@]}" ]; then
@@ -165,7 +195,7 @@
                   save_file network.conf "connected=1"
                 else
                   log " ? FALHA Wi-Fi. Continuar offline? [S/n]"
-                  ask "> " cont
+                  ask_def "> " cont S
                   case "${cont:-S}" in [Nn]*) exit 1 ;; esac
                   save_file network.conf "connected=0"
                 fi
@@ -195,7 +225,7 @@
       log "   2) pt_PT (Portugal)"
       log "   3) en_US"
       log "   4) es_ES"
-      ask "Escolha [1]: " ans
+      ask_def "Escolha [1]: " ans 1
       case "${ans:-1}" in
         2) LANG_SEL="pt_PT.UTF-8"; KB_DEF=2 ;;
         3) LANG_SEL="en_US.UTF-8"; KB_DEF=2 ;;
@@ -219,7 +249,7 @@
       log "   1) br (ABNT2)"
       log "   2) us"
       log "   3) es"
-      ask "Escolha [$KB_DEF]: " ans
+      ask_def "Escolha [$KB_DEF]: " ans "$KB_DEF"
       case "${ans:-$KB_DEF}" in
         2) KB=us; KB_LOAD=us ;;
         3) KB=es; KB_LOAD=es ;;
@@ -242,12 +272,12 @@
       log "   2) Europe/Lisbon"
       log "   3) UTC"
       log "   4) outro (IANA)"
-      ask "Escolha [1]: " ans
+      ask_def "Escolha [1]: " ans 1
       case "${ans:-1}" in
         2) TZ=Europe/Lisbon ;;
         3) TZ=UTC ;;
         4)
-          ask "IANA: " TZ
+          ask_def "IANA: " TZ America/Sao_Paulo
           [ -n "${TZ:-}" ] || TZ=America/Sao_Paulo
           ;;
         *) TZ=America/Sao_Paulo ;;
@@ -292,7 +322,7 @@ EOF
     if ! net_connected; then
       log "   AVISO: sem rede — transmute --no-download"
     fi
-    ask "Prosseguir? [S/n]: " go
+    ask_def "Prosseguir? [S/n]: " go S
     case "${go:-S}" in
       [Nn]*)
         log "Configs gravadas (passos 1–4). Sair sem transmute."
@@ -320,6 +350,11 @@ EOF
     # Q5 "Prosseguir?" = HITL humano ? passar --confirm (blob_deliberate ModelFetch).
     # Sem --confirm o transmute aborta com await JARBAS HITL e o shell cai no prompt.
     DL_ARGS="--confirm"
+    # Lab/headless: nao descarregar GBs sem humano (opt-in explicito).
+    if [ "$AUTO" = "1" ] && [ "${NOSD_FIRSTBOOT_DOWNLOAD:-0}" != "1" ]; then
+      DL_ARGS="--confirm --no-download"
+      log "modo auto: transmute --no-download (NOSD_FIRSTBOOT_DOWNLOAD=1 habilita)"
+    fi
     if ! net_connected; then
       DL_ARGS="--confirm --no-download"
       log "— Transmute offline (--confirm --no-download) —"

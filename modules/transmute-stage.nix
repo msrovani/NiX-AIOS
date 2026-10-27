@@ -97,6 +97,7 @@ let
 
   # Wrapper com passthru.shellPath (NixOS exige "shell package").
   aiosShellScript = pkgs.writeShellScript "nixos-aios-shell" ''
+    ${lib.optionalString cfg.firstbootAuto "export NOSD_FIRSTBOOT_AUTO=1"}
     {
       echo ""
       echo "**********************************************"
@@ -117,7 +118,7 @@ let
     fi
 
     case "$TTY_NOW" in
-      /dev/tty[0-9]*|/dev/console)
+      /dev/tty[0-9]*|/dev/ttyS[0-9]*|/dev/hvc[0-9]*|/dev/console)
         if [ "$need_fb" = "1" ] && [ -z "''${NOS_FIRSTBOOT_RAN:-}" ]; then
           export NOS_FIRSTBOOT_RAN=1
           echo "[aios] a iniciar nos-firstboot…" > /dev/tty 2>/dev/null || true
@@ -141,6 +142,16 @@ in
 {
   options.services.nixaiosTransmute = {
     enable = lib.mkEnableOption "Firstboot texto tty1 + transmute + Hotswap JARBAS";
+    firstbootAuto = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Firstboot sem prompts (ISO/lab/headless): usa defaults, espera rede
+        8s e corre `transmute --no-download`. Num install real deixar false.
+        Override em runtime: NOSD_FIRSTBOOT_ASK=1 (forca interactivo) /
+        NOSD_FIRSTBOOT_DOWNLOAD=1 (permite download em auto).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -169,9 +180,10 @@ in
 
     # Backup 1: loginShellInit
     environment.loginShellInit = lib.mkAfter ''
+      ${lib.optionalString cfg.firstbootAuto "export NOSD_FIRSTBOOT_AUTO=1"}
       if [ -z "''${NOS_FIRSTBOOT_RAN:-}" ]; then
         case "$(tty 2>/dev/null)" in
-          /dev/tty[0-9]*|/dev/console)
+          /dev/tty[0-9]*|/dev/ttyS[0-9]*|/dev/hvc[0-9]*|/dev/console)
             if [ ! -f /var/lib/nosd/firstboot.done ]; then
               export NOS_FIRSTBOOT_RAN=1
               ${firstbootScript}/bin/nos-firstboot || true
@@ -186,11 +198,12 @@ in
       text = ''
         mkdir -p /home/nixos
         cat > /home/nixos/.bash_profile << 'EOF'
+${lib.optionalString cfg.firstbootAuto "export NOSD_FIRSTBOOT_AUTO=1"}
 # Neural AIOS firstboot (s524) — forced
 echo "[aios] .bash_profile tty=$(tty 2>/dev/null)"
 if [ -z "''${NOS_FIRSTBOOT_RAN:-}" ]; then
   case "$(tty 2>/dev/null)" in
-    /dev/tty*|/dev/console)
+    /dev/tty*|/dev/ttyS*|/dev/hvc*|/dev/console)
       if [ ! -f /var/lib/nosd/firstboot.done ]; then
         export NOS_FIRSTBOOT_RAN=1
         nos-firstboot || true
@@ -244,6 +257,9 @@ EOF
     systemd.services.nosd-hotswap-aios = {
       description = "Hotswap texto/bootstrap ? JARBAS AIOS Kiosk";
       after = [ "nosd.service" ];
+      # R-01: o script usa tee/systemctl/journalctl/mv/cat (nus) - sem path
+      # o unit morria logo no `exec > >(tee ...)`. Nao usar serviceConfig.path.
+      path = [ pkgs.bash pkgs.systemd pkgs.coreutils pkgs.util-linux pkgs.kbd pkgs.curl ];
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${hotswapScript}";
@@ -255,6 +271,7 @@ EOF
       description = "Auto-enter JARBAS if /var/lib/nosd already transmuted";
       wantedBy = [ "multi-user.target" ];
       after = [ "nosd.service" "getty@tty1.service" ];
+      path = [ pkgs.systemd pkgs.coreutils ];
       serviceConfig = {
         Type = "oneshot";
         ExecStart = pkgs.writeShellScript "nosd-boot-persist-check" ''

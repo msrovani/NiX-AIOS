@@ -10,7 +10,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.6.0-alpha.4** (`v0.6.0-alpha.4`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.6.0-alpha.5** (`v0.6.0-alpha.5`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -87,10 +87,11 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **R-09** ISO 051/QEMU: OBSERVED (0.5.6).
 - **R-05** NixOS VM test: feito (`checks.x86_64-linux.nixaios-vm`).
 - **Q-03** CI Nix/VM: criado; validar no GitHub.
-- **M3 HUD Slint/cage**: OBSERVED em QEMU (alpha.4, virtio-gpu +
-  winit-software/pixman); GL/iGPU real e VT fisico = AWAITING_HW.
+- **M3 Boot->JARBAS**: OBSERVED em QEMU (alpha.5: firstboot auto -> transmute
+  -> hotswap -> cage/DRM -> HUD Slint; virtio-gpu + winit-software/pixman).
+  GL/iGPU real, VT/teclado fisicos e metal = AWAITING_HW.
 - **M4/M5**: AWAITING_HW.
 
-## Evidência 0.6.0-alpha.4
+## Evidência 0.6.0-alpha.5
 
-`docs/RELEASE_0.6.0-alpha.4.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.
+`docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.
