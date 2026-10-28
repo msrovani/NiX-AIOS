@@ -101,6 +101,8 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M8 estado**: CRDT (LWW+VV) sobre o link assinado do M7 (`kind=2`);
   `crdt.put/get/sync`; `mesh-2vm-crdt` PASS. Anti-entropy = estado completo
   (sem delta/Merkle), em claro, sem persistencia nsgdb.
+- **M6.1 Noise**: link de jobs/estado cifrado (XX + BIND Ed25519 contra a chave
+  fixada). Sem modo plaintext. Sem revogacao/rotacao; HB UDP continua em claro.
 - **M9 skills**: wasmi frugal (fuel 100k/heap 256 KiB/zero caps),
   `skill.install|list|run`, registo `skill/<n>/active` no CRDT. Local apenas
   (sem SKILL_PUSH); fnv como id, sem BLAKE3 nem quota.

@@ -1,18 +1,18 @@
 //! M7 — Jobs remotos (NoProto sobre TCP) com frames assinados.
 //!
-//! V1 (esta fatia): o cliente envia um envelope, o worker executa **localmente**
-//! e devolve um resultado assinado. Não há confidencialidade (Noise fica em
-//! M6.1) nem scheduler distribuído — o cliente escolhe o endereço.
+//! M6.1: o TCP vai dentro de um canal **Noise XX** (sigilo + forward secrecy)
+//! e a identidade Ed25519 é ligada ao handshake via `BIND` (ver `noise.rs`).
 //!
-//! Wire: `NJOB | ver u8 | len u32 LE | body | sig 64`
-//! A assinatura cobre `NJOB|ver|len|body`. O recetor verifica contra a chave
-//! **fixada** no mesh (TOFU) — um par desconhecido não entra.
+//! Wire: `NJOB | ver u8 | len u32 LE | body | sig 64` (dentro do Noise).
+//! O frame continua assinado (defesa em profundidade) e o recetor exige a
+//! chave fixada no mesh.
 
 use crate::ident::{short_id, Identity, PinError, Pinned};
+use crate::noise::Secure;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{info, warn};
 
@@ -25,7 +25,7 @@ pub const DEFAULT_DEADLINE_MS: u64 = 30_000;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobEnvelope {
     pub job_id: [u8; 16],
-    /// 1 = chat (v1).
+    /// 1 = chat, 2 = crdt.
     pub kind: u8,
     pub prompt: String,
     pub deadline_ms: u64,
@@ -41,7 +41,6 @@ pub struct JobResult {
     pub ok: bool,
     pub text: String,
     pub error: Option<String>,
-    /// Id derivado da chave do worker.
     pub worker: u32,
     pub key: [u8; 32],
     pub elapsed_ms: u64,
@@ -53,6 +52,15 @@ pub fn new_job_id() -> [u8; 16] {
     out.copy_from_slice(u.as_bytes());
     out
 }
+
+/// Executor local (prompt, budget) -> texto.
+pub type Executor = Arc<dyn Fn(&str, u32) -> Result<String, String> + Send + Sync>;
+
+/// M8: hook de estado — recebe o payload e devolve o snapshot já merged.
+pub type CrdtHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
+
+pub const KIND_CHAT: u8 = 1;
+pub const KIND_CRDT: u8 = 2;
 
 fn frame(body: &[u8], id: &Identity) -> Vec<u8> {
     let mut v = MAGIC.to_vec();
@@ -94,17 +102,7 @@ fn parse_frame(buf: &[u8]) -> Result<ParsedFrame, String> {
     Ok(ParsedFrame { body, sig, signed })
 }
 
-/// Executor local (prompt, budget) -> texto.
-pub type Executor = Arc<dyn Fn(&str, u32) -> Result<String, String> + Send + Sync>;
-
-/// M8: hook de estado — recebe o payload e devolve o snapshot já merged.
-pub type CrdtHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
-
-/// `kind` do envelope.
-pub const KIND_CHAT: u8 = 1;
-pub const KIND_CRDT: u8 = 2;
-
-/// Servidor de jobs. `exec` corre o trabalho local (chat, skill, ...).
+/// Servidor de jobs (Noise + frame assinado).
 pub async fn serve(
     bind: &str,
     identity: Identity,
@@ -113,62 +111,76 @@ pub async fn serve(
     crdt: CrdtHook,
 ) -> std::io::Result<()> {
     let listener = TcpListener::bind(bind).await?;
-    info!(target: "nosd", "job listener bind={bind} node={}", identity.node_id());
+    info!(
+        target: "nosd",
+        "job listener bind={bind} node={} noise=XX",
+        identity.node_id()
+    );
+    serve_on(listener, identity, pinned, exec, crdt).await
+}
+
+/// Igual a `serve`, mas com listener j? aberto (testes / socket activation).
+pub async fn serve_on(
+    listener: TcpListener,
+    identity: Identity,
+    pinned: Arc<Pinned>,
+    exec: Executor,
+    crdt: CrdtHook,
+) -> std::io::Result<()> {
     loop {
-        let (mut sock, peer) = listener.accept().await?;
+        let (sock, peer) = listener.accept().await?;
         let id = identity.clone();
         let pins = pinned.clone();
         let exec = exec.clone();
         let crdt = crdt.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle(&mut sock, &id, &pins, &exec, &crdt).await {
-                warn!(target: "nosd", "job conn {peer} err: {e}");
+            let mut s = match Secure::responder(sock, &id, &pins).await {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!(target: "nosd", "job noise handshake {peer}: {e}");
+                    return;
+                }
+            };
+            let req = match s.recv().await {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!(target: "nosd", "job recv: {e}");
+                    return;
+                }
+            };
+            match handle(&req, &id, &pins, &exec, &crdt).await {
+                Ok(out) => {
+                    if let Err(e) = s.send(&out).await {
+                        warn!(target: "nosd", "job send: {e}");
+                    }
+                }
+                Err(e) => warn!(target: "nosd", "job handle: {e}"),
             }
         });
     }
 }
 
 async fn handle(
-    sock: &mut TcpStream,
+    buf: &[u8],
     identity: &Identity,
     pinned: &Pinned,
     exec: &Executor,
     crdt: &CrdtHook,
-) -> Result<(), String> {
-    let mut head = [0u8; 9];
-    sock.read_exact(&mut head)
-        .await
-        .map_err(|e| e.to_string())?;
-    if &head[0..4] != MAGIC || head[4] != VER {
-        return Err("header invalido".into());
-    }
-    let len = u32::from_le_bytes(head[5..9].try_into().unwrap()) as usize;
-    if len > MAX_BODY {
-        return Err("job demasiado grande".into());
-    }
-    let mut rest = vec![0u8; len + 64];
-    sock.read_exact(&mut rest)
-        .await
-        .map_err(|e| e.to_string())?;
-    let body = &rest[..len];
-    let sig = &rest[len..];
-
-    let env: JobEnvelope = serde_json::from_slice(body).map_err(|e| format!("json: {e}"))?;
+) -> Result<Vec<u8>, String> {
+    let pf = parse_frame(buf)?;
+    let env: JobEnvelope = serde_json::from_slice(&pf.body).map_err(|e| format!("json: {e}"))?;
     if env.prompt.len() > MAX_PROMPT {
         return Err("prompt acima do limite".into());
     }
     if short_id(&env.key) != env.origin {
         return Err("id nao corresponde a chave".into());
     }
-    // Autenticidade: chave fixada no mesh.
     match pinned.check_key(env.origin, &env.key) {
         Ok(()) => {}
         Err(PinError::Replay) => return Err("replay".into()),
         Err(e) => return Err(format!("peer nao autorizado: {e:?}")),
     }
-    let mut signed = head.to_vec();
-    signed.extend_from_slice(body);
-    if !crate::ident::verify(&env.key, &signed, sig) {
+    if !crate::ident::verify(&env.key, &pf.signed, &pf.sig) {
         return Err("assinatura invalida".into());
     }
 
@@ -203,30 +215,24 @@ async fn handle(
         },
     };
     let body = serde_json::to_vec(&res).map_err(|e| e.to_string())?;
-    let out = frame(&body, identity);
-    sock.write_all(&out).await.map_err(|e| e.to_string())?;
-    sock.shutdown().await.ok();
     info!(
         target: "nosd",
         "job done origin={} ok={} ms={elapsed_ms}",
         env.origin,
         res.ok
     );
-    Ok(())
+    Ok(frame(&body, identity))
 }
 
-/// Cliente: envia o job e verifica a assinatura do worker.
+/// Cliente: envia o job pelo canal Noise e verifica a assinatura do worker.
 pub async fn submit(
     addr: &str,
     identity: &Identity,
-    pinned: &Pinned,
+    pinned: &Arc<Pinned>,
     prompt: &str,
     deadline_ms: u64,
     budget_tokens: u32,
 ) -> Result<JobResult, String> {
-    if prompt.len() > MAX_PROMPT {
-        return Err("prompt acima do limite".into());
-    }
     submit_kind(
         addr,
         identity,
@@ -243,7 +249,7 @@ pub async fn submit(
 pub async fn submit_crdt(
     addr: &str,
     identity: &Identity,
-    pinned: &Pinned,
+    pinned: &Arc<Pinned>,
     payload: &str,
     deadline_ms: u64,
 ) -> Result<JobResult, String> {
@@ -253,7 +259,7 @@ pub async fn submit_crdt(
 async fn submit_kind(
     addr: &str,
     identity: &Identity,
-    pinned: &Pinned,
+    pinned: &Arc<Pinned>,
     prompt: &str,
     deadline_ms: u64,
     budget_tokens: u32,
@@ -273,27 +279,17 @@ async fn submit_kind(
     };
     let body = serde_json::to_vec(&env).map_err(|e| e.to_string())?;
     let out = frame(&body, identity);
-    let _ = budget_tokens;
 
-    let mut sock = tokio::time::timeout(
-        Duration::from_millis(deadline_ms.clamp(100, 120_000) + 2_000),
-        TcpStream::connect(addr),
-    )
-    .await
-    .map_err(|_| "connect timeout".to_string())?
-    .map_err(|e| format!("connect: {e}"))?;
-    sock.write_all(&out).await.map_err(|e| e.to_string())?;
-    sock.shutdown().await.ok();
-
-    let mut buf = Vec::new();
-    let read = tokio::time::timeout(
-        Duration::from_millis(deadline_ms.clamp(100, 120_000) + 2_000),
-        sock.read_to_end(&mut buf),
-    )
-    .await
-    .map_err(|_| "read timeout".to_string())?
-    .map_err(|e| e.to_string())?;
-    let _ = read;
+    let budget = Duration::from_millis(deadline_ms.clamp(100, 120_000) + 2_000);
+    let sock = tokio::time::timeout(budget, TcpStream::connect(addr))
+        .await
+        .map_err(|_| "connect timeout".to_string())?
+        .map_err(|e| format!("connect: {e}"))?;
+    let mut s = Secure::initiator(sock, identity, pinned).await?;
+    s.send(&out).await?;
+    let buf = tokio::time::timeout(budget, s.recv())
+        .await
+        .map_err(|_| "read timeout".to_string())??;
 
     let pf = parse_frame(&buf)?;
     let res: JobResult = serde_json::from_slice(&pf.body).map_err(|e| format!("json: {e}"))?;
@@ -303,9 +299,52 @@ async fn submit_kind(
     if !crate::ident::verify(&res.key, &pf.signed, &pf.sig) {
         return Err("assinatura do worker invalida".into());
     }
-    // Se o worker já estava fixado, a chave tem de ser a mesma.
-    if let Err(e) = pinned.check_key(res.worker, &res.key) {
-        return Err(format!("worker nao autorizado: {e:?}"));
-    }
+    pinned
+        .check_key(res.worker, &res.key)
+        .map_err(|e| format!("worker nao autorizado: {e:?}"))?;
     Ok(res)
+}
+
+/// (mantido para compat de leitura; o canal agora é sempre Noise)
+pub async fn shutdown(_sock: &mut TcpStream) {
+    let _ = _sock.shutdown().await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ident::{Identity, Pinned};
+    use std::collections::HashSet;
+
+    fn ident(seed: u8) -> Identity {
+        Identity::from_seed([seed; 32], HashSet::new(), true)
+    }
+
+    #[tokio::test]
+    async fn noise_job_roundtrip() {
+        let server = ident(11);
+        let client = ident(12);
+        let pins_srv = Arc::new(Pinned::new());
+        let pins_cli = Arc::new(Pinned::new());
+        let exec: Executor = Arc::new(|p: &str, _b: u32| Ok(format!("pong:{p}")));
+        let crdt: CrdtHook = Arc::new(|p: &str| Ok(p.to_string()));
+
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap().to_string();
+        let s = server.clone();
+        let pins_task = pins_srv.clone();
+        tokio::spawn(async move {
+            let _ = serve_on(l, s, pins_task, exec, crdt).await;
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let r = submit(&addr, &client, &pins_cli, "oi", 5_000, 16)
+            .await
+            .expect("job ok");
+        assert!(r.ok, "{r:?}");
+        assert_eq!(r.text, "pong:oi");
+        assert_eq!(r.worker, server.node_id());
+        assert_eq!(pins_cli.peer_count(), 1, "cliente fixou o worker");
+        assert_eq!(pins_srv.peer_count(), 1, "servidor fixou o cliente");
+    }
 }

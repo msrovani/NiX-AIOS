@@ -8,6 +8,7 @@ pub mod ident;
 pub mod job;
 pub mod laya_intent;
 pub mod mesh_knowledge;
+pub mod noise;
 pub mod soul_mirror;
 pub mod udp;
 

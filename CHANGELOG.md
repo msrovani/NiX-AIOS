@@ -20,6 +20,12 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Security (M6.1)
+
+- **Link de jobs cifrado:** Noise XX (X25519 descart?veis) + `BIND` Ed25519
+  ligado ao `handshake_hash` e verificado contra a chave fixada no mesh.
+  Sem modo plaintext. `mesh-2vm-jobs` e `mesh-2vm-crdt` passam pelo canal.
+
 ### Added (M9)
 
 - **Skills wasmi:** `skill.install` (wat/wasm_b64) content-addressed,

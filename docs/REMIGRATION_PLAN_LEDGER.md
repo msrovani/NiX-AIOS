@@ -63,6 +63,16 @@ recusada, infer sem cap negado (14 PASS em ipc_auth). Residual: fnv nao e
 commitment (BLAKE3 no M8.1), sem SKILL_PUSH/distribuicao do binario, sem quota
 por skill, sem Noise. Evidencia: `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`.
 
+**M6.1 Noise (2026-10-27):** link de jobs/estado passa a `Noise_XX_25519_
+ChaChaPoly_BLAKE2s` (estaticas X25519 descartaveis) + `BIND` Ed25519 assinado
+sobre `"NJOBBIND"||handshake_hash||pub||id`, verificado contra a chave fixada
+no mesh. Sem conversao de chaves nem PKI; sem modo plaintext (nao ha downgrade).
+Provas: unit `noise_job_roundtrip` (pinning nos dois lados) e os checks
+`mesh-2vm-jobs`/`mesh-2vm-crdt` a passar pelo canal cifrado. Residual: sem
+revogacao/rotacao (M6.2), sem teste de MITM activo, HB UDP continua assinado
+mas em claro, e o `crdt.sync` envia estado completo (M8.1). Evidencia:
+`docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---
