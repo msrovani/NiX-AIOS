@@ -304,6 +304,7 @@ async fn main() -> anyhow::Result<()> {
                             hash,
                             v["publisher"].as_str(),
                             v["sig"].as_str(),
+                            &nosd_lib::rpc::skills::revoked_set(&st3),
                         )
                         .map_err(|e| format!("publisher: {e}"))?
                     } else {

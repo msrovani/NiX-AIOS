@@ -76,6 +76,7 @@ pub fn verify_publisher(
     hash: &str,
     publisher_hex: Option<&str>,
     sig_b64: Option<&str>,
+    revoked: &std::collections::HashSet<String>,
 ) -> Result<&'static str, String> {
     use base64::Engine as _;
     let (Some(pk_hex), Some(sig_b64)) = (publisher_hex, sig_b64) else {
@@ -88,6 +89,9 @@ pub fn verify_publisher(
     let allow = trusted_publishers();
     if !allow.is_empty() && !allow.iter().any(|a| a == &pk_hex.to_ascii_lowercase()) {
         return Err("publisher fora da allowlist (NOSD_SKILL_PUBLISHERS)".into());
+    }
+    if revoked.contains(&pk_hex.to_ascii_lowercase()) {
+        return Err("publisher revogado".into());
     }
     let sig = base64::engine::general_purpose::STANDARD
         .decode(sig_b64)
@@ -129,6 +133,16 @@ fn max_version_for_focus(state: &AppState, focus: &str) -> Option<String> {
         .iter()
         .filter_map(|m| m["version"].as_str().map(|v| v.to_string()))
         .max_by_key(|v| ver_key(v))
+}
+
+/// S2c: publishers revogados (`skill/revoked/<hex>` = "1").
+pub fn revoked_set(state: &AppState) -> std::collections::HashSet<String> {
+    let store = state.mesh.crdt_snapshot();
+    store
+        .entries
+        .keys()
+        .filter_map(|k| k.strip_prefix("skill/revoked/").map(|s| s.to_string()))
+        .collect()
 }
 
 /// S2c: junta publisher/sig ao manifesto (o push reencaminha-os para que o
@@ -378,6 +392,7 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                 &cid_pre,
                 req.params.get("publisher").and_then(|v| v.as_str()),
                 req.params.get("sig").and_then(|v| v.as_str()),
+                &revoked_set(state),
             ) {
                 Ok(p) => p,
                 Err(e) => return Some(err(req.id, format!("publisher: {e}"))),
@@ -604,15 +619,39 @@ mod s2_tests {
         let sig_b64 = base64::engine::general_purpose::STANDARD.encode(sig);
 
         assert_eq!(
-            verify_publisher("sum", "sum", "1.0.0", &hash, Some(&pk_hex), Some(&sig_b64)),
+            verify_publisher(
+                "sum",
+                "sum",
+                "1.0.0",
+                &hash,
+                Some(&pk_hex),
+                Some(&sig_b64),
+                &Default::default()
+            ),
             Ok("signed")
         );
         // Manifesto adulterado (versao diferente) deixa de bater.
-        let bad = verify_publisher("sum", "sum", "2.0.0", &hash, Some(&pk_hex), Some(&sig_b64));
+        let bad = verify_publisher(
+            "sum",
+            "sum",
+            "2.0.0",
+            &hash,
+            Some(&pk_hex),
+            Some(&sig_b64),
+            &Default::default(),
+        );
         assert!(bad.is_err(), "{bad:?}");
         // Sem assinatura = local (nao e' "signed").
         assert_eq!(
-            verify_publisher("sum", "sum", "1.0.0", &hash, None, None),
+            verify_publisher(
+                "sum",
+                "sum",
+                "1.0.0",
+                &hash,
+                None,
+                None,
+                &Default::default()
+            ),
             Ok("local")
         );
     }
@@ -673,5 +712,48 @@ mod s2c_push_tests {
         let q = push_payload(None, "x", "hash", "d2FzbQ==");
         assert!(q.get("publisher").is_none());
         assert!(q.get("sig").is_none());
+    }
+}
+
+#[cfg(test)]
+mod s2c_revoke_tests {
+    use super::*;
+    use base64::Engine as _;
+    use nos_mesh::ident::Identity;
+
+    #[test]
+    fn revoked_publisher_is_refused_even_with_valid_signature() {
+        let id = Identity::from_seed([93u8; 32], Default::default(), true);
+        let pk_hex: String = id.public_key().iter().map(|b| format!("{b:02x}")).collect();
+        let hash = "b".repeat(64);
+        let msg = publisher_msg("s", "s", "1.0.0", &hash);
+        let sig_b64 = base64::engine::general_purpose::STANDARD.encode(id.sign(msg.as_bytes()));
+
+        // Sem revogacao: aceita.
+        assert_eq!(
+            verify_publisher(
+                "s",
+                "s",
+                "1.0.0",
+                &hash,
+                Some(&pk_hex),
+                Some(&sig_b64),
+                &Default::default()
+            ),
+            Ok("signed")
+        );
+        // Revogado: recusa apesar da assinatura ser valida.
+        let revoked: std::collections::HashSet<String> = [pk_hex.clone()].into_iter().collect();
+        let r = verify_publisher(
+            "s",
+            "s",
+            "1.0.0",
+            &hash,
+            Some(&pk_hex),
+            Some(&sig_b64),
+            &revoked,
+        );
+        assert!(r.is_err(), "{r:?}");
+        assert!(format!("{r:?}").contains("revogado"), "{r:?}");
     }
 }

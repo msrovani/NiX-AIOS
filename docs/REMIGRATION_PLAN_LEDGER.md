@@ -176,6 +176,14 @@ _and_tamper_rejected` (verificador). **Sem teste e2e da ligacao** (nao ha
 assinatura no check de VM). Falta: revogacao e downgrade HITL. Evidencia:
 `docs/evidence/S2C_SIGNED_PUSH_0.6.0-alpha.9.md`.
 
+**S2c revogacao (2026-10-27):** `verify_publisher` recebe o conjunto de
+publishers revogados (`skill/revoked/<hex>` no CRDT) e recusa **mesmo com
+assinatura valida**; aplicado em install e no hook do push. Revogar hoje =
+`nosctl crdt-put skill/revoked/<hex> 1` (replica via crdt.sync). Prova:
+`revoked_publisher_is_refused_even_with_valid_signature`. Falta CLI/HITL de
+revogacao, e2e em VM, expiracao e downgrade HITL. Evidencia:
+`docs/evidence/S2C_REVOKE_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---
