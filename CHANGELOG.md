@@ -20,6 +20,11 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Security (S2b)
+
+- **Manifesto validado:** `caps` declaradas restritas a `aios_ai.infer`/`log` e
+  **downgrade recusado** por `focus` (vers?o monot?nica, fail-closed).
+
 ### Security (S2a)
 
 - **Autoria de skills:** `skill.install` aceita `publisher` + `sig` sobre

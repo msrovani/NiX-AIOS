@@ -294,7 +294,7 @@ async fn main() -> anyhow::Result<()> {
                             .map_err(|e| format!("base64: {e}"))?;
                     let (cid, n) =
                         nosd_lib::rpc::skills::install_bytes(&st3, name, &bytes, Some(hash))?;
-                    nosd_lib::rpc::skills::put_meta(&st3, name, "", "", &cid, n, "peer");
+                    nosd_lib::rpc::skills::put_meta(&st3, name, "", "", &cid, n, "peer", &[]);
                     Ok(format!("{cid}:{n}"))
                 });
                 tokio::spawn(async move {

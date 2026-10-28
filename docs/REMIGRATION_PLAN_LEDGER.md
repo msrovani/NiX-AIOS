@@ -142,6 +142,14 @@ S2b: caps declaradas, historico no score, versao monotonica, push assinado e
 revogacao por CRDT/HITL. Evidencia:
 `docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`.
 
+**S2b caps + versao monotonica (2026-10-27):** `caps` declaradas passam a ser
+validadas contra allowlist fechada (`aios_ai.infer`, `log`) antes de escrever, e
+instalar versao inferior a maxima do mesmo `focus` e recusado (fail-closed).
+`put_meta` regista as caps. Prova: `declared_caps_are_restricted_to_allowlist`,
+`semver_key_orders_versions`, workspace+clippy verdes. Fica para S2c: historico
+no score, push assinado, revogacao CRDT/HITL e caminho HITL para downgrade.
+Evidencia: `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

@@ -20,6 +20,7 @@ fn content_id(bytes: &[u8]) -> String {
 }
 
 /// S1: manifesto mínimo por skill (vive em `skill/<nome>/meta`).
+#[allow(clippy::too_many_arguments)] // manifesto: campos explicitos > struct cerrada
 pub fn put_meta(
     state: &AppState,
     name: &str,
@@ -28,6 +29,7 @@ pub fn put_meta(
     hash: &str,
     bytes: usize,
     provenance: &str,
+    caps: &[String],
 ) {
     let focus = if focus.is_empty() { name } else { focus };
     let version = if version.is_empty() { "0.1.0" } else { version };
@@ -35,7 +37,7 @@ pub fn put_meta(
         "name": name,
         "focus": focus,
         "version": version,
-        "caps": [],
+        "caps": caps,
         "hash": hash,
         "bytes": bytes,
         "provenance": provenance,
@@ -106,6 +108,27 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
         .collect()
+}
+
+/// S2b: capacidades que o host pode expor a uma skill. Qualquer outra = recusa.
+pub const ALLOWED_CAPS: &[&str] = &["aios_ai.infer", "log"];
+
+pub fn verify_caps(caps: &[String]) -> Result<(), String> {
+    for c in caps {
+        if !ALLOWED_CAPS.contains(&c.as_str()) {
+            return Err(format!(
+                "cap '{c}' nao permitida (permitidas: {ALLOWED_CAPS:?})"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn max_version_for_focus(state: &AppState, focus: &str) -> Option<String> {
+    candidate_metas(state, focus)
+        .iter()
+        .filter_map(|m| m["version"].as_str().map(|v| v.to_string()))
+        .max_by_key(|v| ver_key(v))
 }
 
 fn ver_key(v: &str) -> (u32, u32, u32) {
@@ -292,6 +315,29 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                 Ok(p) => p,
                 Err(e) => return Some(err(req.id, format!("publisher: {e}"))),
             };
+            // S2b: capacidades declaradas (allowlist fechada).
+            let caps: Vec<String> = req
+                .params
+                .get("caps")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if let Err(e) = verify_caps(&caps) {
+                return Some(err(req.id, format!("caps: {e}")));
+            }
+            // S2b: versao monot?nica por focus (sem downgrade silencioso).
+            if let Some(maxv) = max_version_for_focus(state, focus_e) {
+                if ver_key(version_e) < ver_key(&maxv) {
+                    return Some(err(
+                        req.id,
+                        format!("downgrade recusado: {version_e} < {maxv} (focus {focus_e})"),
+                    ));
+                }
+            }
             let cid = content_id(&bytes);
             let path = dir.join(format!("{cid}.wasm"));
             if let Err(e) = std::fs::write(&path, &bytes) {
@@ -311,6 +357,7 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                 &cid,
                 bytes.len(),
                 provenance,
+                &caps,
             );
             Response {
                 id: req.id,
@@ -323,6 +370,7 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                     "focus": focus_e,
                     "version": version_e,
                     "provenance": provenance,
+                    "caps": caps,
                     "path": path.display().to_string(),
                 }),
             }
@@ -467,5 +515,27 @@ mod s2_tests {
             verify_publisher("sum", "sum", "1.0.0", &hash, None, None),
             Ok("local")
         );
+    }
+}
+
+#[cfg(test)]
+mod s2b_tests {
+    use super::*;
+
+    #[test]
+    fn declared_caps_are_restricted_to_allowlist() {
+        assert!(verify_caps(&[]).is_ok());
+        assert!(verify_caps(&["aios_ai.infer".to_string(), "log".to_string()]).is_ok());
+        let bad = verify_caps(&["fs.read".to_string()]);
+        assert!(bad.is_err(), "{bad:?}");
+        let bad2 = verify_caps(&["net.connect".to_string()]);
+        assert!(bad2.is_err(), "{bad2:?}");
+    }
+
+    #[test]
+    fn semver_key_orders_versions() {
+        assert!(ver_key("2.0.0") > ver_key("1.9.9"));
+        assert!(ver_key("1.10.0") > ver_key("1.9.0"));
+        assert_eq!(ver_key("1.2"), ver_key("1.2.0"));
     }
 }

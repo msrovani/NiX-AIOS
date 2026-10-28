@@ -107,6 +107,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **S2a publisher**: assinatura do manifesto (`name|focus|version|hash`) +
   allowlist `NOSD_SKILL_PUBLISHERS`; provenance `signed`. **Falta**: caps
   declaradas, historico, versao monotonica, push assinado, revogacao.
+- **S2b caps/versao**: caps declaradas validadas (allowlist `aios_ai.infer`,
+  `log`) e downgrade por `focus` recusado. Falta: historico no score, push
+  assinado, revogacao e downgrade via HITL.
 - **S2 skills (falta)**: assinatura de publisher + allowlist + caps declaradas
   + historico no score + versao monotonica. Desenho em
   `docs/SKILL_TRUST_AND_SELECTION.md`.
