@@ -213,7 +213,8 @@ pequeno do que a ancora (fail-closed, mensagem indica o ficheiro a apagar).
 Prova: `crdt_log_detects_rollback`, `crdt_log_accepts_growth_and_compaction` e
 `crdt_rollback_refuses_start` (daemon real, exit != 0 + stderr "rollback").
 Residual: mesma pasta (quem escreve no data-dir repoe os dois), janela de 31
-linhas, so deteta encolhimento, backend nsgdb nao feito. Evidencia:
+linhas, so deteta encolhimento, backend nsgdb nao feito. Frota: `mesh-2vm-crdt`
+PASS (EXIT=0) sem regressao no `crdt.sync`. Evidencia:
 `docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`.
 
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
