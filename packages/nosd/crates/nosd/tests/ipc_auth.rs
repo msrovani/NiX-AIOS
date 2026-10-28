@@ -700,3 +700,48 @@ fn skill_focus_selection_prefers_newer_and_uses_blake3() {
     );
     assert_eq!(cur["result"]["value"], "sum2@2.0.0", "{cur}");
 }
+
+#[test]
+fn skill_history_feeds_the_score() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    // Duas candidatas do mesmo foco, mesma versao (empatam em tudo menos historico).
+    for (name, wat) in [("good", WAT_IDENT), ("bomb", WAT_FUEL_BOMB)] {
+        let r = rpc(
+            &daemon,
+            Some(&t),
+            "skill.install",
+            json!({ "name": name, "wat": wat, "focus": "hist", "version": "1.0.0" }),
+        );
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    for _ in 0..5 {
+        let r = rpc(
+            &daemon,
+            Some(&t),
+            "skill.run",
+            json!({ "name": "good", "arg": 3 }),
+        );
+        assert_eq!(r["ok"], true, "{r}");
+        let _ = rpc(
+            &daemon,
+            Some(&t),
+            "skill.run",
+            json!({ "name": "bomb", "arg": 0 }),
+        );
+    }
+    let ex = rpc(
+        &daemon,
+        Some(&t),
+        "skill.explain",
+        json!({ "focus": "hist" }),
+    );
+    assert_eq!(ex["ok"], true, "{ex}");
+    assert_eq!(
+        ex["result"]["chosen"], "good@1.0.0",
+        "historico deve desempatar: {ex}"
+    );
+    assert_eq!(ex["result"]["why"]["history"], 20, "{ex}");
+    assert_eq!(ex["result"]["why"]["runs"], json!([5, 0]), "{ex}");
+}

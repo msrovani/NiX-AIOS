@@ -27,6 +27,12 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Added (S2c)
+
+- **Historico no score:** `skill.run` conta sucesso/falha em
+  `skill/<n>/stats`; `skill.explain` usa `20*ok/(ok+fail)` (>=5 execucoes) e
+  expoe `history`/`runs` no `why`.
+
 ### Security (S2b)
 
 - **Manifesto validado:** `caps` declaradas restritas a `aios_ai.infer`/`log` e

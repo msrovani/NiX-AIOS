@@ -141,7 +141,11 @@ fn ver_key(v: &str) -> (u32, u32, u32) {
 }
 
 /// S1: score 0-100 + breakdown auditável (proveniência, caps, versão, tamanho).
-fn score_meta(m: &serde_json::Value, all: &[serde_json::Value]) -> (u32, serde_json::Value) {
+fn score_meta(
+    m: &serde_json::Value,
+    all: &[serde_json::Value],
+    stats: &std::collections::HashMap<String, (u64, u64)>,
+) -> (u32, serde_json::Value) {
     let prov = match m["provenance"].as_str().unwrap_or("local") {
         "signed" => 30,
         "peer" => 18,
@@ -163,7 +167,18 @@ fn score_meta(m: &serde_json::Value, all: &[serde_json::Value]) -> (u32, serde_j
         .min()
         .unwrap_or(bytes);
     let size = if bytes <= min_bytes { 10 } else { 5 };
-    let total = prov + caps + version + size;
+    // S2c: historico local (sucesso/falha observados por este no).
+    let (ok, fail) = stats
+        .get(m["name"].as_str().unwrap_or(""))
+        .copied()
+        .unwrap_or((0, 0));
+    let runs = ok + fail;
+    let history = if runs >= 5 {
+        (20 * ok / runs) as u32
+    } else {
+        8 // sem amostra suficiente: neutro-baixo, nao premeia nem pune
+    };
+    let total = prov + caps + version + size + history;
     (
         total,
         json!({
@@ -171,8 +186,24 @@ fn score_meta(m: &serde_json::Value, all: &[serde_json::Value]) -> (u32, serde_j
             "caps": caps,
             "version": version,
             "size": size,
+            "history": history,
+            "runs": [ok, fail],
         }),
     )
+}
+
+/// S2c: contadores por skill (`skill/<nome>/stats` = [ok, fail]).
+fn bump_stats(state: &AppState, name: &str, ok: bool) {
+    let key = format!("skill/{name}/stats");
+    let (o, f) = state
+        .mesh
+        .crdt_get(&key)
+        .and_then(|e| serde_json::from_str::<(u64, u64)>(&e.value).ok())
+        .unwrap_or((0, 0));
+    let (o, f) = if ok { (o + 1, f) } else { (o, f + 1) };
+    state
+        .mesh
+        .crdt_put(state.mesh.local_id(), &key, &json!([o, f]).to_string(), 0);
 }
 
 fn candidate_metas(state: &AppState, focus: &str) -> Vec<serde_json::Value> {
@@ -411,7 +442,10 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
             };
             // Sem capacidades por omissão: `aios_ai::infer` devolve -1.
             let rt = nos_wasm::FrugalRuntime::new();
-            match rt.run_i32(&bytes, nos_core::CapBits::NONE, 1, arg) {
+            let outcome = rt.run_i32(&bytes, nos_core::CapBits::NONE, 1, arg);
+            // S2c: historico local (alimenta o score do Hermes).
+            bump_stats(state, name, outcome.is_ok());
+            match outcome {
                 Ok(v) => Response {
                     id: req.id,
                     ok: true,
@@ -435,13 +469,26 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
             if focus.is_empty() {
                 return Some(err(req.id, "skill.explain requer focus"));
             }
+            let snapshot = state.mesh.crdt_snapshot();
+            let mut stats: std::collections::HashMap<String, (u64, u64)> =
+                std::collections::HashMap::new();
+            for (k, e) in &snapshot.entries {
+                if let Some(n) = k
+                    .strip_prefix("skill/")
+                    .and_then(|r| r.strip_suffix("/stats"))
+                {
+                    if let Ok(v) = serde_json::from_str::<(u64, u64)>(&e.value) {
+                        stats.insert(n.to_string(), v);
+                    }
+                }
+            }
             let metas = candidate_metas(state, focus);
             if metas.is_empty() {
                 return Some(err(req.id, format!("sem candidatas para focus '{focus}'")));
             }
             let mut best: Option<(u32, serde_json::Value, serde_json::Value)> = None;
             for m in &metas {
-                let (s, why) = score_meta(m, &metas);
+                let (s, why) = score_meta(m, &metas, &stats);
                 let better = match &best {
                     None => true,
                     Some((bs, bm, _)) => {
