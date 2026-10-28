@@ -44,34 +44,36 @@ fn free_port() -> u16 {
         .port()
 }
 
-fn start() -> Daemon {
-    let dir = tempfile::tempdir().unwrap();
-    let port = free_port();
-    let token = "test-token-0123456789abcdef".to_string();
+fn spawn_nosd_to(dir: &std::path::Path, port: u16, token: &str, stderr: Stdio) -> Child {
     let args = vec![
         "--foreground".to_string(),
         "--tcp".to_string(),
         format!("127.0.0.1:{port}"),
         "--data-dir".to_string(),
-        dir.path().to_string_lossy().to_string(),
+        dir.to_string_lossy().to_string(),
         "--orb-lab".to_string(),
         String::new(),
         "--hermes-tick-secs".to_string(),
         "0".to_string(),
         "--ipc-token".to_string(),
-        token.clone(),
+        token.to_string(),
     ];
-    let child = Command::new(env!("CARGO_BIN_EXE_nosd"))
+    Command::new(env!("CARGO_BIN_EXE_nosd"))
         .args(&args)
         .env_remove("NOSD_NIX_RING")
         .env_remove("NOSD_LANDLOCK")
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(stderr)
         .spawn()
-        .expect("spawn nosd");
+        .expect("spawn nosd")
+}
 
+fn spawn_nosd(dir: &std::path::Path, port: u16, token: &str) -> Child {
+    spawn_nosd_to(dir, port, token, Stdio::null())
+}
+
+fn wait_listen(child: &mut Child, port: u16) {
     let deadline = Instant::now() + Duration::from_secs(10);
-    let mut child = child;
     loop {
         if TcpStream::connect(("127.0.0.1", port)).is_ok() {
             break;
@@ -84,6 +86,14 @@ fn start() -> Daemon {
         }
         std::thread::sleep(Duration::from_millis(50));
     }
+}
+
+fn start() -> Daemon {
+    let dir = tempfile::tempdir().unwrap();
+    let port = free_port();
+    let token = "test-token-0123456789abcdef".to_string();
+    let mut child = spawn_nosd(dir.path(), port, &token);
+    wait_listen(&mut child, port);
 
     Daemon {
         child,
@@ -93,6 +103,22 @@ fn start() -> Daemon {
         socket: None,
         _dir: dir,
     }
+}
+
+fn send_rpc(port: u16, req: &Value) -> Value {
+    let body = serde_json::to_vec(req).unwrap();
+    let mut sock = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    sock.write_all(&(body.len() as u32).to_le_bytes()).unwrap();
+    sock.write_all(&body).unwrap();
+    sock.shutdown(Shutdown::Write).unwrap();
+
+    let mut len = [0u8; 4];
+    sock.read_exact(&mut len).unwrap();
+    let n = u32::from_le_bytes(len) as usize;
+    let mut buf = vec![0u8; n];
+    sock.read_exact(&mut buf).unwrap();
+    serde_json::from_slice(&buf).unwrap()
 }
 
 fn rpc_with(
@@ -114,19 +140,7 @@ fn rpc_with(
     if let Some(agent) = agent {
         req["agent"] = json!(agent);
     }
-    let body = serde_json::to_vec(&req).unwrap();
-    let mut sock = TcpStream::connect(("127.0.0.1", daemon.port)).unwrap();
-    sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-    sock.write_all(&(body.len() as u32).to_le_bytes()).unwrap();
-    sock.write_all(&body).unwrap();
-    sock.shutdown(Shutdown::Write).unwrap();
-
-    let mut len = [0u8; 4];
-    sock.read_exact(&mut len).unwrap();
-    let n = u32::from_le_bytes(len) as usize;
-    let mut buf = vec![0u8; n];
-    sock.read_exact(&mut buf).unwrap();
-    serde_json::from_slice(&buf).unwrap()
+    send_rpc(daemon.port, &req)
 }
 
 fn rpc(daemon: &Daemon, token: Option<&str>, method: &str, params: Value) -> Value {
@@ -781,4 +795,68 @@ fn skill_downgrade_requires_hitl_grant() {
         json!({ "name": "s", "wat": WAT_IDENT, "focus": "dg", "version": "1.0.0", "confirm_id": cid }),
     );
     assert_eq!(v1b["ok"], true, "{v1b}");
+}
+
+/// M8.1d: repor o log do CRDT por uma versao antiga (rollback) tem de impedir o
+/// arranque. O daemon tem de recusar um log mais pequeno do que a ancora, em vez
+/// de aceitar silenciosamente o estado antigo.
+#[test]
+fn crdt_rollback_refuses_start() {
+    let _serial = serial();
+    let dir = tempfile::tempdir().unwrap();
+    let token = "test-token-0123456789abcdef";
+    let port = free_port();
+    let mut child = spawn_nosd(dir.path(), port, token);
+    wait_listen(&mut child, port);
+    // >32 linhas: o checkpoint periodico da ancora corre durante o uso.
+    for i in 0..40u64 {
+        let r = send_rpc(
+            port,
+            &json!({
+                "id": i + 1,
+                "method": "crdt.put",
+                "cap_gen": 1,
+                "token": token,
+                "params": { "key": format!("k{i}"), "value": "v" },
+            }),
+        );
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+
+    let log = dir.path().join("crdt.jsonl");
+    let anchor = std::fs::read_to_string(dir.path().join("crdt.anchor")).unwrap();
+    let prev_lines: usize = anchor.split_whitespace().nth(1).unwrap().parse().unwrap();
+    assert!(prev_lines >= 32, "ancora: {anchor}");
+    let full = std::fs::read(&log).unwrap();
+    let half: Vec<u8> = full
+        .split_inclusive(|b| *b == b'\n')
+        .take(prev_lines / 2)
+        .flatten()
+        .copied()
+        .collect();
+    assert!(!half.is_empty());
+    std::fs::write(&log, half).unwrap();
+
+    // Porta nova: nao depender de reutilizar a porta depois do kill. O stderr
+    // vai para ficheiro para o teste provar a razao da recusa, nao so o exit.
+    let err = dir.path().join("start.err");
+    let f = std::fs::File::create(&err).unwrap();
+    let mut child = spawn_nosd_to(dir.path(), free_port(), token, Stdio::from(f));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            assert!(!status.success(), "nosd aceitou um log em rollback");
+            let stderr = std::fs::read_to_string(&err).unwrap_or_default();
+            assert!(stderr.contains("rollback"), "stderr: {stderr}");
+            break;
+        }
+        if Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("nosd arrancou com um log em rollback");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }

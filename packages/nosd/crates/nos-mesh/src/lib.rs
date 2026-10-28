@@ -44,6 +44,8 @@ pub const TOFU_SETTLE_TICKS: u32 = 130;
 pub const TOFU_SETTLE_MS: u64 = 7_200;
 /// M8.1c: acima disto o log ? compactado no arranque (1 linha por entrada).
 pub const CRDT_COMPACT_LINES: usize = 64;
+/// M8.1d: a ancora anti-rollback e actualizada a cada N linhas escritas.
+pub const CRDT_ANCHOR_EVERY: usize = 32;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PeerRole {
@@ -94,6 +96,36 @@ pub struct CrdtLog {
     lines: std::sync::atomic::AtomicUsize,
     /// M8.1e: identidade para assinar cada linha (integridade em repouso).
     signer: Option<ident::Identity>,
+    /// M8.1d: ancora anti-rollback (`<bytes> <linhas>` ja vistos em disco).
+    anchor: std::path::PathBuf,
+}
+
+impl CrdtLog {
+    /// M8.1d: grava a ancora (`<bytes> <linhas>`) de forma atomica.
+    ///
+    /// Antes de gravar, faz `fsync` do log aberto: a ancora nunca pode ficar
+    /// "a frente" dos dados (num crash isso seria um falso rollback).
+    fn write_anchor(&self) -> std::io::Result<()> {
+        let _ = self.file.lock().sync_all();
+        let len = std::fs::metadata(&self.path).map(|m| m.len()).unwrap_or(0);
+        let lines = self.lines.load(std::sync::atomic::Ordering::Relaxed) as u64;
+        self.write_anchor_at(len, lines)
+    }
+
+    /// Publica a ancora de um log que ainda vai ser posto no lugar
+    /// (compactacao: o log novo e sempre menor, logo anuncia-lo antes do
+    /// `rename` evita uma janela em que a ancora antiga acusaria rollback).
+    fn write_anchor_at(&self, bytes: u64, lines: u64) -> std::io::Result<()> {
+        let tmp = self.anchor.with_extension("anchor.tmp");
+        std::fs::write(&tmp, format!("{bytes} {lines}"))?;
+        std::fs::rename(&tmp, &self.anchor)?;
+        if let Some(dir) = self.anchor.parent() {
+            if let Ok(d) = std::fs::File::open(dir) {
+                let _ = d.sync_all();
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Selo de uma entrada: `json \t base64(sig(json))`.
@@ -135,22 +167,29 @@ fn open_line(line: &str, id: Option<&ident::Identity>) -> Result<Option<CrdtEntr
 impl CrdtLog {
     fn append(&self, entries: &[CrdtEntry]) {
         use std::io::Write;
-        let mut g = self.file.lock();
         let mut n = 0usize;
-        for e in entries {
-            let line = match self.signer {
-                Some(ref id) => seal_line(e, id),
-                None => serde_json::to_string(e).ok(),
-            };
-            if let Some(l) = line {
-                if writeln!(g, "{l}").is_ok() {
-                    n += 1;
+        {
+            let mut g = self.file.lock();
+            for e in entries {
+                let line = match self.signer {
+                    Some(ref id) => seal_line(e, id),
+                    None => serde_json::to_string(e).ok(),
+                };
+                if let Some(l) = line {
+                    if writeln!(g, "{l}").is_ok() {
+                        n += 1;
+                    }
                 }
             }
+            let _ = g.flush();
         }
-        let _ = g.flush();
-        self.lines
+        let prev = self
+            .lines
             .fetch_add(n, std::sync::atomic::Ordering::Relaxed);
+        // M8.1d: checkpoint periodico (limita a janela de rollback indetectado).
+        if n > 0 && prev / CRDT_ANCHOR_EVERY != (prev + n) / CRDT_ANCHOR_EVERY {
+            let _ = self.write_anchor();
+        }
     }
 
     fn compact(&self, store: &CrdtStore) -> std::io::Result<()> {
@@ -169,6 +208,11 @@ impl CrdtLog {
             }
             f.sync_all()?;
         }
+        let new_len = std::fs::metadata(&tmp)?.len();
+        // M8.1d: publica a ancora do novo log antes do rename. Uma compactacao
+        // so encolhe (entradas <= linhas), por isso anunciar primeiro e seguro e
+        // elimina a janela de crash em que a ancora antiga acusaria rollback.
+        self.write_anchor_at(new_len, store.entries.len() as u64)?;
         std::fs::rename(&tmp, &self.path)?;
         // fsync do diret?rio: garante que o rename sobrevive ao crash.
         if let Some(dir) = self.path.parent() {
@@ -284,11 +328,57 @@ impl MeshEngine {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
+        let anchor = path.with_extension("anchor");
+        let text = std::fs::read_to_string(path).ok();
+        let file_lines = text.as_ref().map(|t| t.lines().count() as u64).unwrap_or(0);
+        let file_bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        // M8.1d: rollback = log mais pequeno (bytes ou linhas) do que a ancora.
+        // A ancora e actualizada ao abrir, ao compactar e a cada
+        // CRDT_ANCHOR_EVERY linhas; um log que so cresce nunca acusa.
+        match std::fs::read_to_string(&anchor) {
+            Ok(a) => {
+                let parsed = a
+                    .split_whitespace()
+                    .map(|x| x.parse::<u64>())
+                    .collect::<Result<Vec<_>, _>>();
+                let Ok(parsed) = parsed else {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "ancora crdt ilegivel: {} (apague-a para aceitar o estado actual)",
+                            anchor.display()
+                        ),
+                    ));
+                };
+                if parsed.len() != 2 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "ancora crdt incompleta: {} (apague-a para aceitar o estado actual)",
+                            anchor.display()
+                        ),
+                    ));
+                }
+                let (prev_bytes, prev_lines) = (parsed[0], parsed[1]);
+                if file_bytes < prev_bytes || file_lines < prev_lines {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "crdt rollback suspeito: log {file_bytes} bytes/{file_lines} \
+                             linhas < ancora {prev_bytes}/{prev_lines} (apague {})",
+                            anchor.display()
+                        ),
+                    ));
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
         let mut store = self.crdt.lock();
         let mut lines = 0usize;
         let mut rejected = 0usize;
         let signer = self.ident.clone();
-        if let Ok(text) = std::fs::read_to_string(path) {
+        if let Some(text) = text {
             for line in text.lines() {
                 lines += 1;
                 match open_line(line, signer.as_ref()) {
@@ -315,6 +405,7 @@ impl MeshEngine {
             file: Mutex::new(f),
             lines: std::sync::atomic::AtomicUsize::new(0),
             signer,
+            anchor,
         });
         let store = self.crdt.lock().clone();
         if lines > CRDT_COMPACT_LINES {
@@ -322,6 +413,8 @@ impl MeshEngine {
         } else {
             log.lines.store(lines, std::sync::atomic::Ordering::Relaxed);
         }
+        // M8.1d: a ancora passa a reflectir o estado em disco (replay/compact).
+        let _ = log.write_anchor();
         self.crdt_log = Some(log);
         info!(target: "nosd", "crdt log {:?} replayed={replayed}", path);
         Ok(self)
@@ -1182,6 +1275,52 @@ mod tests {
             Some("genuino".to_string()),
             "linha adulterada nao pode substituir a genuina"
         );
+    }
+
+    #[test]
+    fn crdt_log_detects_rollback() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("crdt.jsonl");
+        {
+            let m = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+            // > CRDT_ANCHOR_EVERY: o checkpoint periodico corre durante o uso,
+            // sem depender de um reopen que actualize a ancora.
+            for i in 0..40u64 {
+                m.crdt_put(1, &format!("k{i}"), "v", i);
+            }
+        }
+        let anchor = std::fs::read_to_string(path.with_extension("anchor")).unwrap();
+        assert!(anchor.split_whitespace().count() == 2, "ancora: {anchor}");
+        let full = std::fs::read(&path).unwrap();
+        assert!(full.len() > 20);
+        // Rollback: repor apenas metade das linhas (estado antigo).
+        let half = full
+            .split_inclusive(|b| *b == b'\n')
+            .take(20)
+            .flatten()
+            .copied()
+            .collect::<Vec<u8>>();
+        std::fs::write(&path, &half).unwrap();
+        let r = MeshEngine::new(1).with_crdt_log(&path);
+        assert!(r.is_err(), "rollback devia ser detetado");
+        assert!(format!("{:?}", r.err().unwrap()).contains("rollback"));
+    }
+
+    #[test]
+    fn crdt_log_accepts_growth_and_compaction() {
+        // Nao ha falso positivo: crescer depois da ancora e compactar (que
+        // anuncia a ancora nova antes do rename) continuam a abrir bem.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("crdt.jsonl");
+        {
+            let m = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+            for i in 0..70u64 {
+                m.crdt_put(1, "k", &format!("v{i}"), i);
+            }
+        }
+        let m = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+        assert_eq!(m.crdt_len(), 1);
+        assert_eq!(m.crdt_get("k").map(|e| e.value), Some("v69".into()));
     }
 
     #[test]

@@ -206,6 +206,16 @@ grant = aceita) e 17 testes em ipc_auth. Residual: grant nao audita quem
 autorizou (S2d) e nao ha e2e em VM deste caminho. Evidencia:
 `docs/evidence/S2C_DOWNGRADE_HITL_0.6.0-alpha.9.md`.
 
+**M8.1d anti-rollback (2026-10-27):** ancora `crdt.anchor` (`<bytes> <linhas>`)
+ao lado do `crdt.jsonl`, atomica (tmp+rename+fsync do dir) e gravada ao abrir,
+ao compactar (antes do rename) e a cada 32 linhas. Arranque recusa log mais
+pequeno do que a ancora (fail-closed, mensagem indica o ficheiro a apagar).
+Prova: `crdt_log_detects_rollback`, `crdt_log_accepts_growth_and_compaction` e
+`crdt_rollback_refuses_start` (daemon real, exit != 0 + stderr "rollback").
+Residual: mesma pasta (quem escreve no data-dir repoe os dois), janela de 31
+linhas, so deteta encolhimento, backend nsgdb nao feito. Evidencia:
+`docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

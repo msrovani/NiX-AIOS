@@ -27,6 +27,12 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Security (M8.1d)
+
+- **Anti-rollback do log CRDT:** ancora `crdt.anchor` (bytes + linhas), gravada
+  ao abrir, ao compactar (antes do rename) e a cada 32 linhas. Um log em disco
+  mais pequeno do que a ancora impede o arranque (fail-closed).
+
 ### Security (S2c)
 
 - **Downgrade via HITL:** versao inferior exige grant `skill.downgrade`

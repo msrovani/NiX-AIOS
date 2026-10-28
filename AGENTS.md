@@ -140,9 +140,14 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M9.1 SKILL_PUSH**: modulo viaja cifrado (`kind=3`) e so activa se o hash
   bater; 512 KiB/push (base64 no envelope); hash FNV, sem gossip/revogacao.
 - **M8.1e log autenticado**: linha = json+tab+sig Ed25519 do no; replay recusa
-  linha invalida/sem sig (com identidade). Sem anti-rollback; continua JSONL.
+  linha invalida/sem sig (com identidade). Anti-rollback em M8.1d; JSONL.
+- **M8.1d anti-rollback**: ancora `crdt.anchor` (`<bytes> <linhas>`) ao lado do
+  log; gravada ao abrir, ao compactar (antes do rename) e a cada 32 linhas.
+  Log em disco mais pequeno do que a ancora = recusa arrancar (fail-closed).
+  **Falta**: backend nsgdb; protecao contra quem escreve no data-dir (pode
+  repor log e ancora); janela de ate 31 linhas.
 - **M8.1c compactacao**: runtime (60 ticks) + fsync do diretorio apos rename.
-  Falta backend nsgdb (M8.1d) e log autenticado em repouso.
+  Falta backend nsgdb (M8.1d).
 - **M8.1b durabilidade**: log `crdt.jsonl` (append + replay, fail-closed ao
   abrir). Nao e nsgdb ainda; sem compactacao/fsync por op; log nao autenticado.
 - **M8.1 delta**: `crdt.sync` = pull por VV + push do delta (2 trocas cifradas).
@@ -159,4 +164,4 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Evidência 0.6.0-alpha.9
 
-`docs/RELEASE_0.6.0-alpha.9.md`, `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`, `docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`, `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`, `docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`, `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`, `docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`, `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`, `docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`, `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`, `docs/evidence/M7_JOBS_0.6.0-alpha.8.md`, `docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`, `docs/evidence/M6_IDENTITY_0.6.0-alpha.8.md`, `docs/evidence/HITL_0.6.0-alpha.8.md`, `docs/RELEASE_0.6.0-alpha.7.md`, `docs/evidence/NIX_RING_0.6.0-alpha.7.md`, `docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.
+`docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`, `docs/evidence/S2C_SIGNED_PUSH_E2E_0.6.0-alpha.9.md`, `docs/evidence/S2C_REVOKE_0.6.0-alpha.9.md`, `docs/evidence/CLI_SKILL_AUTH_0.6.0-alpha.9.md`, `docs/RELEASE_0.6.0-alpha.9.md`, `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`, `docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`, `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`, `docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`, `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`, `docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`, `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`, `docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`, `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`, `docs/evidence/M7_JOBS_0.6.0-alpha.8.md`, `docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`, `docs/evidence/M6_IDENTITY_0.6.0-alpha.8.md`, `docs/evidence/HITL_0.6.0-alpha.8.md`, `docs/RELEASE_0.6.0-alpha.7.md`, `docs/evidence/NIX_RING_0.6.0-alpha.7.md`, `docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.
