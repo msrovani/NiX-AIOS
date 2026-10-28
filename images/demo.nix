@@ -11,7 +11,8 @@
   networking.firewall.enable = false;
 
   services.openssh = {
-    enable = true;
+    # iso.nix usa mkForce false; a demo precisa do sshd -> prioridade 10
+    enable = lib.mkOverride 10 true;
     settings.PermitRootLogin = lib.mkForce "yes";
     settings.PasswordAuthentication = lib.mkForce true;
   };

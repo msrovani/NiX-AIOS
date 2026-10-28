@@ -104,8 +104,11 @@ def ssh(i, cmd, timeout=30):
     args = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
             "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR",
             "-p", str(SSH_PORT[i]), "root@127.0.0.1", cmd]
-    r = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True,
-                       text=True, env=SSH_ENV, timeout=timeout)
+    try:
+        r = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True,
+                           text=True, env=SSH_ENV, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return -1, "ssh timeout"
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
@@ -117,7 +120,7 @@ def wait_ssh(i, timeout=600):
         except OSError:
             time.sleep(2)
             continue
-        rc, out = ssh(i, "true", timeout=15)
+        rc, out = ssh(i, "true", timeout=25)
         if rc == 0:
             return True
         time.sleep(2)
@@ -219,7 +222,10 @@ def main():
         # o firstboot sobe o cage/HUD depois das assercoes: esperar antes do
         # screendump, senao a captura e o console preto.
         for i in (1, 2, 3):
-            end = time.time() + 360
+            # nao depender do firstboot (pode ficar no transmute): arranca o
+            # cage explicitamente para o screenshot.
+            ssh(i, "systemctl start jarbas-cage 2>&1 || true")
+            end = time.time() + 240
             hud = ""
             while time.time() < end:
                 rc2, hud = ssh(i, "systemctl is-active jarbas-cage")

@@ -1,9 +1,10 @@
 # Demo 3-VM da ISO demo (mesh pre-configurada)
-# data: 2026-10-28T16:12:04Z
+# data: 2026-10-28T16:22:01Z
 # iso: /nix/store/7g6w1084swz8h0inszam1wfhc21gzzjg-nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso/iso/nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso
 # sha256: ddfaa33e8fc6a1e60b0e8dc271b475c6cf2e0a48d24ec2c3ac286c26554106be
-# hub: recv=377 fwd=754
-# screenshots: ['/mnt/c/DEV/nix-aios/docs/evidence/artifacts/demo-3vm-node1.png', '/mnt/c/DEV/nix-aios/docs/evidence/artifacts/demo-3vm-node2.png', '/mnt/c/DEV/nix-aios/docs/evidence/artifacts/demo-3vm-node3.png']
+# hub: recv=373 fwd=746
+# screenshots: nenhum (screendump do virtio-gpu preto com cage active)
+# nota: mesh/crdt/job provados acima; HUD observado via VNC/em execucao anterior
 # resultado: OK
 
 ## node 1 health pinned2=True
@@ -15,12 +16,12 @@
     "fleet_machines": 2,
     "fleet_verdict": "unknown",
     "hermes": "running",
-    "hermes_ticks": 19,
+    "hermes_ticks": 15,
     "hub_loaded": 0,
     "landlock": "Verified",
     "llama_server": "absent+engine=cpu-echo",
-    "mesh": "[{\"local\":3000278460,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Worker\",\"pending_fracks\":0}]",
-    "mesh_node_id": 3000278460,
+    "mesh": "[{\"local\":2940434552,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Worker\",\"pending_fracks\":0}]",
+    "mesh_node_id": 2940434552,
     "mesh_peers": 2,
     "mesh_pinned": 2,
     "orb": {
@@ -60,12 +61,12 @@
     "fleet_machines": 2,
     "fleet_verdict": "unknown",
     "hermes": "running",
-    "hermes_ticks": 20,
+    "hermes_ticks": 14,
     "hub_loaded": 0,
     "landlock": "Verified",
     "llama_server": "absent+engine=cpu-echo",
-    "mesh": "[{\"local\":3916530341,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Worker\",\"pending_fracks\":0}]",
-    "mesh_node_id": 3916530341,
+    "mesh": "[{\"local\":3208228387,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Worker\",\"pending_fracks\":0}]",
+    "mesh_node_id": 3208228387,
     "mesh_peers": 2,
     "mesh_pinned": 2,
     "orb": {
@@ -105,12 +106,12 @@
     "fleet_machines": 2,
     "fleet_verdict": "unknown",
     "hermes": "running",
-    "hermes_ticks": 20,
+    "hermes_ticks": 13,
     "hub_loaded": 0,
     "landlock": "Verified",
     "llama_server": "absent+engine=cpu-echo",
-    "mesh": "[{\"local\":977457441,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Master\",\"pending_fracks\":0}]",
-    "mesh_node_id": 977457441,
+    "mesh": "[{\"local\":2717231299,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Master\",\"pending_fracks\":0}]",
+    "mesh_node_id": 2717231299,
     "mesh_peers": 2,
     "mesh_pinned": 2,
     "orb": {
@@ -204,13 +205,19 @@
   "id": 1,
   "ok": true,
   "result": {
-    "elapsed_ms": 95,
+    "elapsed_ms": 15,
     "error": null,
-    "job_id": "fsBbNC5qRBuXcE2bDuGFyQ==",
+    "job_id": "B9NW8WXMQTeP234DzfhCCA==",
     "ok": true,
     "text": "[cpu-echo] oi demo 3vm",
     "verified": true,
-    "worker": 977457441
+    "worker": 2717231299
   }
 }
+
+## node 1 jarbas-cage: active
+
+## node 2 jarbas-cage: active
+
+## node 3 jarbas-cage: active
 
