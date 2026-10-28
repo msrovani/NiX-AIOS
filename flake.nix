@@ -101,6 +101,9 @@
         } // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           # Convenience: nix build .#iso (from WSL/Linux)
           iso = self.nixosConfigurations.nixaios-iso.config.system.build.isoImage;
+          # Demo (NUNCA release): mesh pre-configurada + ssh para assercoes.
+          iso-demo =
+            self.nixosConfigurations.nixaios-iso-demo.config.system.build.isoImage;
         });
 
       nixosModules.neural-os = import ./modules/neural-os.nix;
@@ -662,6 +665,28 @@
             '';
           };
         });
+
+      nixosConfigurations.nixaios-iso-demo = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          ({ pkgs, ... }: {
+            nixpkgs.config.allowUnfree = true;
+            nixpkgs.overlays = [
+              (final: prev: {
+                nosd = self.packages.x86_64-linux.nosd;
+              })
+            ];
+          })
+          self.nixosModules.default
+          ./images/iso.nix
+          ./images/demo.nix
+          ({ pkgs, ... }: {
+            services.nosd.package = pkgs.nosd;
+            environment.systemPackages = [ pkgs.nosd ];
+          })
+        ];
+      };
 
       nixosConfigurations.nixaios-iso = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";

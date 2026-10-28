@@ -1,0 +1,216 @@
+# Demo 3-VM da ISO demo (mesh pre-configurada)
+# data: 2026-10-28T16:12:04Z
+# iso: /nix/store/7g6w1084swz8h0inszam1wfhc21gzzjg-nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso/iso/nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso
+# sha256: ddfaa33e8fc6a1e60b0e8dc271b475c6cf2e0a48d24ec2c3ac286c26554106be
+# hub: recv=377 fwd=754
+# screenshots: ['/mnt/c/DEV/nix-aios/docs/evidence/artifacts/demo-3vm-node1.png', '/mnt/c/DEV/nix-aios/docs/evidence/artifacts/demo-3vm-node2.png', '/mnt/c/DEV/nix-aios/docs/evidence/artifacts/demo-3vm-node3.png']
+# resultado: OK
+
+## node 1 health pinned2=True
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "engine": "cpu-echo",
+    "fleet_machines": 2,
+    "fleet_verdict": "unknown",
+    "hermes": "running",
+    "hermes_ticks": 19,
+    "hub_loaded": 0,
+    "landlock": "Verified",
+    "llama_server": "absent+engine=cpu-echo",
+    "mesh": "[{\"local\":3000278460,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Worker\",\"pending_fracks\":0}]",
+    "mesh_node_id": 3000278460,
+    "mesh_peers": 2,
+    "mesh_pinned": 2,
+    "orb": {
+      "agitation": 0.10000000149011612,
+      "links": 0.10000000149011612,
+      "particles": 80,
+      "pattern": "sphere",
+      "rings": 2,
+      "sense": {
+        "audio_on": false,
+        "bass": 0.0,
+        "level": 0.0,
+        "mid": 0.0,
+        "motion": 0.0,
+        "treble": 0.0,
+        "video_on": false
+      },
+      "size": 1.0,
+      "speed": 0.699999988079071,
+      "state": "idle",
+      "vision_ready": false,
+      "vision_slot": "vision"
+    },
+    "orb_lab": "http://127.0.0.1:7701/",
+    "s1_backend": "keyword",
+    "s2_pending": 0,
+    "status": "ok"
+  }
+}
+
+## node 2 health pinned2=True
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "engine": "cpu-echo",
+    "fleet_machines": 2,
+    "fleet_verdict": "unknown",
+    "hermes": "running",
+    "hermes_ticks": 20,
+    "hub_loaded": 0,
+    "landlock": "Verified",
+    "llama_server": "absent+engine=cpu-echo",
+    "mesh": "[{\"local\":3916530341,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Worker\",\"pending_fracks\":0}]",
+    "mesh_node_id": 3916530341,
+    "mesh_peers": 2,
+    "mesh_pinned": 2,
+    "orb": {
+      "agitation": 0.10000000149011612,
+      "links": 0.10000000149011612,
+      "particles": 80,
+      "pattern": "sphere",
+      "rings": 2,
+      "sense": {
+        "audio_on": false,
+        "bass": 0.0,
+        "level": 0.0,
+        "mid": 0.0,
+        "motion": 0.0,
+        "treble": 0.0,
+        "video_on": false
+      },
+      "size": 1.0,
+      "speed": 0.699999988079071,
+      "state": "idle",
+      "vision_ready": false,
+      "vision_slot": "vision"
+    },
+    "orb_lab": "http://127.0.0.1:7701/",
+    "s1_backend": "keyword",
+    "s2_pending": 0,
+    "status": "ok"
+  }
+}
+
+## node 3 health pinned2=True
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "engine": "cpu-echo",
+    "fleet_machines": 2,
+    "fleet_verdict": "unknown",
+    "hermes": "running",
+    "hermes_ticks": 20,
+    "hub_loaded": 0,
+    "landlock": "Verified",
+    "llama_server": "absent+engine=cpu-echo",
+    "mesh": "[{\"local\":977457441,\"peers\":2,\"tofu\":1,\"last_frag\":0,\"role\":\"Master\",\"pending_fracks\":0}]",
+    "mesh_node_id": 977457441,
+    "mesh_peers": 2,
+    "mesh_pinned": 2,
+    "orb": {
+      "agitation": 0.10000000149011612,
+      "links": 0.10000000149011612,
+      "particles": 80,
+      "pattern": "sphere",
+      "rings": 2,
+      "sense": {
+        "audio_on": false,
+        "bass": 0.0,
+        "level": 0.0,
+        "mid": 0.0,
+        "motion": 0.0,
+        "treble": 0.0,
+        "video_on": false
+      },
+      "size": 1.0,
+      "speed": 0.699999988079071,
+      "state": "idle",
+      "vision_ready": false,
+      "vision_slot": "vision"
+    },
+    "orb_lab": "http://127.0.0.1:7701/",
+    "s1_backend": "keyword",
+    "s2_pending": 0,
+    "status": "ok"
+  }
+}
+
+## crdt-put node1 rc=0
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "entries": 1,
+    "key": "k1"
+  }
+}
+
+## sync 1->2 rc=0
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "entries": 1,
+    "received": 1,
+    "sent": 1,
+    "verified": true
+  }
+}
+
+## get k1 node2 rc=0
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "entries": 1,
+    "key": "k1",
+    "present": true,
+    "value": "v1"
+  }
+}
+
+## sync 2->3 rc=0
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "entries": 1,
+    "received": 1,
+    "sent": 1,
+    "verified": true
+  }
+}
+
+## get k1 node3 rc=0
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "entries": 1,
+    "key": "k1",
+    "present": true,
+    "value": "v1"
+  }
+}
+
+## job 1->3 rc=0
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "elapsed_ms": 95,
+    "error": null,
+    "job_id": "fsBbNC5qRBuXcE2bDuGFyQ==",
+    "ok": true,
+    "text": "[cpu-echo] oi demo 3vm",
+    "verified": true,
+    "worker": 977457441
+  }
+}
+
