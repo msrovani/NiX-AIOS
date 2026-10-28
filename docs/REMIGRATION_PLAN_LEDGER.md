@@ -91,6 +91,14 @@ lista e corre ident(9); push de skill inexistente falha. Residual: hash FNV
 gossip/revogacao de skills. Evidencia:
 `docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`.
 
+**M8.1b durabilidade CRDT (2026-10-27):** log append-only
+`<data-dir>/crdt.jsonl` com replay no arranque (merge idempotente) e escrita em
+`crdt_put`/`crdt_merge_entries`; abrir o log e fail-closed (se falhar, o nosd
+nao arranca). Prova: unit `crdt_log_survives_restart` e `mesh-2vm-crdt` PASS.
+Residual: JSONL proprio (nao nsgdb), sem compactacao, sem fsync por op, sem
+bloom/Merkle, log nao autenticado em repouso. Evidencia:
+`docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

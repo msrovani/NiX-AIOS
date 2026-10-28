@@ -108,6 +108,8 @@ pub struct MeshEngine {
     pinned: Arc<ident::Pinned>,
     /// M6: contador de HB local.
     hb_seq: Arc<std::sync::atomic::AtomicU64>,
+    /// M8.1b: log append-only do CRDT (durabilidade; JSONL).
+    crdt_log: Option<Arc<Mutex<std::fs::File>>>,
 }
 
 impl Default for MeshEngine {
@@ -149,6 +151,7 @@ impl MeshEngine {
             ident: None,
             pinned: Arc::new(ident::Pinned::new()),
             hb_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+            crdt_log: None,
         }
     }
 
@@ -164,6 +167,45 @@ impl MeshEngine {
         let mut m = Self::with_capacity(derived, capacity);
         m.ident = Some(identity);
         m
+    }
+
+    /// M8.1b: replay do log e abertura para append. Idempotente (merge).
+    pub fn with_crdt_log(mut self, path: &std::path::Path) -> std::io::Result<Self> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let mut store = self.crdt.lock();
+        if let Ok(text) = std::fs::read_to_string(path) {
+            for line in text.lines() {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Ok(e) = serde_json::from_str::<CrdtEntry>(line) {
+                    store.merge_entry(e);
+                }
+            }
+        }
+        let replayed = store.entries.len();
+        drop(store);
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        self.crdt_log = Some(Arc::new(Mutex::new(f)));
+        info!(target: "nosd", "crdt log {:?} replayed={replayed}", path);
+        Ok(self)
+    }
+
+    fn log_entries(&self, entries: &[CrdtEntry]) {
+        let Some(ref log) = self.crdt_log else { return };
+        use std::io::Write;
+        let mut g = log.lock();
+        for e in entries {
+            if let Ok(line) = serde_json::to_string(e) {
+                let _ = writeln!(g, "{line}");
+            }
+        }
+        let _ = g.flush();
     }
 
     pub fn identity_id(&self) -> Option<u32> {
@@ -198,7 +240,13 @@ impl MeshEngine {
 
     /// M8: put local (HUD/estado). `peer` entra no version vector.
     pub fn crdt_put(&self, peer: u32, key: &str, value: &str, tick: u64) {
-        self.crdt.lock().put(peer, key, value, tick);
+        {
+            let mut g = self.crdt.lock();
+            g.put(peer, key, value, tick);
+        }
+        if let Some(e) = self.crdt_get(key) {
+            self.log_entries(&[e]);
+        }
     }
 
     /// M8: snapshot para anti-entropy (estado completo nesta fatia).
@@ -225,10 +273,16 @@ impl MeshEngine {
     }
 
     pub fn crdt_merge_entries(&self, entries: &[CrdtEntry]) {
-        let mut g = self.crdt.lock();
-        for e in entries {
-            g.merge_entry(e.clone());
+        if entries.is_empty() {
+            return;
         }
+        {
+            let mut g = self.crdt.lock();
+            for e in entries {
+                g.merge_entry(e.clone());
+            }
+        }
+        self.log_entries(entries);
     }
 
     pub fn on_heartbeat(&self, peer_id: u32, has_pk: bool) {
@@ -886,6 +940,21 @@ mod tests {
         assert!(!m.tofu_settled(), "recem-ligado ainda nao settle");
         std::thread::sleep(std::time::Duration::from_millis(TOFU_SETTLE_MS + 300));
         assert!(m.tofu_settled(), "deve settle ao fim de TOFU_SETTLE_MS");
+    }
+
+    #[test]
+    fn crdt_log_survives_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("crdt.jsonl");
+        {
+            let m = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+            m.crdt_put(1, "k", "v", 0);
+            m.crdt_put(1, "k2", "v2", 1);
+        }
+        let m2 = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+        assert_eq!(m2.crdt_get("k").map(|e| e.value), Some("v".to_string()));
+        assert_eq!(m2.crdt_get("k2").map(|e| e.value), Some("v2".to_string()));
+        assert_eq!(m2.crdt_len(), 2);
     }
 
     #[test]

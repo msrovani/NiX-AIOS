@@ -197,6 +197,8 @@ async fn main() -> anyhow::Result<()> {
         Some(id) => MeshEngine::with_identity(args.node_id, Default::default(), id),
         None => MeshEngine::new(args.node_id),
     };
+    // M8.1b: durabilidade do estado. Falha aqui = nao arrancar (fail-closed).
+    let mesh = mesh.with_crdt_log(&args.data_dir.join("crdt.jsonl"))?;
 
     let score = NosScore {
         phase: "ready".into(),

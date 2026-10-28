@@ -15,3 +15,6 @@ ed25519-compact = { workspace = true, features = ["random"] }
 uuid = { workspace = true, features = ["v4"] }
 snow = { workspace = true }
 base64 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

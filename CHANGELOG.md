@@ -20,6 +20,11 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Added (M8.1b)
+
+- **Estado duravel:** log append-only `<data-dir>/crdt.jsonl` com replay no
+  arranque; abrir o log e fail-closed. `mesh-2vm-crdt` continua PASS.
+
 ### Docs (skills)
 
 - Requisitos de segurança e qualidade das publicações wasm e algoritmo de

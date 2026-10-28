@@ -3254,6 +3254,7 @@ dependencies = [
  "serde",
  "serde_json",
  "snow",
+ "tempfile",
  "tokio",
  "tracing",
  "uuid",
