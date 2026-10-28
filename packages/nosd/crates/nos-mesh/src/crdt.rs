@@ -81,6 +81,32 @@ impl CrdtStore {
             self.merge_entry(e.clone());
         }
     }
+
+    /// M8.1: VV agregado (max por peer em todas as entradas).
+    pub fn version_vector(&self) -> VersionVector {
+        let mut vv = VersionVector::new();
+        for e in self.entries.values() {
+            for (p, c) in &e.vv {
+                let s = vv.entry(*p).or_insert(0);
+                if *c > *s {
+                    *s = *c;
+                }
+            }
+        }
+        vv
+    }
+
+    /// M8.1: entradas que quem tem `since` ainda nao viu.
+    pub fn delta_since(&self, since: &VersionVector) -> Vec<CrdtEntry> {
+        self.entries
+            .values()
+            .filter(|e| {
+                e.vv.iter()
+                    .any(|(p, c)| *c > since.get(p).copied().unwrap_or(0))
+            })
+            .cloned()
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

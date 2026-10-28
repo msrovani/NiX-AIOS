@@ -20,6 +20,11 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Changed (M8.1)
+
+- **CRDT por delta:** `crdt.sync` passou a pull por `version_vector` + push do
+  `delta_since(vv)`, em vez do estado completo. `mesh-2vm-crdt` continua PASS.
+
 ### Security (M6.1)
 
 - **Link de jobs cifrado:** Noise XX (X25519 descart?veis) + `BIND` Ed25519

@@ -73,6 +73,14 @@ revogacao/rotacao (M6.2), sem teste de MITM activo, HB UDP continua assinado
 mas em claro, e o `crdt.sync` envia estado completo (M8.1). Evidencia:
 `docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`.
 
+**M8.1 delta anti-entropy (2026-10-27):** `crdt.sync` deixa de enviar o estado
+completo: pull com `version_vector` + push do `delta_since(vv)` (duas trocas,
+canal Noise). `CrdtStore::version_vector/delta_since` e
+`MeshEngine::crdt_version/crdt_delta_since/crdt_merge_entries`. Prova:
+`mesh-2vm-crdt` PASS - a segunda sincronizacao leva so o que falta (k2, nao k1).
+Residual: sem bloom/Merkle, sem persistencia em nsgdb, sem compactacao.
+Evidencia: `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

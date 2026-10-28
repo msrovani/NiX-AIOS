@@ -215,6 +215,22 @@ impl MeshEngine {
         self.crdt.lock().entries.len()
     }
 
+    /// M8.1: VV local e delta desde um VV remoto.
+    pub fn crdt_version(&self) -> crate::crdt::VersionVector {
+        self.crdt.lock().version_vector()
+    }
+
+    pub fn crdt_delta_since(&self, since: &crate::crdt::VersionVector) -> Vec<CrdtEntry> {
+        self.crdt.lock().delta_since(since)
+    }
+
+    pub fn crdt_merge_entries(&self, entries: &[CrdtEntry]) {
+        let mut g = self.crdt.lock();
+        for e in entries {
+            g.merge_entry(e.clone());
+        }
+    }
+
     pub fn on_heartbeat(&self, peer_id: u32, has_pk: bool) {
         self.on_heartbeat_inner(peer_id, has_pk, None);
     }

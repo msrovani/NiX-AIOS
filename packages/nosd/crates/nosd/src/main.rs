@@ -263,11 +263,22 @@ async fn main() -> anyhow::Result<()> {
                 );
                 let st2 = state.clone();
                 let crdt: nos_mesh::job::CrdtHook = std::sync::Arc::new(move |payload: &str| {
-                    let store: nos_mesh::CrdtStore =
+                    // M8.1: payload = { vv, entries } (delta); resposta = delta.
+                    #[derive(serde::Deserialize)]
+                    struct Delta {
+                        #[serde(default)]
+                        vv: std::collections::HashMap<u32, u64>,
+                        #[serde(default)]
+                        entries: Vec<nos_mesh::CrdtEntry>,
+                    }
+                    let d: Delta =
                         serde_json::from_str(payload).map_err(|e| format!("crdt json: {e}"))?;
-                    st2.mesh.crdt_merge(&store);
-                    serde_json::to_string(&st2.mesh.crdt_snapshot())
-                        .map_err(|e| format!("crdt snap: {e}"))
+                    st2.mesh.crdt_merge_entries(&d.entries);
+                    let out = serde_json::json!({
+                        "vv": st2.mesh.crdt_version(),
+                        "entries": st2.mesh.crdt_delta_since(&d.vv),
+                    });
+                    serde_json::to_string(&out).map_err(|e| format!("crdt delta: {e}"))
                 });
                 tokio::spawn(async move {
                     if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec, crdt).await {

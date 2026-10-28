@@ -46,6 +46,7 @@
 | S-08 suíte de regressão | **feito** | `ipc_auth` (10-11) + `nos-ipc` (3) + HTTP/grant/fetch |
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
 | M6 identidade (HB Ed25519) | **feito** | `nos-mesh::ident` + `mesh-2vm-signed` |
+| M8.1 delta anti-entropy | **parcial** | VV + `delta_since` no `crdt.sync`; falta bloom/Merkle e nsgdb |
 | M6.1 Noise (link cifrado) | **feito** | XX + BIND Ed25519; `noise_job_roundtrip` + checks jobs/crdt |
 | M9 skills wasmi | **parcial** | `skill.install/list/run` + sandbox frugal; falta distribuicao do binario e BLAKE3 |
 | M8 CRDT wire | **parcial** | `kind=2` + `crdt.sync` + `mesh-2vm-crdt`; falta delta/Merkle/bloom e nsgdb |
