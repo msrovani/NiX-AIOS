@@ -133,6 +133,15 @@ vence) + 15 testes em ipc_auth. Residual S2: sem assinatura de publisher, sem
 allowlist, sem caps declaradas, sem historico no score, sem versao monotonica.
 Evidencia: `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`.
 
+**S2a publisher (2026-10-27):** `skill.install` aceita `publisher`+`sig` sobre
+`name|focus|version|hash`; `verify_publisher` corre antes de escrever (sem sig =
+local; sig invalida = recusa; publisher fora de `NOSD_SKILL_PUBLISHERS` =
+recusa; valida = provenance `signed`, +30 no score). Prova:
+`signed_manifest_is_accepted_and_tamper_rejected` + workspace verde. Fica para
+S2b: caps declaradas, historico no score, versao monotonica, push assinado e
+revogacao por CRDT/HITL. Evidencia:
+`docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

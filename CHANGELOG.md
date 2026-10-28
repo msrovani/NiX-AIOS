@@ -20,6 +20,12 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Security (S2a)
+
+- **Autoria de skills:** `skill.install` aceita `publisher` + `sig` sobre
+  `name|focus|version|hash`; assinatura inv?lida ou publisher fora da
+  allowlist (`NOSD_SKILL_PUBLISHERS`) ? recusada antes de escrever.
+
 ### Security (S1)
 
 - **Skills com BLAKE3:** o id de conte?do passa a commitment de 64 hex e cada

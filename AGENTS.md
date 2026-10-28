@@ -104,6 +104,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **S1 skills trust**: BLAKE3 (64 hex) + manifesto `skill/<n>/meta` +
   `skill.explain <focus>` com score 0-100 e `why` no CRDT. **Sem** assinatura
   de publisher/allowlist (S2) nem historico no score.
+- **S2a publisher**: assinatura do manifesto (`name|focus|version|hash`) +
+  allowlist `NOSD_SKILL_PUBLISHERS`; provenance `signed`. **Falta**: caps
+  declaradas, historico, versao monotonica, push assinado, revogacao.
 - **S2 skills (falta)**: assinatura de publisher + allowlist + caps declaradas
   + historico no score + versao monotonica. Desenho em
   `docs/SKILL_TRUST_AND_SELECTION.md`.

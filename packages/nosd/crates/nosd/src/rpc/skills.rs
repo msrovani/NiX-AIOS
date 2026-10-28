@@ -49,6 +49,65 @@ pub fn put_meta(
     );
 }
 
+/// S2: mensagem can?nica assinada pelo publicador.
+pub fn publisher_msg(name: &str, focus: &str, version: &str, hash: &str) -> String {
+    format!("{name}|{focus}|{version}|{hash}")
+}
+
+/// S2: allowlist de publishers (hex), via `NOSD_SKILL_PUBLISHERS`.
+fn trusted_publishers() -> Vec<String> {
+    std::env::var("NOSD_SKILL_PUBLISHERS")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// S2: `Ok("signed")` se assinatura v?lida e publisher autorizado;
+/// `Ok("local")` se n?o h? assinatura (install local, sem autor);
+/// `Err` se a assinatura for inv?lida ou o publisher n?o estiver na allowlist.
+pub fn verify_publisher(
+    name: &str,
+    focus: &str,
+    version: &str,
+    hash: &str,
+    publisher_hex: Option<&str>,
+    sig_b64: Option<&str>,
+) -> Result<&'static str, String> {
+    use base64::Engine as _;
+    let (Some(pk_hex), Some(sig_b64)) = (publisher_hex, sig_b64) else {
+        return Ok("local");
+    };
+    let pk = hex_decode(pk_hex).ok_or("publisher hex invalido")?;
+    if pk.len() != 32 {
+        return Err("publisher tem de ter 32 bytes".into());
+    }
+    let allow = trusted_publishers();
+    if !allow.is_empty() && !allow.iter().any(|a| a == &pk_hex.to_ascii_lowercase()) {
+        return Err("publisher fora da allowlist (NOSD_SKILL_PUBLISHERS)".into());
+    }
+    let sig = base64::engine::general_purpose::STANDARD
+        .decode(sig_b64)
+        .map_err(|e| format!("sig base64: {e}"))?;
+    let msg = publisher_msg(name, focus, version, hash);
+    if !nos_mesh::ident::verify(&pk, msg.as_bytes(), &sig) {
+        return Err("assinatura do manifesto invalida".into());
+    }
+    Ok("signed")
+}
+
+fn hex_decode(s: &str) -> Option<Vec<u8>> {
+    let s = s.trim();
+    if !s.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
+        .collect()
+}
+
 fn ver_key(v: &str) -> (u32, u32, u32) {
     let mut it = v.split('.').map(|p| p.parse::<u32>().unwrap_or(0));
     (
@@ -204,6 +263,35 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
             if let Err(e) = std::fs::create_dir_all(&dir) {
                 return Some(err(req.id, format!("skills dir: {e}")));
             }
+            let cid_pre = content_id(&bytes);
+            let focus_p = req
+                .params
+                .get("focus")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let version_p = req
+                .params
+                .get("version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let focus_e = if focus_p.is_empty() { name } else { focus_p };
+            let version_e = if version_p.is_empty() {
+                "0.1.0"
+            } else {
+                version_p
+            };
+            // S2: autoria ANTES de escrever (fail-closed).
+            let provenance = match verify_publisher(
+                name,
+                focus_e,
+                version_e,
+                &cid_pre,
+                req.params.get("publisher").and_then(|v| v.as_str()),
+                req.params.get("sig").and_then(|v| v.as_str()),
+            ) {
+                Ok(p) => p,
+                Err(e) => return Some(err(req.id, format!("publisher: {e}"))),
+            };
             let cid = content_id(&bytes);
             let path = dir.join(format!("{cid}.wasm"));
             if let Err(e) = std::fs::write(&path, &bytes) {
@@ -215,17 +303,15 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                 &cid,
                 0,
             );
-            let focus = req
-                .params
-                .get("focus")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let version = req
-                .params
-                .get("version")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            put_meta(state, name, focus, version, &cid, bytes.len(), "local");
+            put_meta(
+                state,
+                name,
+                focus_e,
+                version_e,
+                &cid,
+                bytes.len(),
+                provenance,
+            );
             Response {
                 id: req.id,
                 ok: true,
@@ -234,8 +320,9 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                     "name": name,
                     "hash": cid,
                     "bytes": bytes.len(),
-                    "focus": if focus.is_empty() { name } else { focus },
-                    "version": if version.is_empty() { "0.1.0" } else { version },
+                    "focus": focus_e,
+                    "version": version_e,
+                    "provenance": provenance,
                     "path": path.display().to_string(),
                 }),
             }
@@ -350,4 +437,35 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
         }
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod s2_tests {
+    use super::*;
+    use nos_mesh::ident::Identity;
+
+    #[test]
+    fn signed_manifest_is_accepted_and_tamper_rejected() {
+        use base64::Engine as _;
+        let id = Identity::from_seed([91u8; 32], Default::default(), true);
+        let pk = id.public_key();
+        let pk_hex: String = pk.iter().map(|b| format!("{b:02x}")).collect();
+        let hash = "a".repeat(64);
+        let msg = publisher_msg("sum", "sum", "1.0.0", &hash);
+        let sig = id.sign(msg.as_bytes());
+        let sig_b64 = base64::engine::general_purpose::STANDARD.encode(sig);
+
+        assert_eq!(
+            verify_publisher("sum", "sum", "1.0.0", &hash, Some(&pk_hex), Some(&sig_b64)),
+            Ok("signed")
+        );
+        // Manifesto adulterado (versao diferente) deixa de bater.
+        let bad = verify_publisher("sum", "sum", "2.0.0", &hash, Some(&pk_hex), Some(&sig_b64));
+        assert!(bad.is_err(), "{bad:?}");
+        // Sem assinatura = local (nao e' "signed").
+        assert_eq!(
+            verify_publisher("sum", "sum", "1.0.0", &hash, None, None),
+            Ok("local")
+        );
+    }
 }
