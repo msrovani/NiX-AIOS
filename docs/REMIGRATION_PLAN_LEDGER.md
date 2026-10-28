@@ -114,6 +114,15 @@ Teste `crdt_log_compacts_at_runtime` (100 puts -> compacta -> put -> reopen com
 k=v99 e k2=x). Ficam em aberto: nsgdb como backend (M8.1d) e autenticacao do log
 em repouso. Evidencia: `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`.
 
+**M8.1e log autenticado (2026-10-27):** cada linha do log CRDT passa a ser
+`json + tab + ed25519_sig` com a identidade do no; replay recusa linha sem
+assinatura/invalida (fail-closed com identidade) e o compact tambem assina.
+Prova: `crdt_log_rejects_tampered_lines` (linha forjada nao substitui a genuina)
++ 40 testes. Fica em aberto: sem deteccao de rollback (falta ancora monotonica),
+log antigo sem assinatura e recusado (migracao = apagar/re-assinar), e continua
+JSONL (nsgdb = M8.1d). Evidencia:
+`docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

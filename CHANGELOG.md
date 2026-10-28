@@ -20,6 +20,12 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Security (M8.1e)
+
+- **Log CRDT autenticado em repouso:** cada linha ? assinada com a identidade
+  Ed25519 do n?; replay recusa linhas sem assinatura ou com assinatura inv?lida
+  (fail-closed quando h? identidade). Editar o ficheiro deixa de alterar estado.
+
 ### Fixed (M8.1c)
 
 - **Log CRDT:** linhas truncadas (crash) s?o ignoradas e o log ? compactado no

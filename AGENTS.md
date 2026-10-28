@@ -106,6 +106,8 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   (Hermes escolhe e audita). **Nao implementado**; hoje FNV sem autoria.
 - **M9.1 SKILL_PUSH**: modulo viaja cifrado (`kind=3`) e so activa se o hash
   bater; 512 KiB/push (base64 no envelope); hash FNV, sem gossip/revogacao.
+- **M8.1e log autenticado**: linha = json+tab+sig Ed25519 do no; replay recusa
+  linha invalida/sem sig (com identidade). Sem anti-rollback; continua JSONL.
 - **M8.1c compactacao**: runtime (60 ticks) + fsync do diretorio apos rename.
   Falta backend nsgdb (M8.1d) e log autenticado em repouso.
 - **M8.1b durabilidade**: log `crdt.jsonl` (append + replay, fail-closed ao

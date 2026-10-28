@@ -87,6 +87,44 @@ pub struct CrdtLog {
     path: std::path::PathBuf,
     file: Mutex<std::fs::File>,
     lines: std::sync::atomic::AtomicUsize,
+    /// M8.1e: identidade para assinar cada linha (integridade em repouso).
+    signer: Option<ident::Identity>,
+}
+
+/// Selo de uma entrada: `json \t base64(sig(json))`.
+fn seal_line(e: &CrdtEntry, id: &ident::Identity) -> Option<String> {
+    use base64::Engine as _;
+    let json = serde_json::to_string(e).ok()?;
+    let sig = id.sign(json.as_bytes());
+    Some(format!(
+        "{json}\t{}",
+        base64::engine::general_purpose::STANDARD.encode(sig)
+    ))
+}
+
+/// Abre uma linha. `Err(())` = linha recusada (assinatura inv?lida/ausente).
+fn open_line(line: &str, id: Option<&ident::Identity>) -> Result<Option<CrdtEntry>, ()> {
+    use base64::Engine as _;
+    if line.trim().is_empty() {
+        return Ok(None);
+    }
+    let (json, sig) = match line.split_once('\t') {
+        Some((j, s)) => (j, Some(s)),
+        None => (line, None),
+    };
+    if let Some(id) = id {
+        let Some(sig) = sig else {
+            // Com identidade, linha sem assinatura ? recusada (fail-closed).
+            return Err(());
+        };
+        let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(sig) else {
+            return Err(());
+        };
+        if raw.len() != 64 || !crate::ident::verify(&id.public_key(), json.as_bytes(), &raw) {
+            return Err(());
+        }
+    }
+    serde_json::from_str(json).map(Some).map_err(|_| ())
 }
 
 impl CrdtLog {
@@ -95,7 +133,11 @@ impl CrdtLog {
         let mut g = self.file.lock();
         let mut n = 0usize;
         for e in entries {
-            if let Ok(l) = serde_json::to_string(e) {
+            let line = match self.signer {
+                Some(ref id) => seal_line(e, id),
+                None => serde_json::to_string(e).ok(),
+            };
+            if let Some(l) = line {
                 if writeln!(g, "{l}").is_ok() {
                     n += 1;
                 }
@@ -112,7 +154,11 @@ impl CrdtLog {
         {
             let mut f = std::fs::File::create(&tmp)?;
             for e in store.entries.values() {
-                if let Ok(l) = serde_json::to_string(e) {
+                let line = match self.signer {
+                    Some(ref id) => seal_line(e, id),
+                    None => serde_json::to_string(e).ok(),
+                };
+                if let Some(l) = line {
                     writeln!(f, "{l}")?;
                 }
             }
@@ -235,16 +281,23 @@ impl MeshEngine {
         }
         let mut store = self.crdt.lock();
         let mut lines = 0usize;
+        let mut rejected = 0usize;
+        let signer = self.ident.clone();
         if let Ok(text) = std::fs::read_to_string(path) {
             for line in text.lines() {
                 lines += 1;
-                if line.trim().is_empty() {
-                    continue;
-                }
-                if let Ok(e) = serde_json::from_str::<CrdtEntry>(line) {
-                    store.merge_entry(e);
+                match open_line(line, signer.as_ref()) {
+                    Ok(Some(e)) => store.merge_entry(e),
+                    Ok(None) => {}
+                    Err(()) => rejected += 1,
                 }
             }
+        }
+        if rejected > 0 {
+            warn!(
+                target: "nosd",
+                "crdt log: {rejected} linha(s) recusada(s) (assinatura/JSON)"
+            );
         }
         let replayed = store.entries.len();
         drop(store);
@@ -256,6 +309,7 @@ impl MeshEngine {
             path: path.to_path_buf(),
             file: Mutex::new(f),
             lines: std::sync::atomic::AtomicUsize::new(0),
+            signer,
         });
         let store = self.crdt.lock().clone();
         if lines > CRDT_COMPACT_LINES {
@@ -1086,6 +1140,43 @@ mod tests {
         assert_eq!(m2.crdt_len(), 2, "k e k2");
         assert_eq!(m2.crdt_get("k").map(|e| e.value), Some("v99".to_string()));
         assert_eq!(m2.crdt_get("k2").map(|e| e.value), Some("x".to_string()));
+    }
+
+    #[test]
+    fn crdt_log_rejects_tampered_lines() {
+        use crate::ident::Identity;
+        use std::collections::HashSet;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("crdt.jsonl");
+        let id = Identity::from_seed([77u8; 32], HashSet::new(), true);
+        {
+            let m = MeshEngine::with_identity(1, CapacityScore::default(), id.clone())
+                .with_crdt_log(&path)
+                .unwrap();
+            m.crdt_put(1, "k", "genuino", 0);
+        }
+        // Adultera: append de uma linha com a mesma chave e assinatura falsa.
+        {
+            use base64::Engine as _;
+            use std::io::Write;
+            let forged = serde_json::json!({
+                "key": "k", "value": "malicioso", "vv": {"1": 99}, "writer": 1, "tick": 99
+            });
+            let fake = base64::engine::general_purpose::STANDARD.encode([0u8; 64]);
+            let mut f = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&path)
+                .unwrap();
+            writeln!(f, "{}\t{}", forged, fake).unwrap();
+        }
+        let m2 = MeshEngine::with_identity(1, CapacityScore::default(), id)
+            .with_crdt_log(&path)
+            .unwrap();
+        assert_eq!(
+            m2.crdt_get("k").map(|e| e.value),
+            Some("genuino".to_string()),
+            "linha adulterada nao pode substituir a genuina"
+        );
     }
 
     #[test]
