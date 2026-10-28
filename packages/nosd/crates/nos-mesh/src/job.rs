@@ -97,12 +97,20 @@ fn parse_frame(buf: &[u8]) -> Result<ParsedFrame, String> {
 /// Executor local (prompt, budget) -> texto.
 pub type Executor = Arc<dyn Fn(&str, u32) -> Result<String, String> + Send + Sync>;
 
+/// M8: hook de estado — recebe o payload e devolve o snapshot já merged.
+pub type CrdtHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
+
+/// `kind` do envelope.
+pub const KIND_CHAT: u8 = 1;
+pub const KIND_CRDT: u8 = 2;
+
 /// Servidor de jobs. `exec` corre o trabalho local (chat, skill, ...).
 pub async fn serve(
     bind: &str,
     identity: Identity,
     pinned: Arc<Pinned>,
     exec: Executor,
+    crdt: CrdtHook,
 ) -> std::io::Result<()> {
     let listener = TcpListener::bind(bind).await?;
     info!(target: "nosd", "job listener bind={bind} node={}", identity.node_id());
@@ -111,8 +119,9 @@ pub async fn serve(
         let id = identity.clone();
         let pins = pinned.clone();
         let exec = exec.clone();
+        let crdt = crdt.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle(&mut sock, &id, &pins, &exec).await {
+            if let Err(e) = handle(&mut sock, &id, &pins, &exec, &crdt).await {
                 warn!(target: "nosd", "job conn {peer} err: {e}");
             }
         });
@@ -124,6 +133,7 @@ async fn handle(
     identity: &Identity,
     pinned: &Pinned,
     exec: &Executor,
+    crdt: &CrdtHook,
 ) -> Result<(), String> {
     let mut head = [0u8; 9];
     sock.read_exact(&mut head)
@@ -166,6 +176,8 @@ async fn handle(
     let deadline = Duration::from_millis(env.deadline_ms.clamp(100, 120_000));
     let reply = if t0.elapsed() > deadline {
         Err("deadline excedido".into())
+    } else if env.kind == KIND_CRDT {
+        crdt(&env.prompt)
     } else {
         exec(&env.prompt, env.budget_tokens)
     };
@@ -215,9 +227,44 @@ pub async fn submit(
     if prompt.len() > MAX_PROMPT {
         return Err("prompt acima do limite".into());
     }
+    submit_kind(
+        addr,
+        identity,
+        pinned,
+        prompt,
+        deadline_ms,
+        budget_tokens,
+        KIND_CHAT,
+    )
+    .await
+}
+
+/// M8: troca de estado (anti-entropy) pelo mesmo link autenticado.
+pub async fn submit_crdt(
+    addr: &str,
+    identity: &Identity,
+    pinned: &Pinned,
+    payload: &str,
+    deadline_ms: u64,
+) -> Result<JobResult, String> {
+    submit_kind(addr, identity, pinned, payload, deadline_ms, 0, KIND_CRDT).await
+}
+
+async fn submit_kind(
+    addr: &str,
+    identity: &Identity,
+    pinned: &Pinned,
+    prompt: &str,
+    deadline_ms: u64,
+    budget_tokens: u32,
+    kind: u8,
+) -> Result<JobResult, String> {
+    if prompt.len() > MAX_PROMPT {
+        return Err("prompt acima do limite".into());
+    }
     let env = JobEnvelope {
         job_id: new_job_id(),
-        kind: 1,
+        kind,
         prompt: prompt.to_string(),
         deadline_ms: deadline_ms.clamp(100, 120_000),
         budget_tokens,
@@ -226,6 +273,7 @@ pub async fn submit(
     };
     let body = serde_json::to_vec(&env).map_err(|e| e.to_string())?;
     let out = frame(&body, identity);
+    let _ = budget_tokens;
 
     let mut sock = tokio::time::timeout(
         Duration::from_millis(deadline_ms.clamp(100, 120_000) + 2_000),

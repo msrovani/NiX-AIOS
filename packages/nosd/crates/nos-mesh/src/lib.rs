@@ -195,6 +195,25 @@ impl MeshEngine {
         self.crdt.lock().get(key).cloned()
     }
 
+    /// M8: put local (HUD/estado). `peer` entra no version vector.
+    pub fn crdt_put(&self, peer: u32, key: &str, value: &str, tick: u64) {
+        self.crdt.lock().put(peer, key, value, tick);
+    }
+
+    /// M8: snapshot para anti-entropy (estado completo nesta fatia).
+    pub fn crdt_snapshot(&self) -> CrdtStore {
+        self.crdt.lock().clone()
+    }
+
+    /// M8: merge de um store remoto (idempotente, LWW por VV).
+    pub fn crdt_merge(&self, other: &CrdtStore) {
+        self.crdt.lock().merge_store(other);
+    }
+
+    pub fn crdt_len(&self) -> usize {
+        self.crdt.lock().entries.len()
+    }
+
     pub fn on_heartbeat(&self, peer_id: u32, has_pk: bool) {
         self.on_heartbeat_inner(peer_id, has_pk, None);
     }

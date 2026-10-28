@@ -20,6 +20,12 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Added (M8)
+
+- **Estado replicado:** CRDT (LWW + version vector) sobre o link autenticado do
+  M7 (`kind=2`), RPC `crdt.put/get/sync` e `nosctl crdt-put/crdt-get/crdt-sync`;
+  `mesh-2vm-crdt` PASS (converg?ncia nos dois sentidos, 2 entradas).
+
 
 ### Added
 

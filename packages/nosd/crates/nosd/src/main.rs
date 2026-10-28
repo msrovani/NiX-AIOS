@@ -261,8 +261,16 @@ async fn main() -> anyhow::Result<()> {
                         }
                     },
                 );
+                let st2 = state.clone();
+                let crdt: nos_mesh::job::CrdtHook = std::sync::Arc::new(move |payload: &str| {
+                    let store: nos_mesh::CrdtStore =
+                        serde_json::from_str(payload).map_err(|e| format!("crdt json: {e}"))?;
+                    st2.mesh.crdt_merge(&store);
+                    serde_json::to_string(&st2.mesh.crdt_snapshot())
+                        .map_err(|e| format!("crdt snap: {e}"))
+                });
                 tokio::spawn(async move {
-                    if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec).await {
+                    if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec, crdt).await {
                         tracing::warn!(target: "nosd", "job listener: {e}");
                     }
                 });

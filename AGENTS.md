@@ -98,6 +98,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.
+- **M8 estado**: CRDT (LWW+VV) sobre o link assinado do M7 (`kind=2`);
+  `crdt.put/get/sync`; `mesh-2vm-crdt` PASS. Anti-entropy = estado completo
+  (sem delta/Merkle), em claro, sem persistencia nsgdb.
 - **M7 jobs**: `job.submit` + listener TCP `NOSD_JOB_BIND` com frames
   assinados; worker tem de ser peer fixado. Sem Noise/fila/quota por peer.
   Check `mesh-2vm-jobs` PASS. Ver `docs/SKYNET_DISTRIBUTED_PLAN.md`.

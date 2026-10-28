@@ -146,6 +146,24 @@ enum Cmd {
     NixPropose {
         nix: String,
     },
+    /// M8: escreve uma chave no CRDT local.
+    #[command(name = "crdt-put")]
+    CrdtPut {
+        key: String,
+        value: String,
+        #[arg(long, default_value_t = 0)]
+        tick: u64,
+    },
+    /// M8: lê uma chave do CRDT local.
+    #[command(name = "crdt-get")]
+    CrdtGet {
+        key: String,
+    },
+    /// M8: anti-entropy com um peer (estado completo, link assinado).
+    #[command(name = "crdt-sync")]
+    CrdtSync {
+        addr: String,
+    },
     /// M7: envia um job para um peer (link TCP autenticado, resultado assinado).
     #[command(name = "job-submit")]
     JobSubmit {
@@ -232,6 +250,13 @@ enum Cmd {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let (method, params, caps) = match &args.cmd {
+        Cmd::CrdtPut { key, value, tick } => (
+            "crdt.put",
+            serde_json::json!({ "key": key, "value": value, "tick": tick }),
+            1 << 4,
+        ),
+        Cmd::CrdtGet { key } => ("crdt.get", serde_json::json!({ "key": key }), 0),
+        Cmd::CrdtSync { addr } => ("crdt.sync", serde_json::json!({ "addr": addr }), 1 << 4),
         Cmd::JobSubmit {
             addr,
             prompt,

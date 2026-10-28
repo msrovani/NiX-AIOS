@@ -59,6 +59,8 @@ impl Request {
             | "orb.sense" => CapBits::NONE,
             "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
             | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
+            "crdt.get" => CapBits::NONE,
+            "crdt.put" | "crdt.sync" => CapBits::MEMORY,
             "model.load" => CapBits::INFER.union(CapBits::FS),
             "model.fetch" | "model.search" | "firmware.fetch" => CapBits::NET.union(CapBits::FS),
             "blob.deliberate" => CapBits::NONE,

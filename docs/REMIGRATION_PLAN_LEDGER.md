@@ -46,6 +46,14 @@ Contagens (fecho plano c2d76600 host): **DONE ~18 · PARTIAL ~35 · NOT_DONE ~2 
 
 **M7 jobs remotos (2026-10-27):** `nos-mesh::job` (frame NJOB assinado), listener TCP `NOSD_JOB_BIND`, RPC `job.submit` e `nosctl job-submit`. O worker tem de ser peer com chave fixada no mesh; o cliente verifica a assinatura do resultado. Limites: prompt 8 KiB, corpo 1 MiB, deadline 0.1-120 s, timeout deadline+2 s. Executor = chat local com gate INFER|MEMORY (sem root). Prova: check `mesh-2vm-jobs` (A sem modelo -> B responde verificado; prompt gigante e porta fechada recusados). Sem Noise (confidencialidade), sem scheduler/fila, sem quota por peer, sem idempotencia. Evidencia: `docs/evidence/M7_JOBS_0.6.0-alpha.8.md`.
 
+**M8 estado replicado (2026-10-27):** CRDT (LWW+VV) transportado no link
+autenticado do M7 (`kind=2`, `submit_crdt`, `CrdtHook`); RPC `crdt.put/get/sync`
+e `nosctl crdt-put/crdt-get/crdt-sync`. Prova: `mesh-2vm-crdt` - A escreve e
+sincroniza para B, B escreve e sincroniza de volta, ambos com 2 entradas.
+Anti-entropy v1 envia estado completo (sem delta/Merkle/bloom); em claro (Noise
+= M6.1); sem persistencia em nsgdb. Evidencia:
+`docs/evidence/M8_CRDT_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---
