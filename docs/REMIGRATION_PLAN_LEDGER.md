@@ -150,6 +150,8 @@ instalar versao inferior a maxima do mesmo `focus` e recusado (fail-closed).
 no score, push assinado, revogacao CRDT/HITL e caminho HITL para downgrade.
 Evidencia: `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`.
 
+**0.6.0-alpha.9 frota (2026-10-27):** release que junta M6 (identidade), M6.1 (Noise + BIND), M7 (jobs remotos), M8/M8.1 (CRDT + delta), M8.1b/c/e (log duravel, compactado e assinado em repouso), M9/M9.1 (skills wasmi + push com hash) e S1/S2a/S2b (BLAKE3, manifesto, publisher assinado, caps e versao monotonica). ISO sha256 `ff1f3f53d675ce4639d32ddd26f6a39563bf30302c839c2aaf76ac20a1a86a1b`, gate MQEMU PASS. Residuais: S2c, M8.1d (nsgdb), HB de descoberta em claro, frota real e M4/M5 metal. Evidencia: `docs/RELEASE_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

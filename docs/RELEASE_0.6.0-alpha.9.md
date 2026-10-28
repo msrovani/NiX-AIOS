@@ -48,6 +48,11 @@ residuais escritos.
 - **S2b** — `caps` declaradas validadas (só `aios_ai.infer`/`log`) e
   **downgrade recusado** por `focus`.
 
+## ISO
+
+`nix build .#iso` → SHA-256 `ff1f3f53d675ce4639d32ddd26f6a39563bf30302c839c2aaf76ac20a1a86a1b`; gate `MQEMU` PASS (2/2 layers,
+`fails=0`). Detalhe: `docs/evidence/QEMU_0.6.0-alpha.9.md`.
+
 ## Evidência
 
 | Fase | Artefacto |
