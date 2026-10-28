@@ -27,6 +27,11 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Changed (S2c)
+
+- **Assinatura persistida:** o manifesto guarda `publisher`/`sig` quando o
+  install e assinado (pre-requisito do push assinado).
+
 ### Added (S2c)
 
 - **Historico no score:** `skill.run` conta sucesso/falha em

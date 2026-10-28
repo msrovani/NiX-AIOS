@@ -160,6 +160,14 @@ history=20, runs=[5,0]) e 16 testes em ipc_auth. Residual: historico local e
 sem decaimento, push nao assinado, sem revogacao, sem downgrade HITL.
 Evidencia: `docs/evidence/S2C_SKILL_HISTORY_0.6.0-alpha.9.md`.
 
+**S2c autoria no manifesto (2026-10-27):** quando o install e assinado, o
+manifesto passa a guardar `publisher` e `sig` (`meta_with_auth`), em vez de
+descartar a assinatura apos verificar. Pre-requisito do push assinado (o
+destino podera verificar autoria em vez de marcar so `peer`). Prova:
+`meta_records_publisher_and_signature_when_signed`. Falta: reencaminhar no
+push, revogacao e downgrade HITL. Evidencia:
+`docs/evidence/S2C_SKILL_AUTH_IN_META_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

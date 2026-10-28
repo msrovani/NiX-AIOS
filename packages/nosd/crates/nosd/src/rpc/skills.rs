@@ -131,6 +131,22 @@ fn max_version_for_focus(state: &AppState, focus: &str) -> Option<String> {
         .max_by_key(|v| ver_key(v))
 }
 
+/// S2c: junta publisher/sig ao manifesto (o push reencaminha-os para que o
+/// destino possa verificar autoria, em vez de aceitar `peer` sem autor).
+pub fn meta_with_auth(
+    mut meta: serde_json::Value,
+    publisher: Option<&str>,
+    sig: Option<&str>,
+) -> serde_json::Value {
+    if let Some(p) = publisher {
+        meta["publisher"] = json!(p);
+    }
+    if let Some(s) = sig {
+        meta["sig"] = json!(s);
+    }
+    meta
+}
+
 fn ver_key(v: &str) -> (u32, u32, u32) {
     let mut it = v.split('.').map(|p| p.parse::<u32>().unwrap_or(0));
     (
@@ -390,6 +406,23 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                 provenance,
                 &caps,
             );
+            if provenance == "signed" {
+                let mkey = format!("skill/{name}/meta");
+                if let Some(meta) = state
+                    .mesh
+                    .crdt_get(&mkey)
+                    .and_then(|e| serde_json::from_str::<serde_json::Value>(&e.value).ok())
+                {
+                    let meta = meta_with_auth(
+                        meta,
+                        req.params.get("publisher").and_then(|v| v.as_str()),
+                        req.params.get("sig").and_then(|v| v.as_str()),
+                    );
+                    state
+                        .mesh
+                        .crdt_put(state.mesh.local_id(), &mkey, &meta.to_string(), 0);
+                }
+            }
             Response {
                 id: req.id,
                 ok: true,
@@ -584,5 +617,22 @@ mod s2b_tests {
         assert!(ver_key("2.0.0") > ver_key("1.9.9"));
         assert!(ver_key("1.10.0") > ver_key("1.9.0"));
         assert_eq!(ver_key("1.2"), ver_key("1.2.0"));
+    }
+}
+
+#[cfg(test)]
+mod s2c_tests {
+    use super::*;
+
+    #[test]
+    fn meta_records_publisher_and_signature_when_signed() {
+        let meta = json!({ "name": "sum", "focus": "sum", "version": "1.0.0" });
+        let m = meta_with_auth(meta.clone(), Some("aa".repeat(32).as_str()), Some("c2ln"));
+        assert_eq!(m["publisher"], "aa".repeat(32));
+        assert_eq!(m["sig"], "c2ln");
+        // Sem autoria, o manifesto fica intacto.
+        let m2 = meta_with_auth(meta, None, None);
+        assert!(m2.get("publisher").is_none());
+        assert!(m2.get("sig").is_none());
     }
 }
