@@ -27,6 +27,11 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Added (S2c)
+
+- **CLI de autoria:** `nosctl skill-sign`, flags `--focus/--version/--publisher/--sig`
+  no `skill-install` e `nosctl skill-revoke <hex>`.
+
 ### Security (S2c)
 
 - **Revogacao de publisher:** `skill/revoked/<hex>` no CRDT; a assinatura deixa

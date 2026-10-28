@@ -184,6 +184,12 @@ assinatura valida**; aplicado em install e no hook do push. Revogar hoje =
 revogacao, e2e em VM, expiracao e downgrade HITL. Evidencia:
 `docs/evidence/S2C_REVOKE_0.6.0-alpha.9.md`.
 
+**CLI autoria de skills (2026-10-27):** `nosctl skill-sign` (assina
+`nome|focus|versao|hash` com a chave do no e imprime publisher+sig),
+`skill-install --focus/--version/--publisher/--sig` e `skill-revoke <hex>`
+(crdt.put skill/revoked/<hex>). Desbloqueia o e2e do push assinado no check de
+VM. Evidencia: `docs/evidence/CLI_SKILL_AUTH_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

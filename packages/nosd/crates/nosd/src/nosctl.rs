@@ -151,6 +151,32 @@ enum Cmd {
     SkillInstall {
         name: String,
         path: String,
+        /// S2: agrupamento para escolha (default = nome).
+        #[arg(long)]
+        focus: Option<String>,
+        #[arg(long)]
+        version: Option<String>,
+        /// S2: publisher (hex) e assinatura (base64) do manifesto.
+        #[arg(long)]
+        publisher: Option<String>,
+        #[arg(long)]
+        sig: Option<String>,
+    },
+    /// S2: assina um manifesto com a chave do no (imprime publisher+sig).
+    #[command(name = "skill-sign")]
+    SkillSign {
+        name: String,
+        #[arg(long, default_value = "")]
+        focus: String,
+        #[arg(long, default_value = "0.1.0")]
+        version: String,
+        /// Hash BLAKE3 do .wasm (o que `skill-install` imprime).
+        hash: String,
+    },
+    /// S2c: revoga um publisher (hex) - a assinatura deixa de valer.
+    #[command(name = "skill-revoke")]
+    SkillRevoke {
+        publisher: String,
     },
     /// M9.1: empurra a skill activa para um peer (verifica hash no destino).
     #[command(name = "skill-push")]
@@ -271,8 +297,47 @@ enum Cmd {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    // S2: assinatura local do manifesto (nao fala com o daemon).
+    if let Cmd::SkillSign {
+        name,
+        focus,
+        version,
+        hash,
+    } = &args.cmd
+    {
+        let key_path = std::env::var("NOSD_MESH_KEY")
+            .unwrap_or_else(|_| "/var/lib/nosd/keys/mesh.key".to_string());
+        let seed = std::fs::read(&key_path)
+            .map_err(|e| anyhow::anyhow!("chave {key_path}: {e} (precisa de sudo?)"))?;
+        if seed.len() != 32 {
+            anyhow::bail!("chave {key_path} tem de ter 32 bytes");
+        }
+        let mut s = [0u8; 32];
+        s.copy_from_slice(&seed);
+        let id = nos_mesh::Identity::from_seed(s, Default::default(), true);
+        let focus = if focus.is_empty() { name } else { focus };
+        let msg = nosd_lib::rpc::skills::publisher_msg(name, focus, version, hash);
+        let sig = id.sign(msg.as_bytes());
+        use base64::Engine as _;
+        let publisher: String = id.public_key().iter().map(|b| format!("{b:02x}")).collect();
+        let out = serde_json::json!({
+            "publisher": publisher,
+            "sig": base64::engine::general_purpose::STANDARD.encode(sig),
+            "msg": msg,
+        });
+        println!("{}", serde_json::to_string_pretty(&out)?);
+        return Ok(());
+    }
+
     let (method, params, caps) = match &args.cmd {
-        Cmd::SkillInstall { name, path } => {
+        Cmd::SkillInstall {
+            name,
+            path,
+            focus,
+            version,
+            publisher,
+            sig,
+        } => {
             let bytes = match std::fs::read(path) {
                 Ok(b) => b,
                 Err(e) => {
@@ -280,23 +345,36 @@ async fn main() -> anyhow::Result<()> {
                     std::process::exit(2);
                 }
             };
+            let mut p = serde_json::json!({ "name": name });
             if path.ends_with(".wat") {
-                let text = String::from_utf8_lossy(&bytes).to_string();
-                (
-                    "skill.install",
-                    serde_json::json!({ "name": name, "wat": text }),
-                    1 << 2, // FS
-                )
+                p["wat"] = serde_json::json!(String::from_utf8_lossy(&bytes));
             } else {
                 use base64::Engine as _;
-                let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-                (
-                    "skill.install",
-                    serde_json::json!({ "name": name, "wasm_b64": b64 }),
-                    1 << 2, // FS
-                )
+                p["wasm_b64"] =
+                    serde_json::json!(base64::engine::general_purpose::STANDARD.encode(&bytes));
             }
+            if let Some(f) = focus {
+                p["focus"] = serde_json::json!(f);
+            }
+            if let Some(v) = version {
+                p["version"] = serde_json::json!(v);
+            }
+            if let Some(x) = publisher {
+                p["publisher"] = serde_json::json!(x);
+            }
+            if let Some(x) = sig {
+                p["sig"] = serde_json::json!(x);
+            }
+            ("skill.install", p, 1 << 2) // FS
         }
+        Cmd::SkillRevoke { publisher } => (
+            "crdt.put",
+            serde_json::json!({
+                "key": format!("skill/revoked/{publisher}"),
+                "value": "1",
+            }),
+            1 << 4, // MEMORY
+        ),
         Cmd::SkillList => ("skill.list", serde_json::json!({}), 0),
         Cmd::SkillRun { name, arg } => (
             "skill.run",
@@ -330,8 +408,9 @@ async fn main() -> anyhow::Result<()> {
             }),
             1, // INFER
         ),
-        // Consent precisa de 2 RPCs: tratado antes deste match.
+        // Consent e SkillSign sao tratados antes deste match.
         Cmd::Consent { .. } => ("consent.noop", serde_json::json!({}), 0),
+        Cmd::SkillSign { .. } => ("skill-sign.noop", serde_json::json!({}), 0),
         Cmd::Health => ("health", serde_json::json!({}), 0u32),
         Cmd::Score => ("score", serde_json::json!({}), 0),
         Cmd::Observe => ("observe.snapshot", serde_json::json!({}), 0),
