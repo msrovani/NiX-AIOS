@@ -1,0 +1,21 @@
+# Check mesh-3vm-faults - NixAIOS 0.6.0-alpha.10 (pos-fix)
+# data: 2026-10-28T03:27:38Z
+# drv: /nix/store/bzmv7i4v6bzsljh6sbvz6h5x6machyy1-vm-test-run-nixaios-mesh-faults.drv
+# daemon_replay_warnings=0
+# assertion_failures=0
+
+## Falhas esperadas (a.fail tem de falhar)
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock job-submit 192.168.50.3:19001 oi --deadline-ms 1500
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock job-submit 192.168.50.3:19001 oi --deadline-ms 1500, in 4.00 seconds)
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock job-submit 192.168.50.3:19001 oi --deadline-ms 1500
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock job-submit 192.168.50.3:19001 oi --deadline-ms 1500, in 3.65 seconds)
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock crdt-sync 192.168.50.1:19001
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock crdt-sync 192.168.50.1:19001, in 7.34 seconds)
+
+## Latencia (netem 200ms): job A->C
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock job-submit 192.168.50.3:19001 'oi com latencia' --deadline-ms 10000
+- /nix/store/laxqms5y3h8g930dn1zip1v6vjki596l-nosd-0.6.0-alpha.10/bin/nosctl --socket /run/nosd/nosd.sock job-submit 192.168.50.3:19001 'oi com latencia' --deadline-ms 10000, in 3.06 seconds)
+
+## Fim
+test script finished in 138.32s
+(finished: cleanup, in 0.18 seconds)

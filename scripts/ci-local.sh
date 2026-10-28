@@ -27,7 +27,7 @@ nix build .#checks.x86_64-linux.nixaios-vm -L --no-link "${FEATURES[@]}"
 
 # Um check de cada vez: 5 testes x 2 VMs em paralelo faz OOM em maquinas de 7 GB.
 echo "== fleet (sequencial; --max-jobs 1) =="
-for c in mesh-2vm mesh-2vm-signed mesh-2vm-jobs mesh-2vm-crdt mesh-2vm-skills; do
+for c in mesh-2vm mesh-2vm-signed mesh-2vm-jobs mesh-2vm-crdt mesh-2vm-skills mesh-3vm-faults; do
   echo "-- $c"
   nix build ".#checks.x86_64-linux.$c" -L --no-link --max-jobs 1 "${FEATURES[@]}"
 done

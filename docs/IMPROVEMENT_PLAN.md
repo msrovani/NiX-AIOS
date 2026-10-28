@@ -58,6 +58,7 @@
 | M8 CRDT wire | **parcial** | `kind=2` + `crdt.sync` + `mesh-2vm-crdt`; falta delta/Merkle/bloom e nsgdb |
 | M7 jobs remotos | **parcial** | `nos-mesh::job`, `job.submit`, `mesh-2vm-jobs`; falta Noise/fila/quota |
 | M5 lab mesh 2-VM | **OBSERVED (lab)** | `checks.x86_64-linux.mesh-2vm`; peers/TOFU/eleição; `evidence/MESH_2VM_0.6.0-alpha.7.md` |
+| M5.1 falhas 3-VM | **OBSERVED (QEMU)** | `mesh-3vm-faults`: netem/perda/kill/particao; encontrou 2 bugs; `evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md` |
 | R-05 NixOS VM test | **feito** | `checks.x86_64-linux.nixaios-vm` (health + chat, 61s) |
 | Q-03 CI GitHub | **criado** | `.github/workflows/ci.yml`; primeira execução no GitHub |
 | E-01 llama-server persistente | **feito (VM)** | tiny GGUF, spawn/health/chat/unload/reload; `docs/evidence/VM_GGUF_0.6.0-alpha.2.md` |

@@ -146,6 +146,33 @@
             url = "https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/samples/jfk.wav";
             hash = "sha256-Wd+5pKyzb+Kir/wUusvuKSD/Q1yxPMMUoIwT9munhg4=";
           };
+          # M5.1: no base do check de 3 VMs com falhas (latencia/perda/kill).
+          meshNode3 = ip: { lib, ... }: {
+            imports = [ self.nixosModules.neural-os ];
+            virtualisation.vlans = [ 1 ];
+            networking.interfaces.eth1.ipv4.addresses = [
+              { address = ip; prefixLength = 24; }
+            ];
+            networking.firewall.enable = false;
+            # sch_netem: o teste injeta latencia/perda com tc.
+            boot.kernelModules = [ "sch_netem" ];
+            services.nosd = {
+              enable = true;
+              package = self.packages.${system}.nosd;
+              hermesTickSecs = 1;
+              meshBind = "0.0.0.0:19000";
+              meshBroadcast = "192.168.50.255:19000";
+            };
+            systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
+              "NOSD_MESH_REQUIRE_SIG=1"
+              "NOSD_JOB_BIND=0.0.0.0:19001"
+            ];
+            environment.systemPackages = [
+              self.packages.${system}.nosd
+              pkgs.iproute2
+            ];
+            system.stateVersion = "25.11";
+          };
         in
         {
           nixaios-vm = pkgs.testers.nixosTest {
@@ -427,6 +454,85 @@
               a.wait_until_succeeds(ca + " crdt-get k2 | grep -q '\"value\": \"v2\"'", timeout=30)
               assert '\"entries\": 2' in a.succeed(ca + " crdt-get k1"), a.succeed(ca + " crdt-get k1")
               assert '\"entries\": 2' in b.succeed(ca + " crdt-get k1"), b.succeed(ca + " crdt-get k1")
+            '';
+          };
+
+          # M5.1: 3 nos com falhas reais (latencia, perda total, kill -9 e link
+          # down). Prova que a frota sobrevive e converge sem hardware.
+          # Nao substitui metal (AWAITING_HW) nem uma frota real com NAT/Wi-Fi.
+          mesh-3vm-faults = pkgs.testers.nixosTest {
+            name = "nixaios-mesh-faults";
+            nodes.a = meshNode3 "192.168.50.1";
+            nodes.b = meshNode3 "192.168.50.2";
+            nodes.c = meshNode3 "192.168.50.3";
+            testScript = ''
+              start_all()
+              a.wait_for_unit("nosd.service")
+              b.wait_for_unit("nosd.service")
+              c.wait_for_unit("nosd.service")
+              a.wait_for_file("/run/nosd/nosd.sock")
+              b.wait_for_file("/run/nosd/nosd.sock")
+              c.wait_for_file("/run/nosd/nosd.sock")
+              ca = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
+              # Topologia: cada no fixa os outros dois (TOFU + HB assinado).
+              for m in (a, b, c):
+                  m.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 2'", timeout=120)
+              # Convergencia em cadeia: A -> B -> C.
+              a.succeed(ca + " crdt-put k1 v1")
+              a.succeed(ca + " crdt-sync 192.168.50.2:19001")
+              b.wait_until_succeeds(ca + " crdt-get k1 | grep -q '\"value\": \"v1\"'", timeout=30)
+              b.succeed(ca + " crdt-sync 192.168.50.3:19001")
+              c.wait_until_succeeds(ca + " crdt-get k1 | grep -q '\"value\": \"v1\"'", timeout=30)
+
+              # netem: 200 ms de latencia nao impedem um job A -> C.
+              c.succeed("tc qdisc add dev eth1 root netem delay 200ms")
+              a.succeed(ca + " job-submit 192.168.50.3:19001 'oi com latencia' --deadline-ms 10000")
+              c.succeed("tc qdisc del dev eth1 root")
+
+              # Kill -9: systemd reinicia (Restart=always) e o log NSGC tem de
+              # devolver o estado que C escreveu antes de morrer.
+              c.succeed(ca + " crdt-put kc vc")
+              c.succeed("systemctl kill -s KILL nosd.service")
+              c.wait_until_succeeds(ca + " health", timeout=90)
+              c.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 2'", timeout=120)
+              c.wait_until_succeeds(ca + " crdt-get kc | grep -q '\"value\": \"vc\"'", timeout=30)
+              # O HB do no reiniciado nao pode ser recusado como replay: o seq
+              # tem de sobreviver ao restart (senao os peers ficam com metadados
+              # velhos para sempre).
+              a.fail("journalctl -u nosd -o cat | grep -q 'rejeitado (Replay)'")
+              b.fail("journalctl -u nosd -o cat | grep -q 'rejeitado (Replay)'")
+
+              # B escreveu enquanto C reiniciava; C puxa e propaga kc de volta.
+              b.succeed(ca + " crdt-put kb vb")
+              c.succeed(ca + " crdt-sync 192.168.50.2:19001")
+              c.wait_until_succeeds(ca + " crdt-get kb | grep -q '\"value\": \"vb\"'", timeout=30)
+              b.succeed(ca + " crdt-sync 192.168.50.1:19001")
+              a.wait_until_succeeds(ca + " crdt-get kc | grep -q '\"value\": \"vc\"'", timeout=30)
+
+              # Perda total (netem 100%): A -> C falha, A <-> B continua.
+              c.succeed("tc qdisc add dev eth1 root netem loss 100%")
+              a.fail(ca + " job-submit 192.168.50.3:19001 oi --deadline-ms 1500")
+              a.succeed(ca + " crdt-put kp vp")
+              a.succeed(ca + " crdt-sync 192.168.50.2:19001")
+              b.wait_until_succeeds(ca + " crdt-get kp | grep -q '\"value\": \"vp\"'", timeout=30)
+              c.fail(ca + " crdt-sync 192.168.50.1:19001")
+              c.succeed("tc qdisc del dev eth1 root")
+
+              # Particão dura (link down) e recuperação.
+              c.succeed("ip link set eth1 down")
+              a.fail(ca + " job-submit 192.168.50.3:19001 oi --deadline-ms 1500")
+              a.succeed(ca + " crdt-put kq vq")
+              a.succeed(ca + " crdt-sync 192.168.50.2:19001")
+              b.wait_until_succeeds(ca + " crdt-get kq | grep -q '\"value\": \"vq\"'", timeout=30)
+              c.succeed("ip link set eth1 up")
+              c.wait_until_succeeds(ca + " crdt-sync 192.168.50.1:19001", timeout=60)
+              c.wait_until_succeeds(ca + " crdt-get kq | grep -q '\"value\": \"vq\"'", timeout=30)
+
+              # Convergencia final nos tres, chave a chave (o daemon tambem
+              # escreve chaves internas no CRDT: contar entradas seria fragil).
+              for m in (a, b, c):
+                  for k, v in [("k1", "v1"), ("kc", "vc"), ("kb", "vb"), ("kp", "vp"), ("kq", "vq")]:
+                      m.wait_until_succeeds(ca + " crdt-get " + k + " | grep -q '\"value\": \"" + v + "\"'", timeout=90)
             '';
           };
 

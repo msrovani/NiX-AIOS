@@ -3,6 +3,21 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+### Added (M5.1)
+
+- **Check `mesh-3vm-faults`**: 3 VMs com latencia (`tc netem`), perda total,
+  `kill -9` + restart com replay do log `NSGC` e particao de link.
+
+### Fixed (M8.1)
+
+- **Delta do CRDT:** o VV passa a ter contador global por peer; a 2a chave
+  escrita pelo mesmo no deixa de ficar fora do `crdt.sync`.
+
+### Fixed (M6)
+
+- **HB depois de restart:** o `seq` passa a ter base em epoch ms; o no
+  reiniciado deixa de ser recusado como replay pelos peers.
+
 ## [0.6.0-alpha.10] — 2026-10-27 (S2c + M8.1d em nsgdb)
 
 ### Security

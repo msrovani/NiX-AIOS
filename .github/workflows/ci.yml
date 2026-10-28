@@ -71,14 +71,15 @@ jobs:
           nix build .#checks.x86_64-linux.nixaios-vm -L
           --option system-features "kvm nixos-test big-parallel benchmark"
 
-  # Frota: 2 VMs por check (mesh, identidade, jobs, CRDT, skills).
+  # Frota: 2 VMs por check (mesh, identidade, jobs, CRDT, skills) + 3 VMs
+  # com falhas (latencia/perda/kill/link down).
   # Um job por check para isolar falhas e paralelizar.
   fleet:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        check: [mesh-2vm, mesh-2vm-signed, mesh-2vm-jobs, mesh-2vm-crdt, mesh-2vm-skills]
+        check: [mesh-2vm, mesh-2vm-signed, mesh-2vm-jobs, mesh-2vm-crdt, mesh-2vm-skills, mesh-3vm-faults]
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31

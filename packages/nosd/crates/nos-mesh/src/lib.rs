@@ -433,7 +433,11 @@ impl MeshEngine {
             crdt: Arc::new(Mutex::new(CrdtStore::new())),
             ident: None,
             pinned: Arc::new(ident::Pinned::new()),
-            hb_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+            // M5.1: o seq tem de sobreviver a um restart do processo. Um
+            // contador a começar em 1 fazia os peers rejeitarem o HB do no
+            // reiniciado como Replay para sempre. Base = epoch ms (segue
+            // monotonicamente enquanto o relogio nao andar para tras).
+            hb_seq: Arc::new(std::sync::atomic::AtomicU64::new(now_ms().max(1))),
             crdt_log: None,
         }
     }
@@ -1602,6 +1606,24 @@ mod tests {
         let after = std::fs::read(&path).unwrap();
         assert!(after.len() < before.len(), "compactacao devia encolher");
         assert!(after.starts_with(&CRDT_SEG_MAGIC));
+    }
+
+    #[test]
+    fn hb_seq_is_wall_clock_based_across_restart() {
+        // M5.1: o seq do HB tem de ser grande (epoch ms) para um processo
+        // reiniciado nao ser tratado como replay pelos peers.
+        let a = MeshEngine::new(1);
+        let h1 = a.encode_heartbeat();
+        let seq1 = u64::from_le_bytes(h1[7..15].try_into().unwrap());
+        assert!(seq1 > 1_600_000_000_000, "seq base: {seq1}");
+        let h2 = a.encode_heartbeat();
+        let seq2 = u64::from_le_bytes(h2[7..15].try_into().unwrap());
+        assert!(seq2 > seq1, "dentro do processo tem de ser monotono");
+        // "Restart" (>=1 ms depois): novo engine -> seq maior que o anterior.
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let b = MeshEngine::new(1);
+        let seq3 = u64::from_le_bytes(b.encode_heartbeat()[7..15].try_into().unwrap());
+        assert!(seq3 > seq2, "restart: {seq3} <= {seq2}");
     }
 
     #[test]

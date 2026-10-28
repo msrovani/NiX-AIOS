@@ -238,6 +238,17 @@ indice/BQ, ancora no mesmo data-dir, S2d (chaves de publicador/auditoria),
 frota >2 nos e metal. Evidencia: `docs/RELEASE_0.6.0-alpha.10.md`,
 `docs/evidence/QEMU_0.6.0-alpha.10.md`.
 
+**M5.1 falhas 3-VM (2026-10-27):** `mesh-3vm-faults` com 3 nos: convergencia,
+netem 200ms, perda 100%, `kill -9` + `Restart=always` (replay `NSGC`), particao
+`ip link set eth1 down` e recuperacao. O check falhou 2x antes de passar e
+encontrou bugs reais: (1) VV do CRDT por chave escondia a 2a chave nova no
+`crdt.sync` -> contador global por peer + teste
+`second_key_of_same_writer_is_in_delta`; (2) `seq` do HB a reiniciar em 1 fazia
+os peers recusarem o no reiniciado como Replay -> base epoch ms + teste
+`hb_seq_is_wall_clock_based_across_restart`. PASS final (138 s, 0 replays, 0
+assertion failures). Residual: 3 VMs num host, sem TTL de peers, netem limitado,
+HB em claro e metal. Evidencia: `docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

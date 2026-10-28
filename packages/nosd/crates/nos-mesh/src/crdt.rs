@@ -28,6 +28,10 @@ impl CrdtStore {
     }
 
     /// Put local: incrementa o componente `peer` no VV.
+    ///
+    /// O contador tem de ser **global por peer** (max em todas as entradas),
+    /// nao por chave: senao a 2a chave nova de um no nasce com o mesmo
+    /// `vv[peer]` da 1a e `delta_since` esconde-a de quem ja viu a 1a.
     pub fn put(&mut self, peer: u32, key: impl Into<String>, value: impl Into<String>, tick: u64) {
         let key = key.into();
         let mut vv = self
@@ -35,7 +39,12 @@ impl CrdtStore {
             .get(&key)
             .map(|e| e.vv.clone())
             .unwrap_or_default();
-        let next = vv.get(&peer).copied().unwrap_or(0).saturating_add(1);
+        let next = self
+            .version_vector()
+            .get(&peer)
+            .copied()
+            .unwrap_or(0)
+            .saturating_add(1);
         vv.insert(peer, next);
         self.entries.insert(
             key.clone(),
@@ -155,6 +164,21 @@ mod tests {
         b.merge_store(&a);
         assert_eq!(a.get("soul").unwrap().value, "alert");
         assert_eq!(b.get("soul").unwrap().value, "alert");
+    }
+
+    #[test]
+    fn second_key_of_same_writer_is_in_delta() {
+        // Regressao M8.1: o VV tem de ser global por peer. Com contador por
+        // chave, `k2` nascia com vv[1]=1 e ficava fora do delta de quem ja
+        // tinha vv[1]=1 ? a frota nunca a recebia.
+        let mut a = CrdtStore::new();
+        a.put(1, "k1", "v1", 0);
+        let seen = a.version_vector();
+        a.put(1, "k2", "v2", 1);
+        let delta = a.delta_since(&seen);
+        assert_eq!(delta.len(), 1, "{delta:?}");
+        assert_eq!(delta[0].key, "k2");
+        assert_eq!(a.version_vector().get(&1).copied(), Some(2));
     }
 
     #[test]
