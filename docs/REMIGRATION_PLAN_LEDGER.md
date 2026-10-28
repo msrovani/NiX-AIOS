@@ -217,6 +217,17 @@ linhas, so deteta encolhimento, backend nsgdb nao feito. Frota: `mesh-2vm-crdt`
 PASS (EXIT=0) sem regressao no `crdt.sync`. Evidencia:
 `docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`.
 
+**M8.1d backend nsgdb (2026-10-27):** o log do CRDT passa a
+`data_dir/nsgdb/crdt/seg.bin` (magic `NSGC`, registos `u32 len + payload`) por
+omissao; `NOSD_CRDT_BACKEND=jsonl` mantem o legado. Replay, assinatura M8.1e,
+compactacao e ancora M8.1d valem nos dois formatos. Migracao one-shot no
+arranque (`crdt_rewrite_log` + rename para `crdt.jsonl.migrated`). Prova: 4
+testes unit (roundtrip nao-JSONL, rollback, adulterado, compactacao), 2 de
+daemon (migracao e rollback jsonl) e `mesh-2vm-crdt` PASS com `NSGC` nos dois
+nos. Residual: segmento local (nao o motor neural-sgdb), replay completo no
+arranque, ancora no mesmo data-dir e sem migracao inversa. Evidencia:
+`docs/evidence/M8.1D_NSGDB_BACKEND_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

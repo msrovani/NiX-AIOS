@@ -27,6 +27,12 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Changed (M8.1d)
+
+- **Backend nsgdb no CRDT:** log em `nsgdb/crdt/seg.bin` (`NSGC`,
+  length-prefixed) por omissao. `NOSD_CRDT_BACKEND=jsonl` mantem o legado, e um
+  `crdt.jsonl` existente e migrado uma vez para `crdt.jsonl.migrated`.
+
 ### Security (M8.1d)
 
 - **Anti-rollback do log CRDT:** ancora `crdt.anchor` (bytes + linhas), gravada

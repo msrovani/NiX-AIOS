@@ -51,7 +51,7 @@
 | M9.1 SKILL_PUSH | **feito** | `skill.push` + `install_bytes(expect_hash)`; `mesh-2vm-skills` PASS |
 | M8.1e log autenticado | **feito** | linha assinada (Ed25519) + replay fail-closed; sem anti-rollback |
 | M8.1c compactacao do log | **feito** | snapshot+rename no arranque; linha truncada ignorada |
-| M8.1b CRDT duravel | **parcial** | log `crdt.jsonl` + replay; falta nsgdb/compactacao/bloom |
+| M8.1b CRDT duravel | **parcial** | log append+replay; desde M8.1d segmento `NSGC` (`nsgdb/crdt/seg.bin`) por omissao; falta indice/bloom |
 | M8.1 delta anti-entropy | **parcial** | VV + `delta_since` no `crdt.sync`; falta bloom/Merkle e nsgdb |
 | M6.1 Noise (link cifrado) | **feito** | XX + BIND Ed25519; `noise_job_roundtrip` + checks jobs/crdt |
 | M9 skills wasmi | **parcial** | `skill.install/list/run` + sandbox frugal; falta distribuicao do binario e BLAKE3 |
