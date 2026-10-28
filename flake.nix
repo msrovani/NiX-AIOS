@@ -278,6 +278,69 @@
             '';
           };
 
+          # M9.1: SKILL_PUSH - o modulo viaja cifrado e so activa se o hash bater.
+          mesh-2vm-skills = pkgs.testers.nixosTest {
+            name = "nixaios-mesh-skills";
+            nodes.a = { pkgs, lib, ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              virtualisation.vlans = [ 1 ];
+              networking.interfaces.eth1.ipv4.addresses = [
+                { address = "192.168.50.1"; prefixLength = 24; }
+              ];
+              networking.firewall.enable = false;
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 1;
+                meshBind = "0.0.0.0:19000";
+                meshBroadcast = "192.168.50.255:19000";
+              };
+              systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
+                "NOSD_MESH_REQUIRE_SIG=1"
+              ];
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            nodes.b = { pkgs, lib, ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              virtualisation.vlans = [ 1 ];
+              networking.interfaces.eth1.ipv4.addresses = [
+                { address = "192.168.50.2"; prefixLength = 24; }
+              ];
+              networking.firewall.enable = false;
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 1;
+                meshBind = "0.0.0.0:19000";
+                meshBroadcast = "192.168.50.255:19000";
+              };
+              systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
+                "NOSD_MESH_REQUIRE_SIG=1"
+                "NOSD_JOB_BIND=0.0.0.0:19001"
+              ];
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            testScript = ''
+              start_all()
+              a.wait_for_unit("nosd.service")
+              b.wait_for_unit("nosd.service")
+              a.wait_for_file("/run/nosd/nosd.sock")
+              b.wait_for_file("/run/nosd/nosd.sock")
+              ca = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
+              a.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
+              b.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
+              a.succeed("cat > /tmp/ident.wat <<'EOF'\n(module (func (export \"run\") (param i32) (result i32) local.get 0))\nEOF")
+              a.succeed(ca + " skill-install ident /tmp/ident.wat")
+              a.succeed(ca + " skill-run ident --arg 5 | grep -q '\"value\": 5'")
+              a.succeed(ca + " skill-push 192.168.50.2:19001 ident | grep -q '\"verified\": true'")
+              b.wait_until_succeeds(ca + " skill-list | grep -q 'ident'", timeout=30)
+              b.succeed(ca + " skill-run ident --arg 9 | grep -q '\"value\": 9'")
+              a.fail(ca + " skill-push 192.168.50.2:19001 nao-existe")
+            '';
+          };
+
           # M8: anti-entropy de estado (CRDT) pelo link autenticado do M7.
           mesh-2vm-crdt = pkgs.testers.nixosTest {
             name = "nixaios-mesh-crdt";

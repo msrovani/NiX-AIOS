@@ -7,7 +7,7 @@ mod job;
 mod model;
 mod nix_wifi;
 mod security;
-mod skills;
+pub mod skills;
 mod ui_orb;
 mod voice_transmute;
 

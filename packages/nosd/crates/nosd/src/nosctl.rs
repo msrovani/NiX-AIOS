@@ -152,6 +152,12 @@ enum Cmd {
         name: String,
         path: String,
     },
+    /// M9.1: empurra a skill activa para um peer (verifica hash no destino).
+    #[command(name = "skill-push")]
+    SkillPush {
+        addr: String,
+        name: String,
+    },
     /// M9: lista skills activas.
     #[command(name = "skill-list")]
     SkillList,
@@ -274,19 +280,33 @@ async fn main() -> anyhow::Result<()> {
                     std::process::exit(2);
                 }
             };
-            use base64::Engine as _;
-            let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-            (
-                "skill.install",
-                serde_json::json!({ "name": name, "wasm_b64": b64 }),
-                1 << 2, // FS
-            )
+            if path.ends_with(".wat") {
+                let text = String::from_utf8_lossy(&bytes).to_string();
+                (
+                    "skill.install",
+                    serde_json::json!({ "name": name, "wat": text }),
+                    1 << 2, // FS
+                )
+            } else {
+                use base64::Engine as _;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+                (
+                    "skill.install",
+                    serde_json::json!({ "name": name, "wasm_b64": b64 }),
+                    1 << 2, // FS
+                )
+            }
         }
         Cmd::SkillList => ("skill.list", serde_json::json!({}), 0),
         Cmd::SkillRun { name, arg } => (
             "skill.run",
             serde_json::json!({ "name": name, "arg": arg }),
             0,
+        ),
+        Cmd::SkillPush { addr, name } => (
+            "skill.push",
+            serde_json::json!({ "addr": addr, "name": name }),
+            1 << 2, // FS
         ),
         Cmd::CrdtPut { key, value, tick } => (
             "crdt.put",

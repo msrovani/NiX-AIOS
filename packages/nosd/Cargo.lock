@@ -3247,6 +3247,7 @@ dependencies = [
 name = "nos-mesh"
 version = "0.6.0-alpha.8"
 dependencies = [
+ "base64 0.22.1",
  "ed25519-compact",
  "nos-core",
  "parking_lot",

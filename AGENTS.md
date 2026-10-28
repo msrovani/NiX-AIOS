@@ -101,6 +101,8 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M8 estado**: CRDT (LWW+VV) sobre o link assinado do M7 (`kind=2`);
   `crdt.put/get/sync`; `mesh-2vm-crdt` PASS. Anti-entropy = estado completo
   (sem delta/Merkle), em claro, sem persistencia nsgdb.
+- **M9.1 SKILL_PUSH**: modulo viaja cifrado (`kind=3`) e so activa se o hash
+  bater; 512 KiB/push (base64 no envelope); hash FNV, sem gossip/revogacao.
 - **M8.1 delta**: `crdt.sync` = pull por VV + push do delta (2 trocas cifradas).
   Sem bloom/Merkle; estado em memoria (sem nsgdb) e sem compactacao.
 - **M6.1 Noise**: link de jobs/estado cifrado (XX + BIND Ed25519 contra a chave

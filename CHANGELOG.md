@@ -20,6 +20,12 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Added (M9.1)
+
+- **SKILL_PUSH:** `skill.push <addr> <nome>` transporta o `.wasm` pelo link
+  cifrado e o destino **s? activa se o hash bater**; `skill-install` aceita
+  `.wat`/`.wasm`. `mesh-2vm-skills` PASS (A?B, corre `ident(9)` em B).
+
 ### Changed (M8.1)
 
 - **CRDT por delta:** `crdt.sync` passou a pull por `version_vector` + push do

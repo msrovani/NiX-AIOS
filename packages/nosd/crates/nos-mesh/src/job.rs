@@ -59,8 +59,12 @@ pub type Executor = Arc<dyn Fn(&str, u32) -> Result<String, String> + Send + Syn
 /// M8: hook de estado — recebe o payload e devolve o snapshot já merged.
 pub type CrdtHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
 
+/// M9.1: hook de skills — recebe {name,hash,wasm_b64} e activa se o hash bater.
+pub type SkillHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
+
 pub const KIND_CHAT: u8 = 1;
 pub const KIND_CRDT: u8 = 2;
+pub const KIND_SKILL: u8 = 3;
 
 fn frame(body: &[u8], id: &Identity) -> Vec<u8> {
     let mut v = MAGIC.to_vec();
@@ -109,6 +113,7 @@ pub async fn serve(
     pinned: Arc<Pinned>,
     exec: Executor,
     crdt: CrdtHook,
+    skill: SkillHook,
 ) -> std::io::Result<()> {
     let listener = TcpListener::bind(bind).await?;
     info!(
@@ -116,7 +121,7 @@ pub async fn serve(
         "job listener bind={bind} node={} noise=XX",
         identity.node_id()
     );
-    serve_on(listener, identity, pinned, exec, crdt).await
+    serve_on(listener, identity, pinned, exec, crdt, skill).await
 }
 
 /// Igual a `serve`, mas com listener j? aberto (testes / socket activation).
@@ -126,6 +131,7 @@ pub async fn serve_on(
     pinned: Arc<Pinned>,
     exec: Executor,
     crdt: CrdtHook,
+    skill: SkillHook,
 ) -> std::io::Result<()> {
     loop {
         let (sock, peer) = listener.accept().await?;
@@ -133,6 +139,7 @@ pub async fn serve_on(
         let pins = pinned.clone();
         let exec = exec.clone();
         let crdt = crdt.clone();
+        let skill = skill.clone();
         tokio::spawn(async move {
             let mut s = match Secure::responder(sock, &id, &pins).await {
                 Ok(s) => s,
@@ -148,7 +155,7 @@ pub async fn serve_on(
                     return;
                 }
             };
-            match handle(&req, &id, &pins, &exec, &crdt).await {
+            match handle(&req, &id, &pins, &exec, &crdt, &skill).await {
                 Ok(out) => {
                     if let Err(e) = s.send(&out).await {
                         warn!(target: "nosd", "job send: {e}");
@@ -166,6 +173,7 @@ async fn handle(
     pinned: &Pinned,
     exec: &Executor,
     crdt: &CrdtHook,
+    skill: &SkillHook,
 ) -> Result<Vec<u8>, String> {
     let pf = parse_frame(buf)?;
     let env: JobEnvelope = serde_json::from_slice(&pf.body).map_err(|e| format!("json: {e}"))?;
@@ -190,6 +198,8 @@ async fn handle(
         Err("deadline excedido".into())
     } else if env.kind == KIND_CRDT {
         crdt(&env.prompt)
+    } else if env.kind == KIND_SKILL {
+        skill(&env.prompt)
     } else {
         exec(&env.prompt, env.budget_tokens)
     };
@@ -254,6 +264,38 @@ pub async fn submit_crdt(
     deadline_ms: u64,
 ) -> Result<JobResult, String> {
     submit_kind(addr, identity, pinned, payload, deadline_ms, 0, KIND_CRDT).await
+}
+
+/// M9.1: empurra um módulo `.wasm` para um peer (activa só se o hash bater).
+pub async fn submit_skill(
+    addr: &str,
+    identity: &Identity,
+    pinned: &Arc<Pinned>,
+    name: &str,
+    bytes: &[u8],
+    deadline_ms: u64,
+) -> Result<JobResult, String> {
+    use base64::Engine as _;
+    let hash = format!("{:016x}", crate::mesh_knowledge::fnv1a64(bytes));
+    // Limite do envelope (MAX_PROMPT) e do corpo: base64 cresce ~4/3.
+    if bytes.len() > 512 * 1024 {
+        return Err("modulo acima de 512 KiB para push".into());
+    }
+    let payload = serde_json::json!({
+        "name": name,
+        "hash": hash,
+        "wasm_b64": base64::engine::general_purpose::STANDARD.encode(bytes),
+    });
+    submit_kind(
+        addr,
+        identity,
+        pinned,
+        &payload.to_string(),
+        deadline_ms,
+        0,
+        KIND_SKILL,
+    )
+    .await
 }
 
 async fn submit_kind(
@@ -334,7 +376,8 @@ mod tests {
         let s = server.clone();
         let pins_task = pins_srv.clone();
         tokio::spawn(async move {
-            let _ = serve_on(l, s, pins_task, exec, crdt).await;
+            let skill: SkillHook = Arc::new(|_p: &str| Err("skill hook nao usado".into()));
+            let _ = serve_on(l, s, pins_task, exec, crdt, skill).await;
         });
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 

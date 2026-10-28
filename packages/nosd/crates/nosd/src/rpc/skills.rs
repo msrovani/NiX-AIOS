@@ -10,7 +10,7 @@ use super::*;
 use nos_ipc::{Request, Response};
 use serde_json::json;
 
-fn skills_dir(state: &AppState) -> std::path::PathBuf {
+pub fn skills_dir(state: &AppState) -> std::path::PathBuf {
     state.data_dir.join("skills")
 }
 
@@ -25,6 +25,44 @@ fn err(id: u64, msg: impl Into<String>) -> Response {
         error: Some(msg.into()),
         result: json!(null),
     }
+}
+
+/// Instala/activa um módulo. `expect_hash` (M9.1) obriga a que o hash do
+/// conteúdo recebido bata com o anunciado — senão recusa (fail-closed).
+pub fn install_bytes(
+    state: &AppState,
+    name: &str,
+    bytes: &[u8],
+    expect_hash: Option<&str>,
+) -> Result<(String, usize), String> {
+    if name.is_empty() || name.contains('/') || name.len() > 64 {
+        return Err("nome invalido".into());
+    }
+    if bytes.len() > 4 * 1024 * 1024 {
+        return Err("modulo acima de 4 MiB".into());
+    }
+    let cid = content_id(bytes);
+    if let Some(expect) = expect_hash {
+        if expect != cid {
+            return Err(format!("hash nao bate (esperado {expect}, recebido {cid})"));
+        }
+    }
+    // Valida antes de gravar (Fuel nao e erro de modulo: pode ser intencional).
+    if let Err(e) = nos_wasm::FrugalRuntime::new().run_i32(bytes, nos_core::CapBits::NONE, 1, 0) {
+        if !matches!(e, nos_wasm::WasmError::Fuel) {
+            return Err(format!("modulo invalido: {e}"));
+        }
+    }
+    let dir = skills_dir(state);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("skills dir: {e}"))?;
+    std::fs::write(dir.join(format!("{cid}.wasm")), bytes).map_err(|e| format!("write: {e}"))?;
+    state.mesh.crdt_put(
+        state.mesh.local_id(),
+        &format!("skill/{name}/active"),
+        &cid,
+        0,
+    );
+    Ok((cid, bytes.len()))
 }
 
 pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {

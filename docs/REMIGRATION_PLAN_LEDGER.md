@@ -81,6 +81,16 @@ canal Noise). `CrdtStore::version_vector/delta_since` e
 Residual: sem bloom/Merkle, sem persistencia em nsgdb, sem compactacao.
 Evidencia: `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`.
 
+**M9.1 SKILL_PUSH (2026-10-27):** `KIND_SKILL=3` no link (Noise+frame
+assinado); `skill.push <addr> <nome>` envia {name,hash,wasm_b64};
+`install_bytes(expect_hash)` recusa se o hash do conteudo nao bater (fail-closed)
+antes de gravar/activar. `skill-install` aceita .wat ou .wasm. Prova:
+`mesh-2vm-skills` PASS - A instala e corre ident(5), empurra para B, B ve na
+lista e corre ident(9); push de skill inexistente falha. Residual: hash FNV
+(nao commitment; BLAKE3 pendente), 512 KiB/push via base64 no envelope, sem
+gossip/revogacao de skills. Evidencia:
+`docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

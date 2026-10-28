@@ -280,8 +280,23 @@ async fn main() -> anyhow::Result<()> {
                     });
                     serde_json::to_string(&out).map_err(|e| format!("crdt delta: {e}"))
                 });
+                let st3 = state.clone();
+                let skill: nos_mesh::job::SkillHook = std::sync::Arc::new(move |payload: &str| {
+                    let v: serde_json::Value =
+                        serde_json::from_str(payload).map_err(|e| e.to_string())?;
+                    let name = v["name"].as_str().ok_or("push sem name")?;
+                    let hash = v["hash"].as_str().ok_or("push sem hash")?;
+                    let b64 = v["wasm_b64"].as_str().ok_or("push sem wasm_b64")?;
+                    let bytes =
+                        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+                            .map_err(|e| format!("base64: {e}"))?;
+                    let (cid, n) =
+                        nosd_lib::rpc::skills::install_bytes(&st3, name, &bytes, Some(hash))?;
+                    Ok(format!("{cid}:{n}"))
+                });
                 tokio::spawn(async move {
-                    if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec, crdt).await {
+                    if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec, crdt, skill).await
+                    {
                         tracing::warn!(target: "nosd", "job listener: {e}");
                     }
                 });

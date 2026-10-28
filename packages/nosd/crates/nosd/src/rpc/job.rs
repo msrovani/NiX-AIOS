@@ -4,6 +4,15 @@ use super::*;
 use nos_ipc::{Request, Response};
 use serde_json::json;
 
+fn err(id: u64, msg: impl Into<String>) -> Response {
+    Response {
+        id,
+        ok: false,
+        error: Some(msg.into()),
+        result: json!(null),
+    }
+}
+
 pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
     Some(match req.method.as_str() {
         "job.submit" => {
@@ -255,6 +264,66 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                     error: Some("crdt push panic".into()),
                     result: json!(null),
                 },
+            }
+        }
+        "skill.push" => {
+            let addr = req
+                .params
+                .get("addr")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if addr.is_empty() || name.is_empty() {
+                return Some(err(req.id, "skill.push requer addr e name"));
+            }
+            let Some(entry) = state.mesh.crdt_get(&format!("skill/{name}/active")) else {
+                return Some(err(
+                    req.id,
+                    format!("skill '{name}' nao instalada localmente"),
+                ));
+            };
+            let hash = entry.value;
+            let path = crate::rpc::skills::skills_dir(state).join(format!("{hash}.wasm"));
+            let bytes = match std::fs::read(&path) {
+                Ok(b) => b,
+                Err(e) => return Some(err(req.id, format!("modulo {hash}: {e}"))),
+            };
+            let Some(identity) = state.mesh.identity() else {
+                return Some(err(req.id, "sem identidade de no"));
+            };
+            let pinned = state.mesh.pinned();
+            let n = name.clone();
+            let join = std::thread::spawn(move || {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())?;
+                rt.block_on(nos_mesh::job::submit_skill(
+                    &addr, &identity, &pinned, &n, &bytes, 30_000,
+                ))
+            });
+            match join.join() {
+                Ok(Ok(r)) => Response {
+                    id: req.id,
+                    ok: r.ok,
+                    error: r.error,
+                    result: json!({
+                        "name": name,
+                        "hash": hash,
+                        "worker": r.worker,
+                        "verified": true,
+                        "text": r.text,
+                        "elapsed_ms": r.elapsed_ms,
+                    }),
+                },
+                Ok(Err(e)) => err(req.id, format!("skill.push: {e}")),
+                Err(_) => err(req.id, "skill.push panic"),
             }
         }
         _ => return None,
