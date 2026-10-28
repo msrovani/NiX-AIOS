@@ -24,6 +24,13 @@ Versão corrente: **0.6.0-alpha.9** — [`RELEASE_0.6.0-alpha.9.md`](RELEASE_0.6
 | [SKILL_TRUST_AND_SELECTION.md](SKILL_TRUST_AND_SELECTION.md) | Requisitos de segurança/qualidade das skills wasm e escolha pelo Hermes |
 | [SKYNET_DISTRIBUTED_PLAN.md](SKYNET_DISTRIBUTED_PLAN.md) | Plano da frota distribu?da (M6-M10): identidade, Noise, jobs, CRDT, wasmi, segurança |
 
+## Memoria operacional
+
+| Documento | Função |
+|-----------|--------|
+| [memory/SESSION_FLEET_M6_M9.md](memory/SESSION_FLEET_M6_M9.md) | Lições da sessão frota (M6→S2b) e estado à saída |
+
+## Honesty e remigração
 ## Honesty e remigração
 
 | Documento | Função |
