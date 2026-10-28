@@ -9,6 +9,8 @@ component Spark inherits Rectangle {
     in property <brush> glow;
     in property <length> field;
     in property <float> speed-mul;
+    in property <string> pattern;
+
 
     width: 7px + self.energy * 5px;
     height: self.width;
@@ -17,9 +19,13 @@ component Spark inherits Rectangle {
     opacity: 0.50 + 0.45 * self.energy;
 
     property <angle> spin: (self.index * 27deg) + 360deg * mod(animation-tick() * root.speed-mul, 8s) / 8s;
-    property <float> orbit: 0.30 + 0.10 * abs(sin(self.index * 40deg));
+    property <float> orbit:
+        root.pattern == "ring" ? 0.39 :
+        root.pattern == "cluster" ? 0.16 + 0.10 * abs(sin(self.index * 40deg)) :
+        0.29 + 0.09 * abs(sin(self.index * 40deg));
+    property <float> vertical-orbit: root.pattern == "wave" ? 0.54 : 0.84;
     x: root.field / 2 + cos(self.spin) * root.field * self.orbit - self.width / 2;
-    y: root.field / 2 + sin(self.spin) * root.field * self.orbit * 0.88 - self.height / 2;
+    y: root.field / 2 + sin(self.spin) * root.field * self.orbit * root.vertical-orbit - self.height / 2;
 }
 
 export component HudWindow inherits Window {
@@ -38,6 +44,8 @@ export component HudWindow inherits Window {
     in-out property <string> orb_pattern: "sphere";
     in-out property <int> orb_level_pct: 14;
     in-out property <int> orb_motion_pct: 0;
+    in-out property <bool> orb_audio_on: false;
+    in-out property <bool> orb_video_on: false;
     in-out property <string> orb_lab_url: "http://127.0.0.1:7701/";
     in-out property <bool> hub_ok: false;
 
@@ -53,7 +61,8 @@ export component HudWindow inherits Window {
     preferred-height: 720px;
     background: #020617;
 
-    property <float> energy: max(0.12, root.orb_level_pct / 100);
+    // Áudio infla o núcleo; movimento da câmara acrescenta energia ao halo.
+    property <float> energy: min(1.0, max(0.12, root.orb_level_pct / 100 + root.orb_motion_pct / 400));
     property <float> speed-mul:
         root.orb_state == "thinking" ? 1.6 :
         root.orb_state == "speaking" ? 1.35 :
@@ -73,179 +82,326 @@ export component HudWindow inherits Window {
         + 0.07 * sin(360deg * animation-tick() / (1.25s / root.speed-mul))
         + root.energy * 0.12;
 
-    Rectangle { width: 100%; height: 100%; background: #020617; }
+    // Camada de fundo: grelha técnica muito subtil, sem gradientes para manter
+    // compatibilidade com o renderer software usado no cage/QEMU.
+    Rectangle { width: 100%; height: 100%; background: #030914; }
     Rectangle {
         width: 100%; height: 100%;
         background: root.accent;
-        opacity: 0.10 + root.energy * 0.12;
+        opacity: 0.035 + root.energy * 0.035;
     }
+    for i in 20: Rectangle {
+        x: i * 68px;
+        width: 1px;
+        height: 100%;
+        background: #173044;
+        opacity: 0.20;
+    }
+    for i in 12: Rectangle {
+        y: i * 68px;
+        width: 100%;
+        height: 1px;
+        background: #173044;
+        opacity: 0.18;
+    }
+    Rectangle { x: 0px; y: 75px; width: 100%; height: 1px; background: #254154; opacity: 0.7; }
+    Rectangle { x: 0px; y: root.height - 1px; width: 100%; height: 1px; background: root.accent; opacity: 0.45; }
 
+    // Núcleo holográfico: camadas opacas e órbitas leves, legíveis em iGPU.
     stage := Rectangle {
-        width: min(root.width, root.height) * 0.55;
+        width: min(root.width, root.height) * 0.51;
         height: self.width;
         x: (root.width - self.width) / 2;
-        // abaixo do header (o header deixa de o cobrir)
-        y: (root.height - self.height) / 2 - 30px;
+        y: root.height * 0.20;
         background: transparent;
 
         Rectangle {
-            width: parent.width * 1.06 * root.breathe;
+            width: parent.width * 1.04 * root.breathe;
             height: self.width;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             border-radius: self.width / 2;
             background: transparent;
-            border-width: 5px;
+            border-width: 1px;
             border-color: root.accent;
-            opacity: 0.50;
+            opacity: 0.48;
         }
         Rectangle {
-            width: parent.width * 0.76 * root.breathe;
+            width: parent.width * 0.88;
+            height: parent.height * 0.34;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: transparent;
+            border-width: 1px;
+            border-color: #9eeeff;
+            opacity: 0.32;
+        }
+        Rectangle {
+            width: parent.width * 0.78;
             height: self.width;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             border-radius: self.width / 2;
             background: transparent;
-            border-width: 4px;
-            border-color: #e2e8f0;
+            border-width: 1px;
+            border-color: root.accent;
+            opacity: 0.72;
+        }
+        Rectangle {
+            width: parent.width * 0.68;
+            height: parent.height * 0.26;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: transparent;
+            border-width: 1px;
+            border-color: #d8f8ff;
+            opacity: 0.27;
+        }
+        Rectangle {
+            width: parent.width * 0.59;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: transparent;
+            border-width: 2px;
+            border-color: root.accent;
             opacity: 0.40;
         }
         Rectangle {
-            width: parent.width * 0.40 * root.breathe;
+            width: parent.width * 0.43 * root.breathe;
             height: self.width;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             border-radius: self.width / 2;
             background: root.accent;
+            opacity: 0.15;
         }
         Rectangle {
-            width: parent.width * 0.20 * root.breathe;
+            width: parent.width * 0.35 * root.breathe;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: root.accent;
+            opacity: 0.72;
+        }
+        Rectangle {
+            width: parent.width * 0.22;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: #d9fbff;
+            opacity: 0.92;
+        }
+        Rectangle {
+            width: parent.width * 0.13;
             height: self.width;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             border-radius: self.width / 2;
             background: #ffffff;
-            opacity: 0.88;
+            opacity: 0.92;
         }
-
-        for i in 14: Spark {
+        Text {
+            x: 0px;
+            y: parent.height * 0.40;
+            width: parent.width;
+            height: 54px;
+            text: "J";
+            color: #06202b;
+            font-size: 48px;
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        for i in 22: Spark {
             index: i;
             energy: root.energy;
             glow: root.accent;
             field: stage.width;
             speed-mul: root.speed-mul;
+            pattern: root.orb_pattern;
         }
     }
 
-    // Header — altura fixa: sem isto o layout estica até ao fundo e o
-    // texto (estado/score) cai por cima do orb.
-    VerticalLayout {
-        y: 0px;
-        height: 150px;
-        padding-top: 14px;
-        padding-left: 28px;
-        padding-right: 28px;
-        spacing: 2px;
-        alignment: start;
-        Text {
-            text: "JARBAS";
-            color: #ffffff;
-            font-size: 44px;
-            font-weight: 800;
-            horizontal-alignment: center;
-        }
-        Text {
-            text: root.orb_state + "  ·  " + root.status;
-            color: root.accent;
-            font-size: 20px;
-            font-weight: 700;
-            horizontal-alignment: center;
-        }
-        Text {
-            text: root.hub_ok
-                ? ("nosd  " + root.engine + "  ·  modelos " + root.hub_loaded + "  ·  peers " + root.mesh_peers)
-                : root.health_line;
-            color: #94a3b8;
-            font-size: 14px;
-            horizontal-alignment: center;
-            overflow: elide;
-        }
-        if root.score_line != "": Text {
-            text: root.score_line;
-            color: #64748b;
-            font-size: 12px;
-            horizontal-alignment: center;
-            overflow: elide;
+    // Barra superior: identidade JARBAS e ligação com o daemon.
+    Text {
+        x: 30px; y: 15px; width: 230px; height: 34px;
+        text: "JARBAS";
+        color: #e8f8ff;
+        font-size: 27px;
+        font-weight: 800;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 32px; y: 49px; width: 360px; height: 16px;
+        text: "N E U R A L   I N T E R F A C E   /   N I X A I O S";
+        color: #64849a;
+        font-size: 9px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+    Rectangle {
+        x: root.width - 264px; y: 23px; width: 10px; height: 10px;
+        border-radius: 5px;
+        background: root.hub_ok ? #43ffc1 : #ffb54a;
+    }
+    Text {
+        x: root.width - 245px; y: 16px; width: 215px; height: 25px;
+        text: root.hub_ok ? "LINK ESTABELECIDO" : root.status;
+        color: root.hub_ok ? #7af5c5 : root.accent;
+        font-size: 12px;
+        font-weight: 700;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    Text {
+        x: root.width - 245px; y: 40px; width: 215px; height: 18px;
+        text: root.health_line;
+        color: #7893a6;
+        font-size: 10px;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    // Painel esquerdo — estado do sistema e telemetria nosd.
+    Rectangle {
+        x: 32px; y: 188px; width: 232px; height: 278px;
+        border-radius: 8px;
+        background: #07131f;
+        opacity: 0.92;
+        border-width: 1px;
+        border-color: #173447;
+    }
+    Rectangle { x: 32px; y: 188px; width: 3px; height: 36px; background: root.accent; }
+    Text { x: 48px; y: 201px; width: 200px; height: 20px; text: "SYSTEM TELEMETRY"; color: #c2d8e4; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+    Text {
+        x: 48px; y: 231px; width: 198px; height: 22px;
+        text: root.hub_ok ? "NOSD · ONLINE" : "A PROCURAR NOSD";
+        color: root.hub_ok ? #62edbd : #ffbd62;
+        font-size: 12px;
+        font-weight: 700;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    Rectangle { x: 48px; y: 261px; width: 198px; height: 1px; background: #1b3546; }
+    Text { x: 48px; y: 276px; width: 90px; height: 17px; text: "ENGINE"; color: #668296; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+    Text { x: 48px; y: 293px; width: 198px; height: 22px; text: root.engine; color: #d7e8f1; font-size: 14px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+    Text { x: 48px; y: 324px; width: 120px; height: 17px; text: "MODELOS ATIVOS"; color: #668296; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+    Text { x: 48px; y: 341px; width: 198px; height: 22px; text: "hub / " + root.hub_loaded; color: #d7e8f1; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+    Text { x: 48px; y: 372px; width: 120px; height: 17px; text: "PEERS NA FROTA"; color: #668296; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+    Text { x: 48px; y: 389px; width: 198px; height: 22px; text: "mesh / " + root.mesh_peers; color: #d7e8f1; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+    if root.score_line != "": Text {
+        x: 48px; y: 425px; width: 198px; height: 28px;
+        text: root.score_line;
+        color: #7997aa;
+        font-size: 10px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    // Painel direito — estado cognitivo, padrão e sinais do orb.
+    Rectangle {
+        x: root.width - 264px; y: 188px; width: 232px; height: 278px;
+        border-radius: 8px;
+        background: #07131f;
+        opacity: 0.92;
+        border-width: 1px;
+        border-color: #173447;
+    }
+    Rectangle { x: root.width - 264px; y: 188px; width: 3px; height: 36px; background: root.accent; }
+    Text { x: root.width - 248px; y: 201px; width: 200px; height: 20px; text: "CORE DIAGNOSTICS"; color: #c2d8e4; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+    Text { x: root.width - 248px; y: 233px; width: 90px; height: 16px; text: "ESTADO"; color: #668296; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+    Text { x: root.width - 248px; y: 249px; width: 198px; height: 24px; text: root.orb_state + "  /  " + root.status; color: root.accent; font-size: 13px; font-weight: 700; vertical-alignment: center; overflow: elide; }
+    Rectangle { x: root.width - 248px; y: 282px; width: 198px; height: 1px; background: #1b3546; }
+    Text { x: root.width - 248px; y: 294px; width: 100px; height: 16px; text: "PADRÃO"; color: #668296; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+    Text { x: root.width - 248px; y: 310px; width: 198px; height: 20px; text: root.orb_pattern; color: #d7e8f1; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+    Rectangle { x: root.width - 248px; y: 341px; width: 8px; height: 8px; border-radius: 4px; background: root.orb_audio_on ? #43ffc1 : #405363; }
+    Text { x: root.width - 236px; y: 336px; width: 88px; height: 18px; text: root.orb_audio_on ? "MIC · AO VIVO" : "MIC · OFF"; color: root.orb_audio_on ? #76eec2 : #718391; font-size: 9px; font-weight: 700; vertical-alignment: center; overflow: elide; }
+    Rectangle { x: root.width - 145px; y: 341px; width: 8px; height: 8px; border-radius: 4px; background: root.orb_video_on ? #80b7ff : #405363; }
+    Text { x: root.width - 133px; y: 336px; width: 83px; height: 18px; text: root.orb_video_on ? "CAM · AO VIVO" : "CAM · OFF"; color: root.orb_video_on ? #a7ceff : #718391; font-size: 9px; font-weight: 700; vertical-alignment: center; overflow: elide; }
+    Text { x: root.width - 248px; y: 360px; width: 160px; height: 16px; text: "NÍVEL DE ÁUDIO"; color: #668296; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+    Rectangle { x: root.width - 248px; y: 381px; width: 198px; height: 4px; border-radius: 2px; background: #162b39; }
+    Rectangle { x: root.width - 248px; y: 381px; width: 198px * root.orb_level_pct / 100; height: 4px; border-radius: 2px; background: root.orb_audio_on ? root.accent : #405363; }
+    Text { x: root.width - 248px; y: 397px; width: 160px; height: 16px; text: "MOVIMENTO DA CÂMARA"; color: #668296; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+    Rectangle { x: root.width - 248px; y: 418px; width: 198px; height: 4px; border-radius: 2px; background: #162b39; }
+    Rectangle { x: root.width - 248px; y: 418px; width: 198px * root.orb_motion_pct / 100; height: 4px; border-radius: 2px; background: root.orb_video_on ? #80b7ff : #405363; }
+    Text { x: root.width - 248px; y: 434px; width: 198px; height: 18px; text: root.tick_line; color: #7997aa; font-size: 10px; vertical-alignment: center; overflow: elide; }
+
+    // Resposta e consola de comando — callbacks e comportamento mantidos.
+    Rectangle {
+        x: 280px; y: root.height - 151px; width: root.width - 560px; height: 42px;
+        border-radius: 6px;
+        background: #07131f;
+        opacity: 0.94;
+        border-width: 1px;
+        border-color: #173447;
+    }
+    Rectangle { x: 280px; y: root.height - 151px; width: 3px; height: 42px; background: root.accent; }
+    Text {
+        x: 296px; y: root.height - 146px; width: root.width - 592px; height: 33px;
+        text: root.last_reply;
+        color: #d7e8f1;
+        font-size: 14px;
+        wrap: word-wrap;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    if root.hitl_window_id > 0: Rectangle {
+        x: 280px; y: root.height - 218px; width: root.width - 560px; height: 48px;
+        border-radius: 6px;
+        background: #211b12;
+        border-width: 1px;
+        border-color: #d69c4c;
+        HorizontalLayout {
+            padding: 6px;
+            spacing: 8px;
+            Text { text: "HITL / CONFIRMAÇÃO"; color: #ffcf78; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+            hitl-ssid := LineEdit { horizontal-stretch: 1; placeholder-text: "SSID"; }
+            hitl-pw := LineEdit { horizontal-stretch: 1; placeholder-text: "senha"; input-type: password; }
+            Button {
+                text: "AUTORIZAR";
+                clicked => {
+                    root.hitl-submit(root.hitl_window_id, hitl-ssid.text + "\n" + hitl-pw.text);
+                    hitl-ssid.text = "";
+                    hitl-pw.text = "";
+                }
+            }
+            Button { text: "CANCELAR"; clicked => { root.hitl-cancel(root.hitl_window_id); } }
         }
     }
 
-    // Dock inferior
-    VerticalLayout {
-        y: root.height - 168px;
-        width: 100%;
-        height: 168px;
-        padding-top: 14px;
-        padding-bottom: 14px;
-        padding-left: 20px;
-        padding-right: 20px;
-        spacing: 8px;
-
-        if root.hitl_window_id > 0: Rectangle {
-            height: 44px;
-            border-radius: 10px;
-            background: #1c1917;
-            border-width: 1px;
-            border-color: #ffcc66;
-            HorizontalLayout {
-                padding: 6px;
-                spacing: 8px;
-                Text { text: "HITL"; color: #ffcc66; font-size: 14px; font-weight: 700; vertical-alignment: center; }
-                hitl-ssid := LineEdit { horizontal-stretch: 1; placeholder-text: "SSID"; }
-                hitl-pw := LineEdit { horizontal-stretch: 1; placeholder-text: "senha"; input-type: password; }
-                Button {
-                    text: "OK";
-                    clicked => {
-                        root.hitl-submit(root.hitl_window_id, hitl-ssid.text + "\n" + hitl-pw.text);
-                        hitl-ssid.text = "";
-                        hitl-pw.text = "";
-                    }
-                }
-                Button { text: "Cancelar"; clicked => { root.hitl-cancel(root.hitl_window_id); } }
-            }
-        }
-
-        Rectangle {
-            height: 52px;
-            border-radius: 12px;
-            background: #0f172a;
-            border-width: 2px;
-            border-color: root.accent;
-            HorizontalLayout {
-                padding: 8px;
-                spacing: 10px;
-                prompt := LineEdit {
-                    horizontal-stretch: 1;
-                    placeholder-text: "falar com Hermes (Enter)…";
-                    accepted => {
-                        root.submit-chat(self.text);
-                        self.text = "";
-                    }
-                }
-                Button {
-                    text: "Enviar";
-                    clicked => {
-                        root.submit-chat(prompt.text);
-                        prompt.text = "";
-                    }
+    Rectangle {
+        x: 280px; y: root.height - 96px; width: root.width - 560px; height: 64px;
+        border-radius: 7px;
+        background: #091724;
+        border-width: 1px;
+        border-color: root.accent;
+        HorizontalLayout {
+            padding: 8px;
+            spacing: 10px;
+            prompt := LineEdit {
+                horizontal-stretch: 1;
+                placeholder-text: "Comando para Hermes…";
+                accepted => {
+                    root.submit-chat(self.text);
+                    self.text = "";
                 }
             }
-        }
-        Text {
-            text: root.last_reply;
-            color: #f1f5f9;
-            font-size: 17px;
-            wrap: word-wrap;
-            horizontal-alignment: center;
+            Button {
+                text: "TRANSMITIR";
+                clicked => {
+                    root.submit-chat(prompt.text);
+                    prompt.text = "";
+                }
+            }
         }
     }
 }

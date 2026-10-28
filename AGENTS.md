@@ -67,6 +67,25 @@ Resumo executavel; detalhe em
     2a chave nova do delta (`crdt.sync` responde ok com `sent=0`).
 14. O `seq` do HB tem de ter base em **epoch ms**: a comecar em 1, os peers
     recusam o no reiniciado como Replay para sempre.
+15. QEMU `-netdev socket,listen` aceita **uma** ligacao; para N VMs usar um
+    relay (1 datagrama = 1 frame) via `socket,udp` + relay userspace. `mcast`
+    nao atravessa o WSL e sem root nao ha bridge/TAP.
+16. No guest a NIC e `ens3`/`enp0s3` (nomes previsiveis), nunca assumir `eth0`.
+    `255.255.255.255` precisa de rota (senao `ENETUNREACH`); com IP estatico
+    usar o broadcast da sub-rede (`192.168.50.255`).
+17. A ISO live tem o **firewall NixOS ligado**: UDP 19000/TCP 19001 morrem no
+    INPUT. Os checks desligam-no; uma demo tem de o desligar/abrir.
+18. Marcador de shell por serial tem de ser **avaliado** (`echo __RC=$?`),
+    nunca literal: a consola ecoa a linha e o literal faz match antes da saida.
+19. Fechar a janela GTK mata o QEMU com `rc=0` e aborta o teste; em automacao
+    usar **VNC** + `screendump` (o GTK e so para ver).
+20. `screendump` do virtio-gpu pode sair **preto** com `jarbas-cage` active
+    (VT/plane): VNC e a prova visual; nao guardar capturas pretas como HUD.
+21. `images/iso.nix` faz `mkForce false` no sshd; uma demo precisa de
+    `lib.mkOverride 10 true` (mkForce vs mkForce = conflito). `initialPassword`
+    nao se aplicou no live: usar `users.users.root.password`.
+22. Duas sessoes no mesmo working tree: **nunca `git add -A`**; stage caminhos
+    explicitos. A outra sessao pode commit/push e arrastar ficheiros teus.
 
 ## Comandos
 
@@ -127,12 +146,13 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   netem 200ms, perda 100%, `kill -9` + replay `NSGC`, particao `ip link down`.
   Encontrou e fechou 2 bugs (VV do CRDT por chave; seq do HB ao reiniciar).
   **Frota multi-host/NAT/Wi-Fi, TTL de peers e Merkle/bloom** pendentes.
-- **M5.1 demo ISO (manual)**: 3 QEMU da ISO com video/HUD observados, mas a
-  mesh **nao** ficou provada na ISO (o restart do nosd para aplicar o drop-in
-  nao teve efeito; ver release alpha.11). A prova continua a ser
-  `mesh-3vm-faults`. Infra: `-netdev socket,listen` so aceita 1 ligacao; no WSL
-  mcast nao entrega e nao ha root para bridge/TAP -> relay UDP em userspace;
-  firewall default da ISO bloqueia UDP 19000/TCP 19001.
+- **M5.1 demo ISO**: `iso-demo` (NUNCA release) prova a mesh em 3 QEMU:
+  `mesh_pinned: 2` nos 3, crdt 1->2->3 e job 1->3 via SSH, com VNC por no.
+  IP derivado do MAC, firewall aberto, root/nixaios - so na demo; a ISO de
+  release continua sem identidade/mesh por omissao. Ver `docs/DEMO_3VM.md`.
+  Infra: `socket,listen` so aceita 1 ligacao e mcast nao passa no WSL -> relay
+  UDP userspace; o screendump do virtio-gpu saiu preto com o cage active
+  (HUD observado via VNC).
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.
@@ -180,6 +200,15 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   assinados; worker tem de ser peer fixado. Sem Noise/fila/quota por peer.
   Check `mesh-2vm-jobs` PASS. Ver `docs/SKYNET_DISTRIBUTED_PLAN.md`.
 - **M4/M5**: AWAITING_HW.
+- **UI híbrida JARBAS**: `jarbasCage.uiMode = auto|slint|cinematic` (default
+  `slint`). `auto` escolhe Chromium só com
+  `MemAvailable >= chromiumMinAvailableMiB` **e** `chromiumGpuValidated=true`;
+  falha do Chromium (lab em baixo / renderer a sair) cai para Slint. O kiosk
+  Chromium usa o bridge HTTP **sem `ipc.token`**: chave bootstrap 0600 → cookie
+  `HttpOnly`, perfil `AuthContext::JarbasUi`, origem exacta, allow-list de
+  métodos; `GET /transmute` = 403. Ver `docs/SECURITY.md` (HTTP lab) e
+  `docs/API.md`. Testado em bancada (unit + ponta-a-ponta com daemon local);
+  **ainda não observado em QEMU/metal**.
 
 ## Evidência 0.6.0-alpha.11
 

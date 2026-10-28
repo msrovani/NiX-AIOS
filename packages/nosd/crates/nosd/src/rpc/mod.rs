@@ -105,6 +105,45 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// TTL da sessão local do kiosk (renovada a cada pedido válido).
+const JARBAS_UI_SESSION_TTL_MS: u64 = 60 * 60 * 1000;
+
+/// Valida a chave bootstrap contra o ficheiro escrito pelo launcher do kiosk.
+///
+/// Fail-closed: o caminho tem de ser um ficheiro regular, não escrito por
+/// grupo/other e, em Unix, do próprio daemon. O `data-dir` é 1777 na live
+/// ISO, por isso um ficheiro plantado (ou symlink para um ficheiro nosso)
+/// tem de ser recusado — nunca autorizado.
+fn bootstrap_file_ok(path: &Path, supplied: &str, daemon_uid: u32) -> bool {
+    if supplied.is_empty() {
+        return false;
+    }
+    let meta = match std::fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(_) => return false,
+    };
+    if !meta.file_type().is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if meta.uid() != daemon_uid || meta.mode() & 0o022 != 0 {
+            return false;
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = daemon_uid;
+    let expected = match std::fs::read_to_string(path) {
+        Ok(value) => value.trim().to_string(),
+        Err(_) => return false,
+    };
+    if expected.is_empty() {
+        return false;
+    }
+    nos_core::ct_eq(supplied.as_bytes(), expected.as_bytes())
+}
+
 /// S-04: HITL é **server-authored**. A única prova aceita é um `confirm_id`
 /// emitido por `ui.action` sobre uma janela aberta pelo servidor (kind-bound,
 /// single-use, TTL). `hitl_confirmed` do cliente é **ignorado** — nem root o
@@ -143,8 +182,14 @@ pub struct IpcAuth {
 /// Identidade resolvida pelo transporte, nunca pelo payload.
 #[derive(Debug, Clone, Copy)]
 pub enum AuthContext {
-    Unix { uid: Option<u32>, gid: Option<u32> },
+    Unix {
+        uid: Option<u32>,
+        gid: Option<u32>,
+    },
     Tcp,
+    /// Local JARBAS browser bridge: cookie-authenticated and deliberately scoped
+    /// to the kiosk profile rather than the privileged TCP-token profile.
+    JarbasUi,
 }
 
 pub struct AppState {
@@ -153,6 +198,10 @@ pub struct AppState {
     pub data_dir: PathBuf,
     pub ipc: RwLock<IpcAuth>,
     pub ipc_token_file: PathBuf,
+    /// One-use bootstrap file created by the local kiosk launcher.
+    pub jarbas_ui_bootstrap_file: PathBuf,
+    /// Short-lived local browser sessions for the unprivileged JARBAS UI bridge.
+    pub jarbas_ui_sessions: Mutex<HashMap<String, u64>>,
     pub daemon_uid: u32,
     pub admin_gid: u32,
     /// S-06: ring Nix (root apply/rollback) desarmado por default.
@@ -174,6 +223,93 @@ impl AppState {
 
     pub fn ipc_token(&self) -> String {
         self.ipc.read().token.clone()
+    }
+
+    /// Garante uma chave bootstrap local quando nao ha launcher (bancada/manual):
+    /// o operador abre `http://127.0.0.1:7701/#bootstrap=<valor do ficheiro>`.
+    ///
+    /// So cria se o caminho nao existir: num reinicio do `nosd`, o kiosk em
+    /// execucao tem de poder voltar a trocar a MESMA chave por cookie (as
+    /// sessoes vivem em memoria). O launcher do kiosk sobrescreve o ficheiro
+    /// a cada arranque do Chromium, por isso a chave nunca fica presa.
+    ///
+    /// Caminho plantado/sem dono nosd (data-dir 1777) nao e substituido:
+    /// a validacao falha fechada.
+    pub fn ensure_jarbas_ui_bootstrap(&self) {
+        let path = &self.jarbas_ui_bootstrap_file;
+        if std::fs::symlink_metadata(path).is_ok() {
+            return;
+        }
+        let token = new_ipc_token();
+        let _ = write_ipc_token(path, &token);
+    }
+
+    /// Valida a chave bootstrap escrita pelo launcher do kiosk.
+    ///
+    /// Reutilizável durante a vida do launcher: o kiosk volta a trocá-la por
+    /// cookie se o `nosd` reiniciar (as sessões vivem em memória).
+    ///
+    /// Fail-closed: o ficheiro tem de ser regular, do próprio daemon e não
+    /// escritível por grupo/other. O `data-dir` é 1777 na live ISO, por isso
+    /// um ficheiro plantado (ou symlink) é recusado em vez de autorizado.
+    pub fn validate_jarbas_ui_bootstrap(&self, supplied: &str) -> bool {
+        bootstrap_file_ok(&self.jarbas_ui_bootstrap_file, supplied, self.daemon_uid)
+    }
+
+    /// Emite uma sessão local JARBAS com TTL deslizante.
+    pub fn issue_jarbas_ui_session(&self) -> String {
+        let now = now_ms();
+        let id = uuid::Uuid::new_v4().simple().to_string();
+        let mut sessions = self.jarbas_ui_sessions.lock();
+        sessions.retain(|_, expires| *expires > now);
+        if sessions.len() >= 16 {
+            if let Some(oldest) = sessions
+                .iter()
+                .min_by_key(|(_, expires)| *expires)
+                .map(|(id, _)| id.clone())
+            {
+                sessions.remove(&oldest);
+            }
+        }
+        sessions.insert(id.clone(), now.saturating_add(JARBAS_UI_SESSION_TTL_MS));
+        id
+    }
+
+    /// Validates an HttpOnly browser cookie without granting the IPC token.
+    pub fn revoke_jarbas_ui_session(&self, cookie_header: &str) {
+        let supplied = cookie_header
+            .split(';')
+            .filter_map(|part| part.trim().strip_prefix("jarbas_ui="))
+            .next()
+            .unwrap_or("");
+        self.jarbas_ui_sessions
+            .lock()
+            .retain(|id, _| !nos_core::ct_eq(id.as_bytes(), supplied.as_bytes()));
+    }
+
+    pub fn valid_jarbas_ui_session(&self, cookie_header: &str) -> bool {
+        let supplied = cookie_header
+            .split(';')
+            .filter_map(|part| part.trim().strip_prefix("jarbas_ui="))
+            .next()
+            .unwrap_or("");
+        if supplied.is_empty() {
+            return false;
+        }
+        let now = now_ms();
+        let mut sessions = self.jarbas_ui_sessions.lock();
+        sessions.retain(|_, expires| *expires > now);
+        // TTL deslizante: o HUD faz poll a cada segundo, por isso a sessão
+        // só expira se a página parar (fecho do browser / reboot do kiosk).
+        let mut valid = false;
+        for (id, expires) in sessions.iter_mut() {
+            if nos_core::ct_eq(id.as_bytes(), supplied.as_bytes()) {
+                *expires = now.saturating_add(JARBAS_UI_SESSION_TTL_MS);
+                valid = true;
+                break;
+            }
+        }
+        valid
     }
 
     /// Resolve perfil + geração a partir do transporte.
@@ -203,6 +339,7 @@ impl AppState {
                 (profile, self.ipc_generation())
             }
             AuthContext::Tcp => (PeerProfile::Unknown, 0),
+            AuthContext::JarbasUi => (PeerProfile::Jarbas, self.ipc_generation()),
         }
     }
 
@@ -561,5 +698,71 @@ mod tests {
         assert!(store.consume(&id2, "self.heal"));
         assert!(!store.consume(&id2, "self.heal"));
         assert!(store.is_empty());
+    }
+
+    fn write_token(path: &Path, value: &str) {
+        use std::io::Write as _;
+        let mut f = std::fs::File::create(path).expect("create bootstrap");
+        f.write_all(value.as_bytes()).expect("write bootstrap");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                .expect("chmod 0600");
+        }
+    }
+
+    #[test]
+    fn bootstrap_rejects_missing_and_wrong_values() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("jarbas-ui-bootstrap.token");
+        #[cfg(unix)]
+        let uid = {
+            use std::os::unix::fs::MetadataExt;
+            write_token(&path, "abc\n");
+            let uid = std::fs::metadata(&path).expect("meta").uid();
+            std::fs::remove_file(&path).expect("remove");
+            uid
+        };
+        #[cfg(not(unix))]
+        let uid = 0u32;
+
+        // Ausente: nao ha chave para trocar por cookie.
+        assert!(!bootstrap_file_ok(&path, "abc", uid));
+
+        // O launcher escreve com newline; a comparacao faz trim.
+        write_token(&path, "abc\n");
+        assert!(bootstrap_file_ok(&path, "abc", uid));
+        assert!(!bootstrap_file_ok(&path, " ABC", uid));
+        assert!(!bootstrap_file_ok(&path, "abcd", uid));
+        assert!(!bootstrap_file_ok(&path, "", uid));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bootstrap_fails_closed_on_planted_writable_or_foreign_file() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("jarbas-ui-bootstrap.token");
+        write_token(&path, "abc\n");
+        let owner = std::fs::metadata(&path).expect("meta").uid();
+
+        // Ficheiro escrito por grupo/other = plantado no data-dir 1777.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o666))
+            .expect("chmod 0666");
+        assert!(!bootstrap_file_ok(&path, "abc", owner));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .expect("chmod 0600");
+
+        // Dono diferente do daemon = recusar.
+        assert!(!bootstrap_file_ok(&path, "abc", owner.wrapping_add(1)));
+        assert!(bootstrap_file_ok(&path, "abc", owner));
+
+        // Symlink (inclusive apontando para um ficheiro valido) = recusar.
+        std::fs::remove_file(&path).expect("remove");
+        let target = dir.path().join("real.token");
+        write_token(&target, "abc\n");
+        std::os::unix::fs::symlink(&target, &path).expect("symlink");
+        assert!(!bootstrap_file_ok(&path, "abc", owner));
     }
 }

@@ -258,6 +258,8 @@ async fn main() -> anyhow::Result<()> {
             generation: 1,
         }),
         ipc_token_file: ipc_token_file.clone(),
+        jarbas_ui_bootstrap_file: args.data_dir.join("jarbas-ui-bootstrap.token"),
+        jarbas_ui_sessions: parking_lot::Mutex::new(std::collections::HashMap::new()),
         daemon_uid,
         admin_gid,
         nix_ring_armed,

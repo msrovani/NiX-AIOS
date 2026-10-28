@@ -12,7 +12,7 @@ A identidade **não** vem do payload. `caps`, `cap_gen` e `agent` são legado e
 |---|---|---|
 | Unix socket | `SO_PEERCRED` (uid/gid) **ou** token | `nosctl --socket /run/nosd/nosd.sock --token-file <path> <cmd>` |
 | TCP loopback | token **obrigatório** | `nosctl --tcp … --token-file <path> <cmd>` |
-| HTTP lab `/rpc` | token + same-origin + JSON | token injetado na página; sem CORS `*` |
+| HTTP lab `/rpc` | cookie `jarbas_ui` + origem exacta + marcador `X-Jarbas-UI-Request` | chave bootstrap → `POST /ui/session`; sem token no payload, sem CORS `*` |
 
 `nosctl` tenta ler o token (explícito, `NOSD_IPC_TOKEN_FILE`, `/run/nosd/ipc.token`,
 `./data/ipc.token`). Com token válido → `LocalAdmin`; sem token, cai em
@@ -131,13 +131,20 @@ Resposta: JSON pretty-print; exit ≠0 se `ok: false`.
 
 ## HTTP lab (orb)
 
-Quando `NOSD_ORB_LAB` (default **off**; opt-in `127.0.0.1:7701`; o ISO só liga no
-modo cinematic):
+Quando `NOSD_ORB_LAB` (default **off**; opt-in `127.0.0.1:7701`; a ISO liga-o no
+modo `cinematic`/`auto`):
 
-- `GET /` — lab cinemático (injeta o token da sessão na página)
-- `GET /transmute` — wizard HTML
-- `POST /rpc` — proxy IPC autenticado: token obrigatório, `Content-Type: application/json`,
-  same-origin quando há `Origin`, corpo ≤ 1 MiB, timeout de 5 s. Sem CORS `*`.
+- `GET /` — HUD JARBAS (sem token incorporado no HTML)
+- `POST /ui/session?key=<bootstrap>` — troca a chave do launcher (0600, gerada
+  também em bancada no arranque do lab) por cookie `HttpOnly`;
+  `http://127.0.0.1:7701/#bootstrap=<chave>` para uso manual
+- `POST /ui/logout` — revoga a sessão
+- `POST /rpc` — proxy IPC da UI: origem exacta de loopback, cookie,
+  `X-Jarbas-UI-Request: 1`, `Content-Type: application/json`, corpo ≤ 1 MiB,
+  timeout 5 s e **allow-list de métodos** (`health`, `score`,
+  `cognitive.tick`, `orb.*`, `ui.list`, `ui.action`, `chat`, `voice.turn`).
+  Campos `token`/`caps` são recusados; identidade sempre `JarbasUi`.
+- `GET /transmute` — 403 (o wizard fica nos canais de operador)
 
 Não expor à WAN. Em produção, o lab deve ficar desligado (`NOSD_ORB_LAB=""`).
 

@@ -50,6 +50,16 @@
   }
   #camBadge.on { border-color:#0f0; color:#8f8; }
   #camBadge.off { border-color:#f66; color:#f88; }
+  #panels { position:absolute; left:24px; right:24px; top:112px; display:grid; grid-template-columns:minmax(180px,240px) 1fr minmax(220px,290px); gap:16px; pointer-events:none; }
+  .panel { min-height:136px; padding:14px 16px; border:1px solid rgba(87,177,210,.25); border-radius:10px; background:rgba(3,12,22,.76); color:#b8d2df; font-size:12px; }
+  .panel h2 { margin-bottom:10px; font-size:11px; letter-spacing:.12em; color:#83cfe8; }
+  #windowList { display:grid; gap:8px; max-height:210px; overflow:auto; pointer-events:auto; }
+  .window-card { padding:10px; border:1px solid rgba(87,177,210,.28); border-radius:8px; background:rgba(4,17,29,.92); }
+  .window-card.hitl { border-color:#d69c4c; }
+  .window-card p { margin:6px 0; white-space:pre-wrap; }
+  .window-card input,.window-card select { width:100%; margin:4px 0; padding:7px; color:#e8f1ff; background:#071522; border:1px solid #355366; border-radius:5px; }
+  .window-card button { padding:6px 10px; margin:4px 4px 0 0; color:var(--acc); background:#0a2634; border:1px solid #28738a; border-radius:5px; }
+  #topBadge { position:absolute; top:22px; left:24px; color:#74e8c0; font-size:12px; letter-spacing:.1em; }
   .eq { display:flex; gap:4px; height:28px; align-items:flex-end; }
   .eq i { display:block; width:5px; background:var(--acc); border-radius:2px; opacity:.85; }
 </style>
@@ -63,7 +73,13 @@
     <div class="meta" id="meta">idle · sphere</div>
     <div class="sub" id="sub">a ligar webcam + microfone…</div>
   </div>
-  <div id="camBadge" class="off">CAM —</div>
+  <div id="topBadge">NÚCLEO · ESTABELECENDO SESSÃO</div>
+  <div id="camBadge" class="off">MIC — / CAM —</div>
+  <div id="panels">
+    <section class="panel"><h2>ESTADO DO SISTEMA</h2><div id="systemState">A ligar ao nosd…</div><div id="engineState"></div><div id="fleetState"></div></section>
+    <div></div>
+    <section class="panel"><h2>JANELAS DO HERMES</h2><div id="windowList"></div></section>
+  </div>
   <div id="reply">JARBAS online</div>
   <div id="dock">
     <div class="eq" id="eq"></div>
@@ -83,6 +99,8 @@ const ACCENT={
 let state="connecting", pattern="sphere", speed=1, particles=220, agitation=.2, links=.35, rings=4;
 let level=0, motion=0, audioOn=false, videoOn=false;
 let stream=null, audioCtx=null, analyser=null, dataArr=null, prevGray=null, rpcId=1;
+let uiReady=false;
+const pendingBootstrap=new URLSearchParams(location.hash.slice(1)).get("bootstrap");
 const canvas=document.getElementById("orb");
 const ctx=canvas.getContext("2d",{alpha:true});
 const vid=document.getElementById("vid");
@@ -104,12 +122,29 @@ function setAccentCss(){
   document.documentElement.style.setProperty("--acc",`rgb(${a[0]},${a[1]},${a[2]})`);
   document.getElementById("meta").textContent=`${state} · ${pattern}`;
 }
-async function rpc(method, params){
-  const body={id:rpcId++, method, caps:0, cap_gen:1, token:"__NOSD_TOKEN__", params:params||{}};
+async function reauth(){
+  if(!pendingBootstrap) return false;
   try{
-    const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    const j=await r.json();
-    if(j.ok&&j.result){
+    const r=await fetch(`/ui/session?key=${encodeURIComponent(pendingBootstrap)}`,{method:"POST",credentials:"same-origin"});
+    return r.ok;
+  }catch(_){ return false; }
+}
+async function rpc(method, params){
+  const body={id:rpcId++, method, caps:0, cap_gen:1, params:params||{}};
+  // Sessão perdida (nosd reiniciou / cookie expirado): re-troca a chave
+  // bootstrap do kiosk por cookie novo e repete o pedido UMA vez.
+  for(let attempt=0;attempt<2;attempt++){
+    let r;
+    try{
+      r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json","X-Jarbas-UI-Request":"1"},body:JSON.stringify(body),credentials:"same-origin"});
+    }catch(_){ return null; }
+    if(r.status===401||r.status===403){
+      if(attempt===0 && await reauth()) continue;
+      return null;
+    }
+    let j;
+    try{ j=await r.json(); }catch(_){ return null; }
+    if(j&&j.ok&&j.result){
       if(j.result.state) state=j.result.state;
       if(j.result.pattern) pattern=j.result.pattern;
       if(j.result.speed!=null) speed=j.result.speed;
@@ -120,7 +155,8 @@ async function rpc(method, params){
       setAccentCss();
     }
     return j;
-  }catch(e){ return null; }
+  }
+  return null;
 }
 
 async function startAV(){
@@ -253,6 +289,7 @@ function draw(){
 }
 
 async function senseTick(){
+  if(!uiReady) return;
   const bands=sampleAudio();
   sampleMotion();
   let frame_b64=null;
@@ -265,6 +302,76 @@ async function senseTick(){
     level:bands.level, bass:bands.bass, mid:bands.mid, treble:bands.treble,
     motion, video_on:videoOn, audio_on:audioOn, frame_b64
   });
+}function renderWindows(windows){
+
+  const list=document.getElementById("windowList");
+  list.replaceChildren();
+  for(const win of windows||[]){
+    const card=document.createElement("article");
+    card.className="window-card"+(win.escalate?" hitl":"");
+    const title=document.createElement("strong"); title.textContent=win.title||"JARBAS"; card.appendChild(title);
+    if(win.body){ const body=document.createElement("p"); body.textContent=win.body; card.appendChild(body); }
+    const fields=new Map();
+    for(const field of win.fields||[]){
+      const label=document.createElement("label"); label.textContent=field.label||field.name;
+      const input=field.kind==="select"?document.createElement("select"):document.createElement("input");
+      if(field.kind==="select"){
+        for(const option of field.options||[]){ const item=document.createElement("option"); item.value=option; item.textContent=option; input.appendChild(item); }
+      } else input.type=field.secret||field.kind==="password"?"password":"text";
+      input.name=field.name; input.required=Boolean(field.required); fields.set(field.name,input);
+      label.appendChild(input); card.appendChild(label);
+    }
+    const send=document.createElement("button"); send.textContent=win.escalate?"Confirmar":"OK";
+    send.onclick=async()=>{
+      const values={}; for(const [name,input] of fields) values[name]=input.value;
+      const result=await rpc("ui.action",{window_id:win.id,action:"submit",values});
+      if(result&&result.ok) pollUi();
+    };
+    card.appendChild(send);
+    const cancel=document.createElement("button"); cancel.textContent="Dispensar";
+    cancel.onclick=async()=>{ await rpc("ui.action",{window_id:win.id,action:"cancel",values:{}}); pollUi(); };
+    card.appendChild(cancel); list.appendChild(card);
+  }
+}
+async function pollUi(){
+  if(!uiReady) return;
+  const [health,score,tick,orb,wins]=await Promise.all([
+    rpc("health",{}),rpc("score",{}),rpc("cognitive.tick",{}),rpc("orb.get",{}),rpc("ui.list",{})
+  ]);
+  if(health&&health.ok){
+    document.getElementById("systemState").textContent=`nosd · ${health.result.engine||"online"}`;
+    document.getElementById("engineState").textContent=`modelos ${health.result.hub_loaded||0}`;
+    document.getElementById("fleetState").textContent=`peers ${health.result.mesh_peers||0} · ${score?.result?.summary||tick?.result?.phase||""}`;
+  }
+  if(orb&&orb.ok&&orb.result){
+    state=orb.result.state||state; pattern=orb.result.pattern||pattern;
+    const sense=orb.result.sense||{}; level=sense.level||0; motion=sense.motion||0;
+    audioOn=Boolean(sense.audio_on); videoOn=Boolean(sense.video_on); setAccentCss();
+    const badge=document.getElementById("camBadge");
+    badge.className=audioOn||videoOn?"on":"off";
+    badge.textContent=`MIC ${audioOn?"ON":"OFF"} / CAM ${videoOn?"ON":"OFF"}`;
+  }
+  if(wins&&wins.ok) renderWindows(wins.result);
+}
+async function startSession(){
+  // A chave permanece no fragmento (#bootstrap=...): se o nosd reiniciar,
+  // o HUD volta a trocá-la por cookie sem reiniciar o kiosk.
+  if(pendingBootstrap && !(await reauth())){
+    document.getElementById("sub").textContent="Sessão não autorizada: bootstrap inválido ou já substituído.";
+    return;
+  }
+  const probe=await rpc("health",{});
+  if(!probe||!probe.ok){
+    document.getElementById("sub").textContent="Sessão local do JARBAS ausente; reinicie o kiosk.";
+    return;
+  }
+  uiReady=true;
+  document.getElementById("topBadge").textContent="NÚCLEO · LINK LOCAL SEGURO";
+  document.getElementById("sub").textContent="HUD JARBAS · telemetria e janelas Hermes";
+  await rpc("orb.set",{state:"connecting",presets:true});
+  await pollUi();
+  startAV();
+  setInterval(pollUi,1000);
 }
 
 async function playWavB64(b64){
@@ -287,12 +394,10 @@ async function playWavB64(b64){
 async function chat(prompt){
   if(!prompt.trim()) return;
   tone(440,0.05); await rpc("orb.set",{state:"thinking",presets:true});
-  document.getElementById("reply").textContent="a pensar (MoE dGPU)…";
+  document.getElementById("reply").textContent="a pensar…";
   let text="", wav_b64=null;
   try{
-    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, token:"__NOSD_TOKEN__", params:{prompt, play:true}};
-    const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    const jj=await r.json();
+    const jj=await rpc("voice.turn",{prompt,play:true});
     if(jj.ok && jj.result){
       text = `[${jj.result.slot}] ${jj.result.reply}`;
       wav_b64 = jj.result.wav_b64;
@@ -310,9 +415,7 @@ async function voiceTurnMic(){
   tone(600,0.05); await rpc("orb.set",{state:"listening",presets:true});
   document.getElementById("reply").textContent="a ouvir microfone (Whisper local 4s)…";
   try{
-    const body={id:rpcId++, method:"voice.turn", caps:1|16, cap_gen:1, token:"__NOSD_TOKEN__", params:{record_secs:4, play:true}};
-    const r=await fetch("/rpc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    const jj=await r.json();
+    const jj=await rpc("voice.turn",{record_secs:4,play:true});
     if(jj.ok && jj.result){
       await rpc("orb.set",{state:"speaking",presets:true});
       document.getElementById("reply").textContent=`"${jj.result.transcript}" → [${jj.result.slot}] ${jj.result.reply}`;
@@ -344,10 +447,8 @@ if("webkitSpeechRecognition" in window || "SpeechRecognition" in window){
 
 function loop(){ draw(); requestAnimationFrame(loop); }
 setAccentCss(); loop();
-rpc("orb.set",{state:"connecting",presets:true}).then(()=>startAV());
+startSession();
 setInterval(senseTick, 200);
-// re-pedir A/V se o browser bloquear até gesto
-window.addEventListener("pointerdown",()=>{ if(!videoOn) startAV(); },{once:true});
 </script>
 </body>
 </html>

@@ -30,13 +30,35 @@ A identidade é resolvida pelo **transporte** (S-01), não pelo payload:
 `LocalUser` tem `INFER|MEMORY|OBSERVE`; `Jarbas` tem `HITL|FS|NET` mas **não**
 `NIX_WRITE`/`AGENT_SPAWN`; só `LocalAdmin` tem `NIX_WRITE`.
 
-## HTTP lab
+## HTTP lab / bridge JARBAS
 
-O lab é **off por default**; o ISO só o liga no modo cinematic
-(`NOSD_ORB_LAB=127.0.0.1:7701`). Quando ligado, `POST /rpc` exige token,
-`Content-Type: application/json`, same-origin quando há `Origin`, corpo ≤ 1 MiB e
-timeout de 5 s. Sem `Access-Control-Allow-Origin: *`. A página `GET /` injeta o
-token da sessão; não expor o lab à WAN.
+O lab é **off por default**; o ISO liga-o nos modos `cinematic` e `auto`
+(`NOSD_ORB_LAB=127.0.0.1:7701`). Quando ligado, o token do processo **nunca**
+entra no browser:
+
+- `GET /` devolve o HUD sem qualquer token no HTML/JavaScript.
+- O launcher do kiosk gera uma chave bootstrap (0600) e abre
+  `http://127.0.0.1:7701/#bootstrap=<chave>`; o fragmento não viaja na rede e
+  é substituído por cookie `jarbas_ui` (`HttpOnly`, `SameSite=Strict`, sem
+  `Max-Age`) em `POST /ui/session?key=`.
+- A chave é **reutilizável** (o kiosk renova a sessão sozinho se o `nosd`
+  reiniciar) e substituída a cada arranque do Chromium. Fail-closed: só é
+  aceite se o ficheiro for regular, do próprio daemon e não escritível por
+  grupo/other — o `data-dir` é 1777 na live ISO, por isso um ficheiro
+  plantado ou um symlink é recusado.
+- `POST /rpc` exige origem exacta de loopback (nunca por prefixo), cookie
+  válido, marcador `X-Jarbas-UI-Request: 1`, `Content-Type: application/json`,
+corpo ≤ 1 MiB e timeout de 5 s. Campos `token`/`caps` no JSON do browser são
+  recusados (400): a identidade é sempre `AuthContext::JarbasUi` → perfil
+  `Jarbas` (HITL/FS/NET/INFER/MEMORY, **sem** `NIX_WRITE`/spawn).
+- Allow-list de métodos no kiosk: `health`, `score`, `cognitive.tick`,
+  `orb.get|set|sense`, `ui.list`, `ui.action`, `chat`, `voice.turn`.
+  `GET /transmute` → 403. Sem `Access-Control-Allow-Origin: *`.
+- Sessão com TTL deslizante de 1 h, renovada por cada pedido válido;
+  `POST /ui/logout` revoga de imediato.
+
+Não expor o lab à WAN. Em produção, o lab deve ficar desligado
+(`NOSD_ORB_LAB=""`), o que elimina esta superfície por completo.
 
 ## Confinamento processo
 

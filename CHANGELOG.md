@@ -3,6 +3,28 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+### Added (UI híbrida JARBAS)
+
+- **`services.jarbasCage.uiMode = "auto"`**: escolhe Chromium só com
+  `MemAvailable >= chromiumMinAvailableMiB` (2048) **e**
+  `chromiumGpuValidated = true`; caso contrário Slint. Os modos explícitos
+  `slint`/`cinematic` ficam intactos e o falhanço do Chromium (lab em baixo,
+  renderer a sair) cai para Slint pelo mesmo caminho software/pixman.
+- **HUD Chromium ligada ao Hermes**: painel de estado do sistema + janelas
+  declarativas/HITL (`ui.list`/`ui.action`) no lab, a par do orb em tempo
+  real; o caminho Slint lê agora `audio_on`/`video_on`, nível e movimento de
+  `orb.get` a cada 200 ms sem aumentar as consultas de saúde/score/janelas.
+
+### Security
+
+- **Bridge HTTP sem `ipc.token`:** `GET /` deixa de injetar o token do
+  processo no HTML; o kiosk usa uma chave bootstrap 0600 trocada por cookie
+  `HttpOnly`/`SameSite=Strict`, com perfil `AuthContext::JarbasUi`, origem
+  exacta de loopback, marcador `X-Jarbas-UI-Request`, allow-list de métodos e
+  recusa de `token`/`caps` no payload do browser. Sessão com TTL deslizante
+  (renovada pelo poll do HUD) e chave fail-closed contra plantação/symlink no
+  `data-dir` 1777. `GET /transmute` passa a 403 no kiosk.
+
 ### Added (M5.1)
 
 - **Check `mesh-3vm-faults`**: 3 VMs com latencia (`tc netem`), perda total,

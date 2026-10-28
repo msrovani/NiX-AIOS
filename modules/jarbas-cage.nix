@@ -6,6 +6,21 @@
 let
   cfg = config.services.jarbasCage;
 
+  chooseMode = pkgs.writeShellScript "jarbas-select-ui-mode" ''
+    if [ "${cfg.uiMode}" != "auto" ]; then
+      echo "${cfg.uiMode}"
+      exit 0
+    fi
+    available_kib="$(${pkgs.gawk}/bin/awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+    available_mib=$((available_kib / 1024))
+    if [ "${if cfg.chromiumGpuValidated then "1" else "0"}" = "1" ] \
+      && [ "$available_mib" -ge "${toString cfg.chromiumMinAvailableMiB}" ]; then
+      echo cinematic
+    else
+      echo slint
+    fi
+  '';
+
   waitScript = pkgs.writeShellScript "jarbas-wait-deps" ''
     set -euo pipefail
     # Root ExecStartPre (+): runtime dirs + seatd sock stale
@@ -36,8 +51,8 @@ let
       if [ -S /run/nosd/nosd.sock ]; then break; fi
       sleep 0.5
     done
-    # S-05: orb lab só no modo cinematic; Slint não depende dele.
-    if [ "${cfg.uiMode}" = "cinematic" ]; then
+    # O selector aplica o mesmo orçamento antes do launcher escolher renderer.
+    if [ "$( ${chooseMode} )" = "cinematic" ]; then
       for i in $(seq 1 40); do
         if ${pkgs.curl}/bin/curl -sf -o /dev/null http://127.0.0.1:7701/ 2>/dev/null; then break; fi
         sleep 0.5
@@ -91,6 +106,7 @@ let
     export XDG_CACHE_HOME=/var/lib/nosd/cache
     export RUST_LOG="''${RUST_LOG:-info}"
     export PATH="${pkgs.curl}/bin:${pkgs.cage}/bin:${pkgs.seatd}/bin:$PATH"
+    UI_MODE="$( ${chooseMode} )"
     if ! mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null; then
       echo "jarbas: XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR nao criavel; fallback /var/lib/nosd/run" >&2
       XDG_RUNTIME_DIR=/var/lib/nosd/run
@@ -107,64 +123,87 @@ let
     export WLR_DRM_DEVICES="$DRM"
     export WLR_NO_HARDWARE_CURSORS=1
     unset LIBGL_ALWAYS_SOFTWARE || true
-    echo "jarbas-cinematic: DRM=$DRM mode=${cfg.uiMode}"
+    echo "jarbas: DRM=$DRM selected_mode=$UI_MODE configured_mode=${cfg.uiMode}"
     echo "jarbas: XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR ($(stat -c %U:%G:%a "$XDG_RUNTIME_DIR" 2>/dev/null || echo missing))"
     echo "jarbas: seatd sock=$( [ -S /run/seatd.sock ] && echo yes || echo no ) seatd=$(${pkgs.systemd}/bin/systemctl is-active seatd.service 2>/dev/null || true)"
     ls -la /dev/dri 2>/dev/null || true
     $CURL -sf -o /dev/null http://127.0.0.1:7701/ && echo "orb_lab: OK" || echo "orb_lab: DOWN"
 
     LAB="http://127.0.0.1:7701/"
-
-    if [ "${cfg.uiMode}" = "slint" ]; then
-      export FONTCONFIG_FILE="${pkgs.fontconfig.out}/etc/fonts/fonts.conf"
-      export SLINT_DEFAULT_FONT="${pkgs.dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf"
-      export LIBSEAT_BACKEND=seatd
-      CAGE_BIN="${pkgs.cage}/bin/cage"
-      SEAT_WRAP="${pkgs.seatd}/bin/seatd-launch"
-      # Preferir seatd.service j� activo (After=seatd). seatd-launch em cima = "Socket file found" (metal).
-      run_cage() {
-        if [ -S /run/seatd.sock ]; then
-          echo "jarbas-slint: using system seatd.sock"
-          "$CAGE_BIN" -s -- "$@"
-        elif [ -x "$SEAT_WRAP" ]; then
-          echo "jarbas-slint: seatd-launch (no system sock)"
-          "$SEAT_WRAP" -- "$CAGE_BIN" -s -- "$@"
-        else
-          "$CAGE_BIN" -s -- "$@"
-        fi
-      }
-      run_slint() {
-        echo "jarbas-slint: DRM=$WLR_DRM_DEVICES soft=''${JARBAS_FORCE_SOFTWARE:-0}"
-        # WAYLAND_DISPLAY SO no filho: se estiver no env do cage, o cage
-        # arranca em modo aninhado (cliente Wayland) em vez de DRM/KMS.
-        run_cage ${pkgs.coreutils}/bin/env WINIT_UNIX_BACKEND=wayland "WAYLAND_DISPLAY=''${WAYLAND_DISPLAY:-wayland-0}" ${cfg.nosdPackage}/bin/nos-jarbas --ui --socket /run/nosd/nosd.sock --interval-secs 2
-      }
-      # winit escolhe X11 se WAYLAND_DISPLAY estiver vazio -> Xwayland ->
-      # glamor/kms_swrast falha e o HUD morre. Forcar Wayland.
-      export WINIT_UNIX_BACKEND=wayland
-      # 1) GL/iGPU (metal)  2) software + pixman (QEMU/no-GL).
-      # NAO usar LIBGL_ALWAYS_SOFTWARE: quebra o EGL do wlroots (kms_swrast).
-      unset SLINT_BACKEND || true
-      unset LIBGL_ALWAYS_SOFTWARE || true
-      if run_slint; then exit 0; fi
-      echo "jarbas-slint: GL/cage falhou - retry winit-software + WLR_RENDERER=pixman" >&2
+    export FONTCONFIG_FILE="${pkgs.fontconfig.out}/etc/fonts/fonts.conf"
+    export SLINT_DEFAULT_FONT="${pkgs.dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf"
+    export LIBSEAT_BACKEND=seatd
+    # winit escolhe X11 se WAYLAND_DISPLAY estiver vazio -> Xwayland ->
+    # glamor/kms_swrast falha e a HUD morre. Forcar Wayland.
+    export WINIT_UNIX_BACKEND=wayland
+    CAGE_BIN="${pkgs.cage}/bin/cage"
+    SEAT_WRAP="${pkgs.seatd}/bin/seatd-launch"
+    # Preferir seatd.service ja activo (After=seatd); seatd-launch por cima do
+    # sock do sistema da "Socket file found" no metal.
+    run_cage() {
+      if [ -S /run/seatd.sock ]; then
+        echo "jarbas: using system seatd.sock"
+        "$CAGE_BIN" -s -- "$@"
+      elif [ -x "$SEAT_WRAP" ]; then
+        echo "jarbas: seatd-launch (no system sock)"
+        "$SEAT_WRAP" -- "$CAGE_BIN" -s -- "$@"
+      else
+        "$CAGE_BIN" -s -- "$@"
+      fi
+    }
+    # WAYLAND_DISPLAY SO no filho: se estiver no env do cage, o cage arranca
+    # em modo aninhado (cliente Wayland) em vez de DRM/KMS.
+    run_slint() {
+      run_cage ${pkgs.coreutils}/bin/env WINIT_UNIX_BACKEND=wayland "WAYLAND_DISPLAY=''${WAYLAND_DISPLAY:-wayland-0}" ${cfg.nosdPackage}/bin/nos-jarbas --ui --socket /run/nosd/nosd.sock --interval-secs 2
+    }
+    # 1) GL/iGPU (metal)  2) software + pixman (QEMU/no-GL).
+    # NAO usar LIBGL_ALWAYS_SOFTWARE: quebra o EGL do wlroots (kms_swrast).
+    run_slint_software() {
       export JARBAS_FORCE_SOFTWARE=1
       export SLINT_BACKEND=winit-software
       export WLR_RENDERER=pixman
       unset LIBGL_ALWAYS_SOFTWARE || true
       run_slint
+    }
+
+    if [ "$UI_MODE" = "slint" ]; then
+      unset SLINT_BACKEND || true
+      unset LIBGL_ALWAYS_SOFTWARE || true
+      if run_slint; then exit 0; fi
+      echo "jarbas-slint: GL/cage falhou - retry winit-software + WLR_RENDERER=pixman" >&2
+      run_slint_software
       exit $?
     fi
 
+    # cinematic/Chromium: pipewire para mic/cam do kiosk.
     if [ ! -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
       ${pkgs.pipewire}/bin/pipewire &
       ${pkgs.wireplumber}/bin/wireplumber &
       sleep 1
     fi
 
+    fail_over_to_slint() {
+      echo "jarbas-chromium: $1; fail over para Slint" >&2
+      run_slint_software
+      exit $?
+    }
     mkdir -p "$XDG_RUNTIME_DIR/chromium-jarbas"
-    echo "jarbas-cinematic: launching chromium kiosk $LAB"
-    exec ${pkgs.cage}/bin/cage -s -- ${pkgs.chromium}/bin/chromium \
+    if ! $CURL -sf -o /dev/null "$LAB"; then
+      fail_over_to_slint "lab indisponivel"
+    fi
+    # Chave bootstrap (0600): o daemon troca-a por cookie HttpOnly no
+    # #bootstrap=... da URL (o fragmento nao viaja na rede) e o browser
+    # re-troca-a se o nosd reiniciar. O token IPC NUNCA entra no HTML/JS.
+    BOOTSTRAP="$(${pkgs.coreutils}/bin/cat /proc/sys/kernel/random/uuid | ${pkgs.coreutils}/bin/tr -d '-')$(${pkgs.coreutils}/bin/cat /proc/sys/kernel/random/uuid | ${pkgs.coreutils}/bin/tr -d '-')"
+    BOOTSTRAP_FILE="${config.services.nosd.dataDir}/jarbas-ui-bootstrap.token"
+    # data-dir e 1777 (live ISO): um user local pode ja ter plantado o caminho.
+    # install falha no chmod se o dono nao e nosd -> nao promover a Chromium.
+    if ! ${pkgs.coreutils}/bin/install -m 600 /dev/null "$BOOTSTRAP_FILE" 2>/dev/null; then
+      fail_over_to_slint "bootstrap file nao criavel (data-dir?)"
+    fi
+    printf '%s\n' "$BOOTSTRAP" > "$BOOTSTRAP_FILE"
+    echo "jarbas-cinematic: launching Chromium JARBAS HUD"
+    if run_cage ${pkgs.chromium}/bin/chromium \
       --kiosk \
       --noerrdialogs \
       --disable-infobars \
@@ -177,7 +216,12 @@ let
       --enable-gpu \
       --ignore-gpu-blocklist \
       --user-data-dir="$XDG_RUNTIME_DIR/chromium-jarbas" \
-      "$LAB"
+      "''${LAB}#bootstrap=$BOOTSTRAP"; then
+      rm -f "$BOOTSTRAP_FILE"
+      exit 0
+    fi
+    rm -f "$BOOTSTRAP_FILE"
+    fail_over_to_slint "renderer saiu"
   '';
 
   switchVt = pkgs.writeShellScript "jarbas-chvt" ''
@@ -213,9 +257,19 @@ in
       default = true;
     };
     uiMode = lib.mkOption {
-      type = lib.types.enum [ "cinematic" "slint" ];
+      type = lib.types.enum [ "auto" "cinematic" "slint" ];
       default = "slint";
-      description = "slint = HUD nativo (default s527); cinematic = Chromium orb lab.";
+      description = "auto selects Chromium only above the RAM budget and with its GPU profile validated; otherwise Slint.";
+    };
+    chromiumMinAvailableMiB = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 2048;
+      description = "Minimum MemAvailable after nosd/AI startup required for Chromium in auto mode.";
+    };
+    chromiumGpuValidated = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Set true only after Chromium GPU acceleration is verified on this hardware profile.";
     };
   };
 
@@ -223,9 +277,9 @@ in
     services.seatd.enable = true;
     services.xserver.enable = lib.mkDefault false;
 
-    # S-05: o orb lab só é necessário no modo cinematic (Chromium).
+    # O lab é usado por Chromium no modo explícito ou auto (seleção runtime).
     systemd.services.nosd.serviceConfig.Environment = lib.mkAfter (
-      lib.optional (cfg.uiMode == "cinematic") "NOSD_ORB_LAB=127.0.0.1:7701"
+      lib.optional (builtins.elem cfg.uiMode [ "cinematic" "auto" ]) "NOSD_ORB_LAB=127.0.0.1:7701"
     );
 
     services.pipewire = {
@@ -301,7 +355,7 @@ in
         "seatd.service"
         "jarbas-hub.service"
         "getty@tty1.service"
-      ] ++ lib.optionals (cfg.uiMode == "cinematic") [
+      ] ++ lib.optionals (builtins.elem cfg.uiMode [ "cinematic" "auto" ]) [
         "pipewire.service"
         "wireplumber.service"
       ];
@@ -331,7 +385,8 @@ in
         NoNewPrivileges = true;
         # DeviceAllow implica DevicePolicy=closed; tty7 (StandardInput=tty) tem
         # de estar na allowlist, senão systemd falha com 208/STDIN.
-        DeviceAllow = [ "char-drm rw" "char-input rw" "char-tty rw" ];
+        # char-video4linux: webcam do kiosk Chromium (getUserMedia) sob DevicePolicy=closed.
+        DeviceAllow = [ "char-drm rw" "char-input rw" "char-tty rw" "char-video4linux rw" ];
         OOMScoreAdjust = -500;
         # PATH: wrap usa paths absolutos; curl bare no PATH evita regress�o
         Environment = [

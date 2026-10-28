@@ -46,6 +46,60 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
         params: serde_json::json!({ "state": "idle", "presets": true, "particles": 160, "rings": 3 }),
     });
 
+    // O orb lab publica os sinais sensoriais a cada 200 ms; manter esta leitura
+    // separada da telemetria lenta para que áudio/câmara não esperem score/health.
+    let ui_orb = ui.as_weak();
+    let ep_orb = endpoint.clone();
+    std::thread::spawn(move || {
+        let mut id = 1u64;
+        loop {
+            let orb = ep_orb.rpc_blocking(next_req(&mut id, "orb.get", 0, serde_json::json!({})));
+            let ui_w = ui_orb.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_w.upgrade() {
+                    match &orb {
+                        Ok(r) if r.ok => {
+                            if let Some(s) = r.result.get("state").and_then(|v| v.as_str()) {
+                                ui.set_orb_state(s.into());
+                            }
+                            if let Some(s) = r.result.get("pattern").and_then(|v| v.as_str()) {
+                                ui.set_orb_pattern(s.into());
+                            }
+                            let sense = r.result.get("sense");
+                            let level = sense
+                                .and_then(|s| s.get("level"))
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(0.0);
+                            let motion = sense
+                                .and_then(|s| s.get("motion"))
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(0.0);
+                            let audio_on = sense
+                                .and_then(|s| s.get("audio_on"))
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            let video_on = sense
+                                .and_then(|s| s.get("video_on"))
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            ui.set_orb_level_pct((level * 100.0).clamp(0.0, 100.0) as i32);
+                            ui.set_orb_motion_pct((motion * 100.0).clamp(0.0, 100.0) as i32);
+                            ui.set_orb_audio_on(audio_on);
+                            ui.set_orb_video_on(video_on);
+                        }
+                        _ => {
+                            ui.set_orb_level_pct(0);
+                            ui.set_orb_motion_pct(0);
+                            ui.set_orb_audio_on(false);
+                            ui.set_orb_video_on(false);
+                        }
+                    }
+                }
+            });
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    });
+
     let ui_poll = ui.as_weak();
     let ep_poll = endpoint.clone();
     let interval = interval_secs.max(1);
@@ -64,37 +118,10 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             ));
             // Conector janelas HITL — JARBAS materializa o que Hermes/Cortex pediram
             let wins = ep_poll.rpc_blocking(next_req(&mut id, "ui.list", 0, serde_json::json!({})));
-            let orb = ep_poll.rpc_blocking(next_req(&mut id, "orb.get", 0, serde_json::json!({})));
 
             let ui_w = ui_poll.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_w.upgrade() {
-                    if let Ok(r) = &orb {
-                        if r.ok {
-                            if let Some(s) = r.result.get("state").and_then(|v| v.as_str()) {
-                                ui.set_orb_state(s.into());
-                            }
-                            if let Some(s) = r.result.get("pattern").and_then(|v| v.as_str()) {
-                                ui.set_orb_pattern(s.into());
-                            }
-                            if let Some(lv) = r
-                                .result
-                                .get("sense")
-                                .and_then(|s| s.get("level"))
-                                .and_then(|v| v.as_f64())
-                            {
-                                ui.set_orb_level_pct((lv * 100.0).clamp(0.0, 100.0) as i32);
-                            }
-                            if let Some(mv) = r
-                                .result
-                                .get("sense")
-                                .and_then(|s| s.get("motion"))
-                                .and_then(|v| v.as_f64())
-                            {
-                                ui.set_orb_motion_pct((mv * 100.0).clamp(0.0, 100.0) as i32);
-                            }
-                        }
-                    }
                     let mut hitl_id: i32 = 0;
                     let mut hitl_kind = String::new();
                     let mut status_extra = String::new();
