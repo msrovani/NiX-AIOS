@@ -41,6 +41,7 @@ parking_lot = "0.12"
 uuid = { version = "1.10", features = ["v4"] }
 tempfile = "3.12"
 base64 = "0.22"
+blake3 = "1"
 ureq = { version = "2.12", default-features = false, features = ["tls"] }
 ed25519-compact = { version = "2.1", default-features = false }
 snow = { version = "0.9", default-features = false, features = ["default-resolver"] }

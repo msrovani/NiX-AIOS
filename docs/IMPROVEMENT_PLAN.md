@@ -46,6 +46,7 @@
 | S-08 suíte de regressão | **feito** | `ipc_auth` (10-11) + `nos-ipc` (3) + HTTP/grant/fetch |
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
 | M6 identidade (HB Ed25519) | **feito** | `nos-mesh::ident` + `mesh-2vm-signed` |
+| S1 skills trust (BLAKE3+manifesto+escolha) | **feito** | `skill.explain` com score/`why`; hash 64 hex |
 | Skills: confiança/qualidade + escolha | **desenho** | `docs/SKILL_TRUST_AND_SELECTION.md`; hoje FNV sem assinatura de autor |
 | M9.1 SKILL_PUSH | **feito** | `skill.push` + `install_bytes(expect_hash)`; `mesh-2vm-skills` PASS |
 | M8.1e log autenticado | **feito** | linha assinada (Ed25519) + replay fail-closed; sem anti-rollback |

@@ -276,7 +276,7 @@ pub async fn submit_skill(
     deadline_ms: u64,
 ) -> Result<JobResult, String> {
     use base64::Engine as _;
-    let hash = format!("{:016x}", crate::mesh_knowledge::fnv1a64(bytes));
+    let hash = crate::content_hash(bytes);
     // Limite do envelope (MAX_PROMPT) e do corpo: base64 cresce ~4/3.
     if bytes.len() > 512 * 1024 {
         return Err("modulo acima de 512 KiB para push".into());

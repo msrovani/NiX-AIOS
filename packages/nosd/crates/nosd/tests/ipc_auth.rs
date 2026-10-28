@@ -654,3 +654,49 @@ fn skill_infer_is_denied_without_cap() {
         "sem INFER a skill nao fala com o modelo: {run}"
     );
 }
+
+#[test]
+fn skill_focus_selection_prefers_newer_and_uses_blake3() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let a = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "sum1", "wat": WAT_IDENT, "focus": "sum", "version": "1.0.0" }),
+    );
+    assert_eq!(a["ok"], true, "{a}");
+    let hash = a["result"]["hash"].as_str().expect("hash");
+    assert_eq!(hash.len(), 64, "S1: hash tem de ser blake3 hex: {hash}");
+
+    let b = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "sum2", "wat": WAT_IDENT, "focus": "sum", "version": "2.0.0" }),
+    );
+    assert_eq!(b["ok"], true, "{b}");
+
+    let ex = rpc(
+        &daemon,
+        Some(&t),
+        "skill.explain",
+        json!({ "focus": "sum" }),
+    );
+    assert_eq!(ex["ok"], true, "{ex}");
+    assert_eq!(ex["result"]["chosen"], "sum2@2.0.0", "{ex}");
+    assert!(
+        ex["result"]["why"]["version"].as_u64().unwrap_or(0) > 0,
+        "{ex}"
+    );
+
+    // A decis?o fica no CRDT (audit?vel/replic?vel).
+    let cur = rpc(
+        &daemon,
+        Some(&t),
+        "crdt.get",
+        json!({ "key": "focus/sum/active" }),
+    );
+    assert_eq!(cur["result"]["value"], "sum2@2.0.0", "{cur}");
+}

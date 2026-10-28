@@ -101,6 +101,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M8 estado**: CRDT (LWW+VV) sobre o link assinado do M7 (`kind=2`);
   `crdt.put/get/sync`; `mesh-2vm-crdt` PASS. Anti-entropy = estado completo
   (sem delta/Merkle), em claro, sem persistencia nsgdb.
+- **S1 skills trust**: BLAKE3 (64 hex) + manifesto `skill/<n>/meta` +
+  `skill.explain <focus>` com score 0-100 e `why` no CRDT. **Sem** assinatura
+  de publisher/allowlist (S2) nem historico no score.
 - **Skills trust**: requisito registado (`docs/SKILL_TRUST_AND_SELECTION.md`):
   BLAKE3 + manifesto assinado + allowlist + caps declaradas + scoring por foco
   (Hermes escolhe e audita). **Nao implementado**; hoje FNV sem autoria.

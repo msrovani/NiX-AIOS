@@ -31,6 +31,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{info, warn};
 
 pub const MAGIC_HB: &[u8] = b"HB\0";
+
+/// S1: commitment de conte?do (BLAKE3 hex, 64 chars).
+pub fn content_hash(bytes: &[u8]) -> String {
+    blake3::hash(bytes).to_hex().to_string()
+}
 pub const MAGIC_FRAG: &[u8] = frag::MAGIC;
 pub const MAGIC_ROLE: &[u8] = b"ROLE\0";
 /// Janela mínima após 1º peer PK-bound antes de ROLE / SkillSync (ADR-0081).

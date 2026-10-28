@@ -60,6 +60,7 @@ impl Request {
             "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
             | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
             "skill.list" | "skill.run" | "crdt.get" => CapBits::NONE,
+            "skill.explain" | "skill.select" => CapBits::MEMORY,
             "skill.install" | "skill.push" => CapBits::FS,
             "crdt.put" | "crdt.sync" => CapBits::MEMORY,
             "model.load" => CapBits::INFER.union(CapBits::FS),

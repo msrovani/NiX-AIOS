@@ -123,6 +123,16 @@ log antigo sem assinatura e recusado (migracao = apagar/re-assinar), e continua
 JSONL (nsgdb = M8.1d). Evidencia:
 `docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`.
 
+**S1 skills trust (2026-10-27):** hash de skill passa a **BLAKE3** (64 hex) e
+cada skill ganha manifesto `skill/<n>/meta` (focus, version, caps, bytes,
+provenance). Novo `skill.explain <focus>` pontua 0-100 (proveniencia, caps
+minimas, versao, tamanho), escreve `focus/<f>/active` e `why` no CRDT
+(auditavel/replicavel). Push marca `provenance=peer`; install `local`.
+Prova: `skill_focus_selection_prefers_newer_and_uses_blake3` (hash 64, sum2@2.0.0
+vence) + 15 testes em ipc_auth. Residual S2: sem assinatura de publisher, sem
+allowlist, sem caps declaradas, sem historico no score, sem versao monotonica.
+Evidencia: `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

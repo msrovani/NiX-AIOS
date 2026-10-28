@@ -20,6 +20,13 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Security (S1)
+
+- **Skills com BLAKE3:** o id de conte?do passa a commitment de 64 hex e cada
+  skill tem manifesto (focus/version/caps/provenance).
+- **Escolha audit?vel:** `skill.explain <focus>` pontua candidatas, escolhe a
+  melhor e grava `focus/<f>/active` + `why` no CRDT.
+
 ### Security (M8.1e)
 
 - **Log CRDT autenticado em repouso:** cada linha ? assinada com a identidade
