@@ -161,6 +161,9 @@ enum Cmd {
         publisher: Option<String>,
         #[arg(long)]
         sig: Option<String>,
+        /// S2c: grant HITL para permitir downgrade (kind=skill.downgrade).
+        #[arg(long)]
+        confirm_id: Option<String>,
     },
     /// S2: assina um manifesto com a chave do no (imprime publisher+sig).
     #[command(name = "skill-sign")]
@@ -337,6 +340,7 @@ async fn main() -> anyhow::Result<()> {
             version,
             publisher,
             sig,
+            confirm_id,
         } => {
             let bytes = match std::fs::read(path) {
                 Ok(b) => b,
@@ -364,6 +368,9 @@ async fn main() -> anyhow::Result<()> {
             }
             if let Some(x) = sig {
                 p["sig"] = serde_json::json!(x);
+            }
+            if let Some(x) = confirm_id {
+                p["confirm_id"] = serde_json::json!(x);
             }
             ("skill.install", p, 1 << 2) // FS
         }

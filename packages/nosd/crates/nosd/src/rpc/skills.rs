@@ -413,7 +413,9 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
             }
             // S2b: versao monot?nica por focus (sem downgrade silencioso).
             if let Some(maxv) = max_version_for_focus(state, focus_e) {
-                if ver_key(version_e) < ver_key(&maxv) {
+                if ver_key(version_e) < ver_key(&maxv)
+                    && !super::hitl_grant_ok(state, &req, "skill.downgrade")
+                {
                     return Some(err(
                         req.id,
                         format!("downgrade recusado: {version_e} < {maxv} (focus {focus_e})"),

@@ -745,3 +745,40 @@ fn skill_history_feeds_the_score() {
     assert_eq!(ex["result"]["why"]["history"], 20, "{ex}");
     assert_eq!(ex["result"]["why"]["runs"], json!([5, 0]), "{ex}");
 }
+
+#[test]
+fn skill_downgrade_requires_hitl_grant() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let v2 = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "s", "wat": WAT_IDENT, "focus": "dg", "version": "2.0.0" }),
+    );
+    assert_eq!(v2["ok"], true, "{v2}");
+
+    // Sem grant: recusa (fail-closed).
+    let v1 = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "s", "wat": WAT_IDENT, "focus": "dg", "version": "1.0.0" }),
+    );
+    assert_eq!(v1["ok"], false, "{v1}");
+    assert!(
+        v1["error"].as_str().unwrap_or("").contains("downgrade"),
+        "{v1}"
+    );
+
+    // Com grant HITL (kind=skill.downgrade): aceita.
+    let cid = grant(&daemon, "skill.downgrade");
+    let v1b = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "s", "wat": WAT_IDENT, "focus": "dg", "version": "1.0.0", "confirm_id": cid }),
+    );
+    assert_eq!(v1b["ok"], true, "{v1b}");
+}

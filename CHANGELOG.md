@@ -27,6 +27,11 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Security (S2c)
+
+- **Downgrade via HITL:** versao inferior exige grant `skill.downgrade`
+  (`--confirm-id`); sem grant continua recusado.
+
 ### Tests (S2c)
 
 - **E2E do push assinado** em `mesh-2vm-skills`: assinar com a chave do no,

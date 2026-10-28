@@ -198,6 +198,14 @@ push recusado. Assercoes com `json.loads` (sem grep fragil). Isto fecha o
 HITL/auditoria na revogacao, expiracao, downgrade HITL e decaimento do
 historico. Evidencia: `docs/evidence/S2C_SIGNED_PUSH_E2E_0.6.0-alpha.9.md`.
 
+**S2c downgrade HITL (2026-10-27):** instalar versao inferior a maxima do
+`focus` exige grant server-authored `skill.downgrade` (mesmo mecanismo do S-04);
+sem grant e recusado. CLI: `skill-install --confirm-id`. Prova:
+`skill_downgrade_requires_hitl_grant` (2.0.0 -> 1.0.0 sem grant = recusa; com
+grant = aceita) e 17 testes em ipc_auth. Residual: grant nao audita quem
+autorizou (S2d) e nao ha e2e em VM deste caminho. Evidencia:
+`docs/evidence/S2C_DOWNGRADE_HITL_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---
