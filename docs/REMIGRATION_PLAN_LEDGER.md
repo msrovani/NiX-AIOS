@@ -99,6 +99,15 @@ Residual: JSONL proprio (nao nsgdb), sem compactacao, sem fsync por op, sem
 bloom/Merkle, log nao autenticado em repouso. Evidencia:
 `docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`.
 
+**M8.1c compactacao do log (2026-10-27):** `with_crdt_log` tolera linhas
+truncadas (crash a meio de write) e compacta acima de 64 linhas: reescreve
+`crdt.jsonl.tmp` com uma linha por entrada, `sync_all` + `rename` atomico.
+Prova: `crdt_log_compacts_and_tolerates_corruption` (100 puts + linha truncada
+-> 1 entrada v99, log <= 2 linhas) e `crdt_log_survives_restart`. Residual:
+compactacao so no arranque (falta periodica), sem fsync do diretorio, continua
+JSONL (nao nsgdb) e log nao autenticado. Evidencia:
+`docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

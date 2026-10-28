@@ -48,6 +48,7 @@
 | M6 identidade (HB Ed25519) | **feito** | `nos-mesh::ident` + `mesh-2vm-signed` |
 | Skills: confiança/qualidade + escolha | **desenho** | `docs/SKILL_TRUST_AND_SELECTION.md`; hoje FNV sem assinatura de autor |
 | M9.1 SKILL_PUSH | **feito** | `skill.push` + `install_bytes(expect_hash)`; `mesh-2vm-skills` PASS |
+| M8.1c compactacao do log | **feito** | snapshot+rename no arranque; linha truncada ignorada |
 | M8.1b CRDT duravel | **parcial** | log `crdt.jsonl` + replay; falta nsgdb/compactacao/bloom |
 | M8.1 delta anti-entropy | **parcial** | VV + `delta_since` no `crdt.sync`; falta bloom/Merkle e nsgdb |
 | M6.1 Noise (link cifrado) | **feito** | XX + BIND Ed25519; `noise_job_roundtrip` + checks jobs/crdt |

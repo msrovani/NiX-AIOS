@@ -20,6 +20,11 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Fixed (M8.1c)
+
+- **Log CRDT:** linhas truncadas (crash) s?o ignoradas e o log ? compactado no
+  arranque acima de 64 linhas (snapshot + `rename` at?mico).
+
 ### Added (M8.1b)
 
 - **Estado duravel:** log append-only `<data-dir>/crdt.jsonl` com replay no

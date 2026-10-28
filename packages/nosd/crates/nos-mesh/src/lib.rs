@@ -37,6 +37,8 @@ pub const MAGIC_ROLE: &[u8] = b"ROLE\0";
 pub const TOFU_SETTLE_TICKS: u32 = 130;
 /// Equivalente ~130 ticks @ ~18 Hz quando `tick()` não corre.
 pub const TOFU_SETTLE_MS: u64 = 7_200;
+/// M8.1c: acima disto o log ? compactado no arranque (1 linha por entrada).
+pub const CRDT_COMPACT_LINES: usize = 64;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PeerRole {
@@ -169,14 +171,20 @@ impl MeshEngine {
         m
     }
 
-    /// M8.1b: replay do log e abertura para append. Idempotente (merge).
+    /// M8.1b/c: replay do log, compacta??o (snapshot + truncate) e append.
+    ///
+    /// - Linhas inv?lidas (crash a meio de um `write`) s?o ignoradas.
+    /// - Acima de `CRDT_COMPACT_LINES`, o log ? reescrito com uma linha por
+    ///   entrada antes de reabrir (evita replay O(ops) para sempre).
     pub fn with_crdt_log(mut self, path: &std::path::Path) -> std::io::Result<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
         let mut store = self.crdt.lock();
+        let mut lines = 0usize;
         if let Ok(text) = std::fs::read_to_string(path) {
             for line in text.lines() {
+                lines += 1;
                 if line.trim().is_empty() {
                     continue;
                 }
@@ -186,6 +194,23 @@ impl MeshEngine {
             }
         }
         let replayed = store.entries.len();
+        if lines > CRDT_COMPACT_LINES {
+            use std::io::Write;
+            let tmp = path.with_extension("jsonl.tmp");
+            let mut f = std::fs::File::create(&tmp)?;
+            for e in store.entries.values() {
+                if let Ok(l) = serde_json::to_string(e) {
+                    writeln!(f, "{l}")?;
+                }
+            }
+            f.sync_all()?;
+            drop(f);
+            std::fs::rename(&tmp, path)?;
+            info!(
+                target: "nosd",
+                "crdt log compactado lines={lines} entries={replayed}"
+            );
+        }
         drop(store);
         let f = std::fs::OpenOptions::new()
             .create(true)
@@ -955,6 +980,38 @@ mod tests {
         assert_eq!(m2.crdt_get("k").map(|e| e.value), Some("v".to_string()));
         assert_eq!(m2.crdt_get("k2").map(|e| e.value), Some("v2".to_string()));
         assert_eq!(m2.crdt_len(), 2);
+    }
+
+    #[test]
+    fn crdt_log_compacts_and_tolerates_corruption() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("crdt.jsonl");
+        {
+            let m = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+            for i in 0..100u64 {
+                m.crdt_put(1, "k", &format!("v{i}"), i);
+            }
+        }
+        // Simula crash a meio de um write.
+        {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&path)
+                .unwrap();
+            writeln!(f, "{{\"key\": \"trunc").unwrap();
+        }
+        let before = std::fs::read_to_string(&path).unwrap().lines().count();
+        assert!(
+            before > CRDT_COMPACT_LINES,
+            "log devia estar grande: {before}"
+        );
+
+        let m2 = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+        assert_eq!(m2.crdt_len(), 1, "uma chave (LWW)");
+        assert_eq!(m2.crdt_get("k").map(|e| e.value), Some("v99".to_string()));
+        let after = std::fs::read_to_string(&path).unwrap().lines().count();
+        assert!(after <= 2, "log devia ficar compacto: {after}");
     }
 
     #[test]
