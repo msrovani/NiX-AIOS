@@ -20,6 +20,11 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Docs (skills)
+
+- Requisitos de segurança e qualidade das publicações wasm e algoritmo de
+  escolha entre candidatas do mesmo foco: `docs/SKILL_TRUST_AND_SELECTION.md`.
+
 ### Added (M9.1)
 
 - **SKILL_PUSH:** `skill.push <addr> <nome>` transporta o `.wasm` pelo link

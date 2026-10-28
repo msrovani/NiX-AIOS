@@ -21,6 +21,7 @@ Versão corrente: **0.6.0-alpha.8** — [`RELEASE_0.6.0-alpha.8.md`](RELEASE_0.6
 | [BOOT_TO_JARBAS.md](BOOT_TO_JARBAS.md) | Playbook M0–M5 boot→JARBAS Jarvis-like + rings + AI_GATE |
 | [METAL_CAMPAIGN.md](METAL_CAMPAIGN.md) | Campanha M4 stick NIXAIOS051 (Ring3_Linux/metal) |
 | [FLEET_LAB.md](FLEET_LAB.md) | Campanha M5 mesh 2-nó (0081 A/B) |
+| [SKILL_TRUST_AND_SELECTION.md](SKILL_TRUST_AND_SELECTION.md) | Requisitos de segurança/qualidade das skills wasm e escolha pelo Hermes |
 | [SKYNET_DISTRIBUTED_PLAN.md](SKYNET_DISTRIBUTED_PLAN.md) | Plano da frota distribu?da (M6-M10): identidade, Noise, jobs, CRDT, wasmi, segurança |
 
 ## Honesty e remigração

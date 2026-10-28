@@ -101,6 +101,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M8 estado**: CRDT (LWW+VV) sobre o link assinado do M7 (`kind=2`);
   `crdt.put/get/sync`; `mesh-2vm-crdt` PASS. Anti-entropy = estado completo
   (sem delta/Merkle), em claro, sem persistencia nsgdb.
+- **Skills trust**: requisito registado (`docs/SKILL_TRUST_AND_SELECTION.md`):
+  BLAKE3 + manifesto assinado + allowlist + caps declaradas + scoring por foco
+  (Hermes escolhe e audita). **Nao implementado**; hoje FNV sem autoria.
 - **M9.1 SKILL_PUSH**: modulo viaja cifrado (`kind=3`) e so activa se o hash
   bater; 512 KiB/push (base64 no envelope); hash FNV, sem gossip/revogacao.
 - **M8.1 delta**: `crdt.sync` = pull por VV + push do delta (2 trocas cifradas).
