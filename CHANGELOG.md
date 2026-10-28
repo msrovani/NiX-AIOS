@@ -22,13 +22,9 @@ Versionamento [SemVer](https://semver.org/).
 ## [0.6.0-alpha.9] — 2026-10-27 (Frota: identidade→skills)
 ### Docs (memoria)
 
-- Li??es da sess?o (systemd, Wayland, tokio/EPIPE, Nix, seguran?a e ambiente)
-  em `docs/memory/SESSION_FLEET_M6_M9.md`.
+- Licoes da sessao (systemd, Wayland, tokio/EPIPE, Nix, seguranca e
+  ambiente) em `docs/memory/SESSION_FLEET_M6_M9.md`.
 
-
-Release de consolidação: M6, M6.1, M7, M8, M8.1, M8.1b/c/e, M9, M9.1,
-S1, S2a, S2b. ISO SHA-256 `ff1f3f53d675ce4639d32ddd26f6a39563bf30302c839c2aaf76ac20a1a86a1b`, gate MQEMU PASS.
-Residuais: `docs/RELEASE_0.6.0-alpha.9.md`.
 
 ## [Unreleased] — frota (M6/M7)
 ### Security (S2b)

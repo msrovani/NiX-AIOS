@@ -40,31 +40,30 @@ scripts/                 build/smoke/gate/metal
 docs/                    arquitetura, API, segurança, ADRs, ledger, plano
 ```
 
-## Li??es que j? custaram caro (ler antes de mexer)
+## Licoes que ja custaram caro (ler antes de mexer)
 
-Resumo execut?vel; detalhe em
+Resumo executavel; detalhe em
 [`docs/memory/SESSION_FLEET_M6_M9.md`](docs/memory/SESSION_FLEET_M6_M9.md).
 
-1. Flake usa a **?rvore git**: `git add` antes de `nix build` (ficheiros novos).
-2. `path` e `StartLimit*` s?o atributos do **unit**, nunca de `serviceConfig`
-   (o systemd ignora em sil?ncio).
+1. Flake usa a **arvore git**: `git add` antes de `nix build` (ficheiros novos).
+2. `path` e `StartLimit*` sao atributos do **unit**, nunca de `serviceConfig`
+   (o systemd ignora em silencio).
 3. Unit com shebang `#!/usr/bin/env bash` precisa de `bash` no `path`.
-4. Servi?o que corre como `nosd` **n?o** pode `systemctl start` (polkit):
+4. Servico que corre como `nosd` **nao** pode `systemctl start` (polkit):
    usar `.path`/ficheiro gatilho, e nunca reiniciar o daemon que serve o pedido.
-5. `/run/user` ? tmpfs do logind e esconde o que l? foi criado: usar
-   `/run/<servi?o>/user`.
-6. cage/wlroots s? faz page-flip na VT activa: `chvt` no `ExecStartPre`; e
-   `WAYLAND_DISPLAY` s? no filho (no cage = modo aninhado).
-7. `println!` em p?nico com EPIPE: tratar `BrokenPipe` (grep -q/head).
+5. `/run/user` e tmpfs do logind e esconde o que la foi criado: usar
+   `/run/<servico>/user`.
+6. cage/wlroots so faz page-flip na VT activa: `chvt` no `ExecStartPre`; e
+   `WAYLAND_DISPLAY` so no filho (no cage = modo aninhado).
+7. `println!` em panico com EPIPE: tratar `BrokenPipe` (grep -q/head).
 8. `#[tokio::main]` + `block_on` = panic: UI (Slint) fora do runtime.
-9. Com identidade, o id do n? **deriva** da chave (sen?o o pinning recusa).
+9. Com identidade, o id do no **deriva** da chave (senao o pinning recusa).
 10. `cargoExtraArgs` foi removido no nixpkgs 26.11 (silencioso): usar
     `cargoBuildFlags`.
 11. Guardar artefactos no repo (`docs/evidence/`): `%TEMP%` e `C:\DEV\_logs`
     podem ser limpos.
-12. Comandos com `|`/aspas via PowerShell?`bash -lc` quebram: usar script.
+12. Comandos com `|`/aspas via PowerShell -> `bash -lc` quebram: usar script.
 
-## Comandos
 ## Comandos
 
 ```bash
