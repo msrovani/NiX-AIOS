@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.10";
+            version = "0.6.0-alpha.11";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".

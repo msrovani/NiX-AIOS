@@ -249,6 +249,15 @@ os peers recusarem o no reiniciado como Replay -> base epoch ms + teste
 assertion failures). Residual: 3 VMs num host, sem TTL de peers, netem limitado,
 HB em claro e metal. Evidencia: `docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`.
 
+**0.6.0-alpha.11 release (2026-10-27):** frota 3-VM com falhas
+(`mesh-3vm-faults`) e correcao dos dois bugs que o check encontrou (VV do CRDT
+por chave -> global por peer; seq do HB -> base epoch ms, sobrevive a restart).
+ISO `NIXAIOS051` reconstruida (sha256 `4a6f2957...`), gate `MQEMU` PASS.
+Residual: CI no GitHub sem
+primeira execucao externa, 3 VMs num host, sem TTL de peers, netem limitado, HB
+em claro e metal. Evidencia: `docs/RELEASE_0.6.0-alpha.11.md`,
+`docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

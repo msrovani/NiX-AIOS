@@ -18,6 +18,20 @@ Versionamento [SemVer](https://semver.org/).
 - **HB depois de restart:** o `seq` passa a ter base em epoch ms; o no
   reiniciado deixa de ser recusado como replay pelos peers.
 
+## [0.6.0-alpha.11] — 2026-10-27 (Frota 3-VM com falhas)
+
+### Added
+
+- **`mesh-3vm-faults`:** 3 VMs com latencia (netem), perda total, `kill -9`
+  (replay `NSGC`) e particao de link; CI e espelho local passam a 6 checks.
+
+### Fixed
+
+- **CRDT delta:** VV com contador global por peer; a 2a chave do mesmo no
+  deixa de ficar fora do `crdt.sync`.
+- **HB pos-restart:** `seq` com base em epoch ms; o no reiniciado deixa de ser
+  recusado como replay.
+
 ## [0.6.0-alpha.10] — 2026-10-27 (S2c + M8.1d em nsgdb)
 
 ### Security
@@ -43,8 +57,13 @@ Versionamento [SemVer](https://semver.org/).
 
 ### Tests
 
-- `mesh-2vm-crdt` com `NSGC` nos dois nos; `mesh-2vm-skills` com a cadeia
-  assinada completa (assinar, push, `provenance=signed`, revogar, recusar).
+- `mesh-3vm-faults`: 3 VMs com netem/perda/kill/particao, PASS; `mesh-2vm-crdt`
+  com `NSGC`; `mesh-2vm-skills` com a cadeia assinada completa.
+
+### Known issues
+
+- firstboot offline acrescenta `--no-download` duas vezes: o passo `transmute`
+  falha com `exit=2` e a imagem cai para a GUI. Correcao em alpha.12.
 
 ## [0.6.0-alpha.8] — 2026-10-27 (S-04 fechado: HITL só por grant)
 
