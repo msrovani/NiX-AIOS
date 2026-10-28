@@ -299,13 +299,20 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
             };
             let pinned = state.mesh.pinned();
             let n = name.clone();
+            let meta = state
+                .mesh
+                .crdt_get(&format!("skill/{name}/meta"))
+                .and_then(|e| serde_json::from_str::<serde_json::Value>(&e.value).ok());
+            use base64::Engine as _;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            let extra = crate::rpc::skills::push_payload(meta.as_ref(), &name, &hash, &b64);
             let join = std::thread::spawn(move || {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
                     .map_err(|e| e.to_string())?;
                 rt.block_on(nos_mesh::job::submit_skill(
-                    &addr, &identity, &pinned, &n, &bytes, 30_000,
+                    &addr, &identity, &pinned, &n, &bytes, 30_000, &extra,
                 ))
             });
             match join.join() {

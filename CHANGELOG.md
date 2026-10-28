@@ -27,6 +27,11 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Security (S2c)
+
+- **Push assinado:** o emissor reencaminha `publisher`/`sig` e o destino
+  verifica antes de gravar (inv?lida = recusado; ausente = `peer`).
+
 ### Changed (S2c)
 
 - **Assinatura persistida:** o manifesto guarda `publisher`/`sig` quando o

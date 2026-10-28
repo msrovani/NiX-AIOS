@@ -286,15 +286,41 @@ async fn main() -> anyhow::Result<()> {
                 let skill: nos_mesh::job::SkillHook = std::sync::Arc::new(move |payload: &str| {
                     let v: serde_json::Value =
                         serde_json::from_str(payload).map_err(|e| e.to_string())?;
+                    // S2c: push assinado. Verificar ANTES de gravar; assinatura
+                    // invalida recusa (nao cai para "peer").
                     let name = v["name"].as_str().ok_or("push sem name")?;
                     let hash = v["hash"].as_str().ok_or("push sem hash")?;
                     let b64 = v["wasm_b64"].as_str().ok_or("push sem wasm_b64")?;
                     let bytes =
                         base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
                             .map_err(|e| format!("base64: {e}"))?;
+                    let focus = v["focus"].as_str().unwrap_or("");
+                    let version = v["version"].as_str().unwrap_or("");
+                    let provenance = if v.get("publisher").is_some() && v.get("sig").is_some() {
+                        nosd_lib::rpc::skills::verify_publisher(
+                            name,
+                            if focus.is_empty() { name } else { focus },
+                            if version.is_empty() { "0.1.0" } else { version },
+                            hash,
+                            v["publisher"].as_str(),
+                            v["sig"].as_str(),
+                        )
+                        .map_err(|e| format!("publisher: {e}"))?
+                    } else {
+                        "peer"
+                    };
                     let (cid, n) =
                         nosd_lib::rpc::skills::install_bytes(&st3, name, &bytes, Some(hash))?;
-                    nosd_lib::rpc::skills::put_meta(&st3, name, "", "", &cid, n, "peer", &[]);
+                    nosd_lib::rpc::skills::put_meta(
+                        &st3,
+                        name,
+                        focus,
+                        version,
+                        &cid,
+                        n,
+                        provenance,
+                        &[],
+                    );
                     Ok(format!("{cid}:{n}"))
                 });
                 tokio::spawn(async move {

@@ -168,6 +168,14 @@ destino podera verificar autoria em vez de marcar so `peer`). Prova:
 push, revogacao e downgrade HITL. Evidencia:
 `docs/evidence/S2C_SKILL_AUTH_IN_META_0.6.0-alpha.9.md`.
 
+**S2c push assinado (2026-10-27):** o emissor inclui focus/version/publisher/sig
+no payload (`push_payload`) e o destino verifica com `verify_publisher` ANTES de
+gravar: valida = `provenance=signed`, invalida = push recusado, ausente = `peer`.
+Prova: `push_payload_carries_authorship` (payload) + `signed_manifest_is_accepted
+_and_tamper_rejected` (verificador). **Sem teste e2e da ligacao** (nao ha
+assinatura no check de VM). Falta: revogacao e downgrade HITL. Evidencia:
+`docs/evidence/S2C_SIGNED_PUSH_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

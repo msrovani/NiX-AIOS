@@ -147,6 +147,26 @@ pub fn meta_with_auth(
     meta
 }
 
+/// S2c: payload de push com autoria (se o manifesto a tiver).
+pub fn push_payload(
+    meta: Option<&serde_json::Value>,
+    name: &str,
+    hash: &str,
+    wasm_b64: &str,
+) -> serde_json::Value {
+    let mut v = json!({ "name": name, "hash": hash, "wasm_b64": wasm_b64 });
+    if let Some(m) = meta {
+        for k in ["focus", "version", "publisher", "sig"] {
+            if let Some(x) = m.get(k).and_then(|v| v.as_str()) {
+                if !x.is_empty() {
+                    v[k] = json!(x);
+                }
+            }
+        }
+    }
+    v
+}
+
 fn ver_key(v: &str) -> (u32, u32, u32) {
     let mut it = v.split('.').map(|p| p.parse::<u32>().unwrap_or(0));
     (
@@ -634,5 +654,24 @@ mod s2c_tests {
         let m2 = meta_with_auth(meta, None, None);
         assert!(m2.get("publisher").is_none());
         assert!(m2.get("sig").is_none());
+    }
+}
+
+#[cfg(test)]
+mod s2c_push_tests {
+    use super::*;
+
+    #[test]
+    fn push_payload_carries_authorship() {
+        let meta = json!({ "focus": "sum", "version": "2.0.0", "publisher": "ab", "sig": "c2ln" });
+        let p = push_payload(Some(&meta), "sum", "hash", "d2FzbQ==");
+        assert_eq!(p["publisher"], "ab");
+        assert_eq!(p["sig"], "c2ln");
+        assert_eq!(p["focus"], "sum");
+        assert_eq!(p["version"], "2.0.0");
+        // Sem manifesto, o payload nao inventa autoria.
+        let q = push_payload(None, "x", "hash", "d2FzbQ==");
+        assert!(q.get("publisher").is_none());
+        assert!(q.get("sig").is_none());
     }
 }

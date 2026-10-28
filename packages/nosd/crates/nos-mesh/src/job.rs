@@ -274,6 +274,7 @@ pub async fn submit_skill(
     name: &str,
     bytes: &[u8],
     deadline_ms: u64,
+    extra: &serde_json::Value,
 ) -> Result<JobResult, String> {
     use base64::Engine as _;
     let hash = crate::content_hash(bytes);
@@ -281,11 +282,16 @@ pub async fn submit_skill(
     if bytes.len() > 512 * 1024 {
         return Err("modulo acima de 512 KiB para push".into());
     }
-    let payload = serde_json::json!({
+    let mut payload = serde_json::json!({
         "name": name,
         "hash": hash,
         "wasm_b64": base64::engine::general_purpose::STANDARD.encode(bytes),
     });
+    if let Some(obj) = extra.as_object() {
+        for (k, v) in obj {
+            payload[k] = v.clone();
+        }
+    }
     submit_kind(
         addr,
         identity,
