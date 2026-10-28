@@ -108,6 +108,12 @@ compactacao so no arranque (falta periodica), sem fsync do diretorio, continua
 JSONL (nao nsgdb) e log nao autenticado. Evidencia:
 `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`.
 
+**M8.1c fecho (2026-10-27):** compactacao em runtime (`crdt_maybe_compact()`
+a cada 60 ticks, contador em `CrdtLog`) e `fsync` do diretorio apos o rename.
+Teste `crdt_log_compacts_at_runtime` (100 puts -> compacta -> put -> reopen com
+k=v99 e k2=x). Ficam em aberto: nsgdb como backend (M8.1d) e autenticacao do log
+em repouso. Evidencia: `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

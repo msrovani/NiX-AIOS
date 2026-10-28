@@ -445,6 +445,14 @@ async fn hermes_runtime_loop(
                 }),
             );
         }
+        // M8.1c: compacta??o peri?dica do log CRDT (runtime).
+        if n.is_multiple_of(60) {
+            match state.mesh.crdt_maybe_compact() {
+                Ok(true) => tracing::info!(target: "nosd", "crdt log compactado tick={n}"),
+                Ok(false) => {}
+                Err(e) => tracing::warn!(target: "nosd", "crdt compact: {e}"),
+            }
+        }
         if let Some(ref u) = mesh_udp {
             state.hermes.tick_mesh_hints(&state.mesh, n);
             u.tick_tx().await;

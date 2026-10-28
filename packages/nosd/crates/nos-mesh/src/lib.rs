@@ -82,6 +82,59 @@ pub struct PeerInfo {
     pub role: PeerRole,
 }
 
+/// M8.1c: log do CRDT com append barato e compacta??o (runtime).
+pub struct CrdtLog {
+    path: std::path::PathBuf,
+    file: Mutex<std::fs::File>,
+    lines: std::sync::atomic::AtomicUsize,
+}
+
+impl CrdtLog {
+    fn append(&self, entries: &[CrdtEntry]) {
+        use std::io::Write;
+        let mut g = self.file.lock();
+        let mut n = 0usize;
+        for e in entries {
+            if let Ok(l) = serde_json::to_string(e) {
+                if writeln!(g, "{l}").is_ok() {
+                    n += 1;
+                }
+            }
+        }
+        let _ = g.flush();
+        self.lines
+            .fetch_add(n, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn compact(&self, store: &CrdtStore) -> std::io::Result<()> {
+        use std::io::Write;
+        let tmp = self.path.with_extension("jsonl.tmp");
+        {
+            let mut f = std::fs::File::create(&tmp)?;
+            for e in store.entries.values() {
+                if let Ok(l) = serde_json::to_string(e) {
+                    writeln!(f, "{l}")?;
+                }
+            }
+            f.sync_all()?;
+        }
+        std::fs::rename(&tmp, &self.path)?;
+        // fsync do diret?rio: garante que o rename sobrevive ao crash.
+        if let Some(dir) = self.path.parent() {
+            if let Ok(d) = std::fs::File::open(dir) {
+                let _ = d.sync_all();
+            }
+        }
+        *self.file.lock() = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        self.lines
+            .store(store.entries.len(), std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 pub struct MeshEngine {
     peers: Arc<Mutex<HashMap<u32, PeerInfo>>>,
@@ -110,8 +163,8 @@ pub struct MeshEngine {
     pinned: Arc<ident::Pinned>,
     /// M6: contador de HB local.
     hb_seq: Arc<std::sync::atomic::AtomicU64>,
-    /// M8.1b: log append-only do CRDT (durabilidade; JSONL).
-    crdt_log: Option<Arc<Mutex<std::fs::File>>>,
+    /// M8.1b/c: log append-only + compacta??o (JSONL).
+    crdt_log: Option<Arc<CrdtLog>>,
 }
 
 impl Default for MeshEngine {
@@ -194,43 +247,44 @@ impl MeshEngine {
             }
         }
         let replayed = store.entries.len();
-        if lines > CRDT_COMPACT_LINES {
-            use std::io::Write;
-            let tmp = path.with_extension("jsonl.tmp");
-            let mut f = std::fs::File::create(&tmp)?;
-            for e in store.entries.values() {
-                if let Ok(l) = serde_json::to_string(e) {
-                    writeln!(f, "{l}")?;
-                }
-            }
-            f.sync_all()?;
-            drop(f);
-            std::fs::rename(&tmp, path)?;
-            info!(
-                target: "nosd",
-                "crdt log compactado lines={lines} entries={replayed}"
-            );
-        }
         drop(store);
         let f = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(path)?;
-        self.crdt_log = Some(Arc::new(Mutex::new(f)));
+        let log = Arc::new(CrdtLog {
+            path: path.to_path_buf(),
+            file: Mutex::new(f),
+            lines: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let store = self.crdt.lock().clone();
+        if lines > CRDT_COMPACT_LINES {
+            log.compact(&store)?;
+        } else {
+            log.lines.store(lines, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.crdt_log = Some(log);
         info!(target: "nosd", "crdt log {:?} replayed={replayed}", path);
         Ok(self)
     }
 
     fn log_entries(&self, entries: &[CrdtEntry]) {
-        let Some(ref log) = self.crdt_log else { return };
-        use std::io::Write;
-        let mut g = log.lock();
-        for e in entries {
-            if let Ok(line) = serde_json::to_string(e) {
-                let _ = writeln!(g, "{line}");
-            }
+        if let Some(ref log) = self.crdt_log {
+            log.append(entries);
         }
-        let _ = g.flush();
+    }
+
+    /// M8.1c: compacta em runtime se o log passou do limite (chamada peri?dica).
+    pub fn crdt_maybe_compact(&self) -> std::io::Result<bool> {
+        let Some(ref log) = self.crdt_log else {
+            return Ok(false);
+        };
+        if log.lines.load(std::sync::atomic::Ordering::Relaxed) <= CRDT_COMPACT_LINES {
+            return Ok(false);
+        }
+        let store = self.crdt.lock().clone();
+        log.compact(&store)?;
+        Ok(true)
     }
 
     pub fn identity_id(&self) -> Option<u32> {
@@ -1012,6 +1066,26 @@ mod tests {
         assert_eq!(m2.crdt_get("k").map(|e| e.value), Some("v99".to_string()));
         let after = std::fs::read_to_string(&path).unwrap().lines().count();
         assert!(after <= 2, "log devia ficar compacto: {after}");
+    }
+
+    #[test]
+    fn crdt_log_compacts_at_runtime() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("crdt.jsonl");
+        let m = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+        for i in 0..100u64 {
+            m.crdt_put(1, "k", &format!("v{i}"), i);
+        }
+        assert!(m.crdt_maybe_compact().unwrap(), "devia compactar");
+        let lines = std::fs::read_to_string(&path).unwrap().lines().count();
+        assert!(lines <= 2, "log apos compactacao: {lines}");
+        // Escrever depois da compactacao continua a funcionar.
+        m.crdt_put(1, "k2", "x", 200);
+        assert!(!m.crdt_maybe_compact().unwrap(), "ja compactado");
+        let m2 = MeshEngine::new(1).with_crdt_log(&path).unwrap();
+        assert_eq!(m2.crdt_len(), 2, "k e k2");
+        assert_eq!(m2.crdt_get("k").map(|e| e.value), Some("v99".to_string()));
+        assert_eq!(m2.crdt_get("k2").map(|e| e.value), Some("x".to_string()));
     }
 
     #[test]
