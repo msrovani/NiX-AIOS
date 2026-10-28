@@ -6,7 +6,7 @@ use clap::Parser;
 use nos_core::{NosScore, Sev};
 use nos_cortex::CapacityProber;
 use nos_hermes::{BootConfig, HermesEngine};
-use nos_mesh::MeshEngine;
+use nos_mesh::{CrdtLogFormat, MeshEngine};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -197,8 +197,37 @@ async fn main() -> anyhow::Result<()> {
         Some(id) => MeshEngine::with_identity(args.node_id, Default::default(), id),
         None => MeshEngine::new(args.node_id),
     };
-    // M8.1b: durabilidade do estado. Falha aqui = nao arrancar (fail-closed).
-    let mesh = mesh.with_crdt_log(&args.data_dir.join("crdt.jsonl"))?;
+    // M8.1b/M8.1d: durabilidade do estado. `NOSD_CRDT_BACKEND=nsgdb` (default)
+    // grava um segmento length-prefixed `nsgdb/crdt/seg.bin`; `jsonl` mantem o
+    // formato legado. Falha aqui = nao arrancar (fail-closed).
+    let crdt_fmt = CrdtLogFormat::parse(
+        &std::env::var("NOSD_CRDT_BACKEND").unwrap_or_else(|_| "nsgdb".into()),
+    );
+    let crdt_path = match crdt_fmt {
+        CrdtLogFormat::Nsgdb => args.data_dir.join("nsgdb").join("crdt").join("seg.bin"),
+        CrdtLogFormat::Jsonl => args.data_dir.join("crdt.jsonl"),
+    };
+    let legacy_jsonl = args.data_dir.join("crdt.jsonl");
+    let mesh = if crdt_fmt == CrdtLogFormat::Nsgdb && !crdt_path.exists() && legacy_jsonl.exists() {
+        // M8.1d: migra o log jsonl existente (uma vez) para o segmento nsgdb.
+        // O estado e o mesmo; o log novo nasce com uma entrada por chave.
+        let mesh = mesh.with_crdt_log(&legacy_jsonl)?;
+        let mesh = mesh.with_crdt_log_fmt(&crdt_path, crdt_fmt)?;
+        mesh.crdt_rewrite_log()?;
+        let _ = std::fs::rename(&legacy_jsonl, legacy_jsonl.with_extension("jsonl.migrated"));
+        let old_anchor = legacy_jsonl.with_extension("anchor");
+        if old_anchor.exists() {
+            let _ = std::fs::rename(&old_anchor, legacy_jsonl.with_extension("anchor.migrated"));
+        }
+        info!(
+            target: "nosd",
+            "crdt log migrado jsonl -> nsgdb ({} entradas)",
+            mesh.crdt_len()
+        );
+        mesh
+    } else {
+        mesh.with_crdt_log_fmt(&crdt_path, crdt_fmt)?
+    };
 
     let score = NosScore {
         phase: "ready".into(),

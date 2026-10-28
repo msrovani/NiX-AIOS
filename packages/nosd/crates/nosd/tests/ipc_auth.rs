@@ -44,7 +44,13 @@ fn free_port() -> u16 {
         .port()
 }
 
-fn spawn_nosd_to(dir: &std::path::Path, port: u16, token: &str, stderr: Stdio) -> Child {
+fn spawn_nosd_env(
+    dir: &std::path::Path,
+    port: u16,
+    token: &str,
+    stderr: Stdio,
+    envs: &[(&str, &str)],
+) -> Child {
     let args = vec![
         "--foreground".to_string(),
         "--tcp".to_string(),
@@ -58,14 +64,20 @@ fn spawn_nosd_to(dir: &std::path::Path, port: u16, token: &str, stderr: Stdio) -
         "--ipc-token".to_string(),
         token.to_string(),
     ];
-    Command::new(env!("CARGO_BIN_EXE_nosd"))
-        .args(&args)
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nosd"));
+    cmd.args(&args)
         .env_remove("NOSD_NIX_RING")
         .env_remove("NOSD_LANDLOCK")
         .stdout(Stdio::null())
-        .stderr(stderr)
-        .spawn()
-        .expect("spawn nosd")
+        .stderr(stderr);
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    cmd.spawn().expect("spawn nosd")
+}
+
+fn spawn_nosd_to(dir: &std::path::Path, port: u16, token: &str, stderr: Stdio) -> Child {
+    spawn_nosd_env(dir, port, token, stderr, &[])
 }
 
 fn spawn_nosd(dir: &std::path::Path, port: u16, token: &str) -> Child {
@@ -806,7 +818,9 @@ fn crdt_rollback_refuses_start() {
     let dir = tempfile::tempdir().unwrap();
     let token = "test-token-0123456789abcdef";
     let port = free_port();
-    let mut child = spawn_nosd(dir.path(), port, token);
+    // Formato legado explicito: este teste cobre o caminho jsonl + ancora.
+    let jsonl: &[(&str, &str)] = &[("NOSD_CRDT_BACKEND", "jsonl")];
+    let mut child = spawn_nosd_env(dir.path(), port, token, Stdio::null(), jsonl);
     wait_listen(&mut child, port);
     // >32 linhas: o checkpoint periodico da ancora corre durante o uso.
     for i in 0..40u64 {
@@ -843,7 +857,7 @@ fn crdt_rollback_refuses_start() {
     // vai para ficheiro para o teste provar a razao da recusa, nao so o exit.
     let err = dir.path().join("start.err");
     let f = std::fs::File::create(&err).unwrap();
-    let mut child = spawn_nosd_to(dir.path(), free_port(), token, Stdio::from(f));
+    let mut child = spawn_nosd_env(dir.path(), free_port(), token, Stdio::from(f), jsonl);
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         if let Some(status) = child.try_wait().unwrap() {
@@ -859,4 +873,67 @@ fn crdt_rollback_refuses_start() {
         }
         std::thread::sleep(Duration::from_millis(50));
     }
+}
+
+/// M8.1d: com o backend nsgdb (default) e um `crdt.jsonl` legado, o daemon
+/// migra o estado uma vez e passa a usar o segmento length-prefixed.
+#[test]
+fn crdt_backend_migrates_jsonl_to_nsgdb() {
+    let _serial = serial();
+    let dir = tempfile::tempdir().unwrap();
+    let token = "test-token-0123456789abcdef";
+
+    // 1) Formato legado: deixa estado em crdt.jsonl.
+    let port = free_port();
+    let mut child = spawn_nosd_env(
+        dir.path(),
+        port,
+        token,
+        Stdio::null(),
+        &[("NOSD_CRDT_BACKEND", "jsonl")],
+    );
+    wait_listen(&mut child, port);
+    for i in 0..5u64 {
+        let r = send_rpc(
+            port,
+            &json!({
+                "id": i + 1,
+                "method": "crdt.put",
+                "cap_gen": 1,
+                "token": token,
+                "params": { "key": format!("k{i}"), "value": format!("v{i}") },
+            }),
+        );
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(dir.path().join("crdt.jsonl").exists(), "legado por migrar");
+
+    // 2) Default (nsgdb): migra e o estado continua la.
+    let port = free_port();
+    let mut child = spawn_nosd_env(dir.path(), port, token, Stdio::null(), &[]);
+    wait_listen(&mut child, port);
+    let got = send_rpc(
+        port,
+        &json!({
+            "id": 100,
+            "method": "crdt.get",
+            "cap_gen": 1,
+            "token": token,
+            "params": { "key": "k4" },
+        }),
+    );
+    assert_eq!(got["ok"], true, "{got}");
+    assert_eq!(got["result"]["value"], "v4", "{got}");
+
+    let seg = std::fs::read(dir.path().join("nsgdb").join("crdt").join("seg.bin")).unwrap();
+    assert!(seg.starts_with(b"NSGC"), "magic do segmento nsgdb");
+    assert!(!dir.path().join("crdt.jsonl").exists(), "legado renomeado");
+    assert!(
+        dir.path().join("crdt.jsonl.migrated").exists(),
+        "backup legado"
+    );
+    let _ = child.kill();
+    let _ = child.wait();
 }

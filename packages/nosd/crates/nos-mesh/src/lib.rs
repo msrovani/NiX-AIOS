@@ -89,6 +89,34 @@ pub struct PeerInfo {
     pub role: PeerRole,
 }
 
+/// M8.1d: formato em disco do log do CRDT.
+///
+/// - `Jsonl`: `data_dir/crdt.jsonl` — linhas `json\tbase64(sig)`, legado.
+/// - `Nsgdb`: `data_dir/nsgdb/crdt/seg.bin` — segmento **length-prefixed**
+///   (`NSGC` + versao + `u32 len` + payload). Segue a honestidade do backend
+///   de memoria: e um segmento local, **nao** o motor neural-sgdb completo
+///   (sem CRDT/BQ/semantico do lado do motor).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrdtLogFormat {
+    Jsonl,
+    Nsgdb,
+}
+
+impl CrdtLogFormat {
+    pub fn parse(value: &str) -> Self {
+        match value.to_ascii_lowercase().as_str() {
+            "nsgdb" => Self::Nsgdb,
+            _ => Self::Jsonl,
+        }
+    }
+}
+
+/// M8.1d: magic do segmento CRDT (distinto de `NSGS` da memoria).
+pub const CRDT_SEG_MAGIC: [u8; 4] = *b"NSGC";
+pub const CRDT_SEG_VERSION: u32 = 1;
+/// Cap de registo: evita `vec![0; 4GiB]` com um comprimento corrompido.
+pub const CRDT_MAX_RECORD_BYTES: u32 = 16 * 1024 * 1024;
+
 /// M8.1c: log do CRDT com append barato e compacta??o (runtime).
 pub struct CrdtLog {
     path: std::path::PathBuf,
@@ -98,6 +126,8 @@ pub struct CrdtLog {
     signer: Option<ident::Identity>,
     /// M8.1d: ancora anti-rollback (`<bytes> <linhas>` ja vistos em disco).
     anchor: std::path::PathBuf,
+    /// M8.1d: `jsonl` (linhas) ou `nsgdb` (segmento length-prefixed).
+    fmt: CrdtLogFormat,
 }
 
 impl CrdtLog {
@@ -128,40 +158,113 @@ impl CrdtLog {
     }
 }
 
-/// Selo de uma entrada: `json \t base64(sig(json))`.
-fn seal_line(e: &CrdtEntry, id: &ident::Identity) -> Option<String> {
-    use base64::Engine as _;
-    let json = serde_json::to_string(e).ok()?;
-    let sig = id.sign(json.as_bytes());
-    Some(format!(
-        "{json}\t{}",
-        base64::engine::general_purpose::STANDARD.encode(sig)
-    ))
+/// Selo de um registo: `json` ou `json \t base64(sig(json))`, sem delimitador.
+fn seal_record(e: &CrdtEntry, id: Option<&ident::Identity>) -> Option<Vec<u8>> {
+    let json = serde_json::to_vec(e).ok()?;
+    match id {
+        None => Some(json),
+        Some(id) => {
+            use base64::Engine as _;
+            let sig = base64::engine::general_purpose::STANDARD.encode(id.sign(&json));
+            let mut out = json;
+            out.push(b'\t');
+            out.extend_from_slice(sig.as_bytes());
+            Some(out)
+        }
+    }
 }
 
-/// Abre uma linha. `Err(())` = linha recusada (assinatura inv?lida/ausente).
-fn open_line(line: &str, id: Option<&ident::Identity>) -> Result<Option<CrdtEntry>, ()> {
+/// Abre um registo. `Err(())` = recusado (assinatura inv?lida/ausente).
+fn open_record(rec: &[u8], id: Option<&ident::Identity>) -> Result<Option<CrdtEntry>, ()> {
     use base64::Engine as _;
-    if line.trim().is_empty() {
+    if rec.iter().all(|b| b.is_ascii_whitespace()) {
         return Ok(None);
     }
-    let (json, sig) = match line.split_once('\t') {
-        Some((j, s)) => (j, Some(s)),
-        None => (line, None),
+    let (json, sig) = match rec.iter().position(|b| *b == b'\t') {
+        Some(i) => (&rec[..i], Some(&rec[i + 1..])),
+        None => (rec, None),
     };
     if let Some(id) = id {
         let Some(sig) = sig else {
-            // Com identidade, linha sem assinatura ? recusada (fail-closed).
+            // Com identidade, registo sem assinatura ? recusado (fail-closed).
+            return Err(());
+        };
+        let Ok(sig) = std::str::from_utf8(sig) else {
             return Err(());
         };
         let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(sig) else {
             return Err(());
         };
-        if raw.len() != 64 || !crate::ident::verify(&id.public_key(), json.as_bytes(), &raw) {
+        if raw.len() != 64 || !crate::ident::verify(&id.public_key(), json, &raw) {
             return Err(());
         }
     }
-    serde_json::from_str(json).map(Some).map_err(|_| ())
+    serde_json::from_slice(json).map(Some).map_err(|_| ())
+}
+
+/// Le o log inteiro: `(bytes no disco, registos)`.
+///
+/// Um tail truncado (crash a meio de um write) e ignorado, tal como uma linha
+/// parcial no formato jsonl.
+fn read_log(path: &std::path::Path, fmt: CrdtLogFormat) -> std::io::Result<(u64, Vec<Vec<u8>>)> {
+    let raw = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((0, Vec::new())),
+        Err(e) => return Err(e),
+    };
+    let bytes = raw.len() as u64;
+    match fmt {
+        CrdtLogFormat::Jsonl => {
+            let mut out = Vec::new();
+            for line in raw.split(|b| *b == b'\n') {
+                let line = line.strip_suffix(b"\r").unwrap_or(line);
+                if line.iter().all(|b| b.is_ascii_whitespace()) {
+                    continue;
+                }
+                out.push(line.to_vec());
+            }
+            Ok((bytes, out))
+        }
+        CrdtLogFormat::Nsgdb => {
+            // Cabecalho incompleto = ficheiro novo a meio de um create: vazio.
+            if raw.len() < 8 {
+                return Ok((bytes, Vec::new()));
+            }
+            if raw[..4] != CRDT_SEG_MAGIC {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "crdt seg: magic invalido (esperado NSGC)",
+                ));
+            }
+            let ver = u32::from_le_bytes([raw[4], raw[5], raw[6], raw[7]]);
+            if ver != CRDT_SEG_VERSION {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("crdt seg: versao {ver} nao suportada"),
+                ));
+            }
+            let mut out = Vec::new();
+            let mut off = 8usize;
+            while off + 4 <= raw.len() {
+                let len = u32::from_le_bytes([raw[off], raw[off + 1], raw[off + 2], raw[off + 3]])
+                    as usize;
+                if len > CRDT_MAX_RECORD_BYTES as usize {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "crdt seg: registo acima do cap",
+                    ));
+                }
+                if off + 4 + len > raw.len() {
+                    break; // tail parcial (crash)
+                }
+                if len > 0 {
+                    out.push(raw[off + 4..off + 4 + len].to_vec());
+                }
+                off += 4 + len;
+            }
+            Ok((bytes, out))
+        }
+    }
 }
 
 impl CrdtLog {
@@ -171,14 +274,25 @@ impl CrdtLog {
         {
             let mut g = self.file.lock();
             for e in entries {
-                let line = match self.signer {
-                    Some(ref id) => seal_line(e, id),
-                    None => serde_json::to_string(e).ok(),
+                let Some(rec) = seal_record(e, self.signer.as_ref()) else {
+                    continue;
                 };
-                if let Some(l) = line {
-                    if writeln!(g, "{l}").is_ok() {
-                        n += 1;
+                let ok = match self.fmt {
+                    CrdtLogFormat::Jsonl => {
+                        let mut line = rec;
+                        line.push(b'\n');
+                        g.write_all(&line).is_ok()
                     }
+                    CrdtLogFormat::Nsgdb => match u32::try_from(rec.len()) {
+                        Ok(len) if len <= CRDT_MAX_RECORD_BYTES && len > 0 => g
+                            .write_all(&len.to_le_bytes())
+                            .and_then(|_| g.write_all(&rec))
+                            .is_ok(),
+                        _ => false,
+                    },
+                };
+                if ok {
+                    n += 1;
                 }
             }
             let _ = g.flush();
@@ -194,16 +308,35 @@ impl CrdtLog {
 
     fn compact(&self, store: &CrdtStore) -> std::io::Result<()> {
         use std::io::Write;
-        let tmp = self.path.with_extension("jsonl.tmp");
+        let tmp = match self.fmt {
+            CrdtLogFormat::Jsonl => self.path.with_extension("jsonl.tmp"),
+            CrdtLogFormat::Nsgdb => self.path.with_extension("bin.tmp"),
+        };
         {
             let mut f = std::fs::File::create(&tmp)?;
+            if self.fmt == CrdtLogFormat::Nsgdb {
+                f.write_all(&CRDT_SEG_MAGIC)?;
+                f.write_all(&CRDT_SEG_VERSION.to_le_bytes())?;
+            }
             for e in store.entries.values() {
-                let line = match self.signer {
-                    Some(ref id) => seal_line(e, id),
-                    None => serde_json::to_string(e).ok(),
+                let Some(rec) = seal_record(e, self.signer.as_ref()) else {
+                    continue;
                 };
-                if let Some(l) = line {
-                    writeln!(f, "{l}")?;
+                match self.fmt {
+                    CrdtLogFormat::Jsonl => {
+                        f.write_all(&rec)?;
+                        f.write_all(b"\n")?;
+                    }
+                    CrdtLogFormat::Nsgdb => {
+                        let len = u32::try_from(rec.len()).map_err(|_| {
+                            std::io::Error::new(
+                                std::io::ErrorKind::InvalidInput,
+                                "crdt seg: registo acima de 4 GiB",
+                            )
+                        })?;
+                        f.write_all(&len.to_le_bytes())?;
+                        f.write_all(&rec)?;
+                    }
                 }
             }
             f.sync_all()?;
@@ -319,19 +452,30 @@ impl MeshEngine {
         m
     }
 
-    /// M8.1b/c: replay do log, compacta??o (snapshot + truncate) e append.
+    /// M8.1b/c: replay do log (jsonl), compacta??o (snapshot + truncate) e
+    /// append. Mantem o formato legado; para o segmento nsgdb usar
+    /// [`Self::with_crdt_log_fmt`].
+    pub fn with_crdt_log(self, path: &std::path::Path) -> std::io::Result<Self> {
+        self.with_crdt_log_fmt(path, CrdtLogFormat::Jsonl)
+    }
+
+    /// M8.1b/c/d: replay, compacta??o e append num formato explicito.
     ///
-    /// - Linhas inv?lidas (crash a meio de um `write`) s?o ignoradas.
-    /// - Acima de `CRDT_COMPACT_LINES`, o log ? reescrito com uma linha por
+    /// - Registos inv?lidos (crash a meio de um `write`) s?o ignorados.
+    /// - Acima de `CRDT_COMPACT_LINES`, o log ? reescrito com um registo por
     ///   entrada antes de reabrir (evita replay O(ops) para sempre).
-    pub fn with_crdt_log(mut self, path: &std::path::Path) -> std::io::Result<Self> {
+    /// - `Nsgdb` grava um segmento `NSGC` length-prefixed em vez de JSONL.
+    pub fn with_crdt_log_fmt(
+        mut self,
+        path: &std::path::Path,
+        fmt: CrdtLogFormat,
+    ) -> std::io::Result<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
         let anchor = path.with_extension("anchor");
-        let text = std::fs::read_to_string(path).ok();
-        let file_lines = text.as_ref().map(|t| t.lines().count() as u64).unwrap_or(0);
-        let file_bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        let (file_bytes, records) = read_log(path, fmt)?;
+        let file_lines = records.len() as u64;
         // M8.1d: rollback = log mais pequeno (bytes ou linhas) do que a ancora.
         // A ancora e actualizada ao abrir, ao compactar e a cada
         // CRDT_ANCHOR_EVERY linhas; um log que so cresce nunca acusa.
@@ -378,14 +522,12 @@ impl MeshEngine {
         let mut lines = 0usize;
         let mut rejected = 0usize;
         let signer = self.ident.clone();
-        if let Some(text) = text {
-            for line in text.lines() {
-                lines += 1;
-                match open_line(line, signer.as_ref()) {
-                    Ok(Some(e)) => store.merge_entry(e),
-                    Ok(None) => {}
-                    Err(()) => rejected += 1,
-                }
+        for rec in &records {
+            lines += 1;
+            match open_record(rec, signer.as_ref()) {
+                Ok(Some(e)) => store.merge_entry(e),
+                Ok(None) => {}
+                Err(()) => rejected += 1,
             }
         }
         if rejected > 0 {
@@ -396,6 +538,14 @@ impl MeshEngine {
         }
         let replayed = store.entries.len();
         drop(store);
+        if fmt == CrdtLogFormat::Nsgdb && file_bytes < 8 {
+            // Ficheiro novo (ou cabecalho incompleto): cria o segmento.
+            use std::io::Write;
+            let mut f = std::fs::File::create(path)?;
+            f.write_all(&CRDT_SEG_MAGIC)?;
+            f.write_all(&CRDT_SEG_VERSION.to_le_bytes())?;
+            f.sync_all()?;
+        }
         let f = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -406,6 +556,7 @@ impl MeshEngine {
             lines: std::sync::atomic::AtomicUsize::new(0),
             signer,
             anchor,
+            fmt,
         });
         let store = self.crdt.lock().clone();
         if lines > CRDT_COMPACT_LINES {
@@ -416,7 +567,12 @@ impl MeshEngine {
         // M8.1d: a ancora passa a reflectir o estado em disco (replay/compact).
         let _ = log.write_anchor();
         self.crdt_log = Some(log);
-        info!(target: "nosd", "crdt log {:?} replayed={replayed}", path);
+        info!(
+            target: "nosd",
+            "crdt log {:?} fmt={:?} replayed={replayed}",
+            path,
+            fmt
+        );
         Ok(self)
     }
 
@@ -437,6 +593,20 @@ impl MeshEngine {
         let store = self.crdt.lock().clone();
         log.compact(&store)?;
         Ok(true)
+    }
+
+    /// M8.1d: reescreve o log a partir do estado em memoria (compacta??o
+    /// for?ada). Usado pela migra??o jsonl -> nsgdb: o motor j? tem o estado
+    /// replicado e o log novo nasce com uma entrada por chave.
+    pub fn crdt_rewrite_log(&self) -> std::io::Result<()> {
+        let Some(ref log) = self.crdt_log else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "sem log crdt para reescrever",
+            ));
+        };
+        let store = self.crdt.lock().clone();
+        log.compact(&store)
     }
 
     pub fn identity_id(&self) -> Option<u32> {
@@ -1321,6 +1491,117 @@ mod tests {
         let m = MeshEngine::new(1).with_crdt_log(&path).unwrap();
         assert_eq!(m.crdt_len(), 1);
         assert_eq!(m.crdt_get("k").map(|e| e.value), Some("v69".into()));
+    }
+
+    #[test]
+    fn crdt_log_nsgdb_roundtrip_not_jsonl() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nsgdb").join("crdt").join("seg.bin");
+        {
+            let m = MeshEngine::new(1)
+                .with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb)
+                .unwrap();
+            m.crdt_put(1, "k", "v", 0);
+            m.crdt_put(1, "k2", "v2", 1);
+        }
+        let raw = std::fs::read(&path).unwrap();
+        assert!(raw.starts_with(&CRDT_SEG_MAGIC), "magic NSGC");
+        assert!(!raw.windows(2).any(|w| w == b"\n{"), "segmento nao e JSONL");
+        let m2 = MeshEngine::new(1)
+            .with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb)
+            .unwrap();
+        assert_eq!(m2.crdt_len(), 2);
+        assert_eq!(m2.crdt_get("k2").map(|e| e.value), Some("v2".into()));
+    }
+
+    #[test]
+    fn crdt_log_nsgdb_detects_rollback() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nsgdb").join("crdt").join("seg.bin");
+        {
+            let m = MeshEngine::new(1)
+                .with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb)
+                .unwrap();
+            for i in 0..40u64 {
+                m.crdt_put(1, &format!("k{i}"), "v", i);
+            }
+        }
+        let anchor = std::fs::read_to_string(path.with_extension("anchor")).unwrap();
+        assert_eq!(anchor.split_whitespace().count(), 2, "ancora: {anchor}");
+        let raw = std::fs::read(&path).unwrap();
+        // Repor so o cabecalho: 0 registos < 32 da ancora -> rollback.
+        std::fs::write(&path, &raw[..16]).unwrap();
+        let r = MeshEngine::new(1).with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb);
+        assert!(r.is_err(), "rollback devia ser detetado");
+        assert!(format!("{:?}", r.err().unwrap()).contains("rollback"));
+    }
+
+    #[test]
+    fn crdt_log_nsgdb_rejects_tampered_record() {
+        use crate::ident::Identity;
+        use std::collections::HashSet;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nsgdb").join("crdt").join("seg.bin");
+        let id = Identity::from_seed([78u8; 32], HashSet::new(), true);
+        {
+            let m = MeshEngine::with_identity(1, CapacityScore::default(), id.clone())
+                .with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb)
+                .unwrap();
+            m.crdt_put(1, "k", "genuino", 0);
+        }
+        {
+            use base64::Engine as _;
+            use std::io::Write;
+            let forged = serde_json::json!({
+                "key": "k", "value": "malicioso", "vv": {"1": 99}, "writer": 1, "tick": 99
+            });
+            let mut rec = serde_json::to_vec(&forged).unwrap();
+            rec.push(b'\t');
+            rec.extend_from_slice(
+                base64::engine::general_purpose::STANDARD
+                    .encode([0u8; 64])
+                    .as_bytes(),
+            );
+            let mut f = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&path)
+                .unwrap();
+            f.write_all(&(rec.len() as u32).to_le_bytes()).unwrap();
+            f.write_all(&rec).unwrap();
+        }
+        let m2 = MeshEngine::with_identity(1, CapacityScore::default(), id)
+            .with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb)
+            .unwrap();
+        assert_eq!(
+            m2.crdt_get("k").map(|e| e.value),
+            Some("genuino".to_string()),
+            "registo adulterado nao pode substituir o genuino"
+        );
+    }
+
+    #[test]
+    fn crdt_log_nsgdb_compacts() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nsgdb").join("crdt").join("seg.bin");
+        {
+            let m = MeshEngine::new(1)
+                .with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb)
+                .unwrap();
+            for i in 0..70u64 {
+                m.crdt_put(1, "k", &format!("v{i}"), i);
+            }
+        }
+        let before = std::fs::read(&path).unwrap();
+        let m = MeshEngine::new(1)
+            .with_crdt_log_fmt(&path, CrdtLogFormat::Nsgdb)
+            .unwrap();
+        assert_eq!(m.crdt_len(), 1);
+        assert_eq!(m.crdt_get("k").map(|e| e.value), Some("v69".into()));
+        let (_, recs) = read_log(&path, CrdtLogFormat::Nsgdb).unwrap();
+        assert_eq!(recs.len(), 1, "compactado a 1 registo");
+        let after = std::fs::read(&path).unwrap();
+        assert!(after.len() < before.len(), "compactacao devia encolher");
+        assert!(after.starts_with(&CRDT_SEG_MAGIC));
     }
 
     #[test]

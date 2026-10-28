@@ -375,6 +375,7 @@
               systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
                 "NOSD_MESH_REQUIRE_SIG=1"
                 "NOSD_JOB_BIND=0.0.0.0:19001"
+                "NOSD_CRDT_BACKEND=nsgdb"
               ];
               environment.systemPackages = [ self.packages.${system}.nosd ];
               system.stateVersion = "25.11";
@@ -396,6 +397,7 @@
               systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
                 "NOSD_MESH_REQUIRE_SIG=1"
                 "NOSD_JOB_BIND=0.0.0.0:19001"
+                "NOSD_CRDT_BACKEND=nsgdb"
               ];
               environment.systemPackages = [ self.packages.${system}.nosd ];
               system.stateVersion = "25.11";
@@ -409,6 +411,11 @@
               ca = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
               a.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
               b.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
+              # M8.1d: o CRDT usa o segmento nsgdb (NSGC), nao JSONL.
+              a.succeed("[ \"$(head -c 4 /var/lib/nosd/nsgdb/crdt/seg.bin)\" = NSGC ]")
+              b.succeed("[ \"$(head -c 4 /var/lib/nosd/nsgdb/crdt/seg.bin)\" = NSGC ]")
+              a.succeed("test ! -e /var/lib/nosd/crdt.jsonl")
+              b.succeed("test ! -e /var/lib/nosd/crdt.jsonl")
               # A escreve e sincroniza -> B ve
               a.succeed(ca + " crdt-put k1 v1")
               s1 = a.succeed(ca + " crdt-sync 192.168.50.2:19001")
