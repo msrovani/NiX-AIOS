@@ -3,6 +3,34 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.10] — 2026-10-27 (S2c + M8.1d em nsgdb)
+
+### Security
+
+- **S2c autoria de skills:** historico no score, autor persistido no manifesto,
+  push assinado verificado no destino (e2e em VM), revogacao de publisher
+  (`skill/revoked/<hex>`, recusa mesmo com assinatura valida) e downgrade so por
+  grant HITL `skill.downgrade`.
+- **M8.1d anti-rollback:** ancora (`seg.anchor`/`crdt.anchor`); log em disco mais
+  pequeno do que a ancora impede o arranque (fail-closed).
+
+### Changed
+
+- **M8.1d backend nsgdb:** log do CRDT em `nsgdb/crdt/seg.bin` (`NSGC`,
+  length-prefixed) por omissao; `NOSD_CRDT_BACKEND=jsonl` mantem o legado e um
+  `crdt.jsonl` existente e migrado uma vez para `crdt.jsonl.migrated`.
+
+### Added
+
+- **CLI de skills:** `skill-sign`, `skill-revoke` e
+  `--focus/--version/--publisher/--sig/--confirm-id` no `skill-install`.
+- **CI local:** `scripts/ci-local.sh` replica o workflow, com frota sequencial.
+
+### Tests
+
+- `mesh-2vm-crdt` com `NSGC` nos dois nos; `mesh-2vm-skills` com a cadeia
+  assinada completa (assinar, push, `provenance=signed`, revogar, recusar).
+
 ## [0.6.0-alpha.8] — 2026-10-27 (S-04 fechado: HITL só por grant)
 
 ### Security

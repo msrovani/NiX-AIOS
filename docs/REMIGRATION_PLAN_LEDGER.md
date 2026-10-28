@@ -228,6 +228,16 @@ nos. Residual: segmento local (nao o motor neural-sgdb), replay completo no
 arranque, ancora no mesmo data-dir e sem migracao inversa. Evidencia:
 `docs/evidence/M8.1D_NSGDB_BACKEND_0.6.0-alpha.9.md`.
 
+**0.6.0-alpha.10 release (2026-10-27):** S2c fechado (historico no score,
+autoria no manifesto, push assinado com e2e em VM, revogacao que recusa mesmo
+com assinatura valida, downgrade via HITL, CLI `skill-sign`/`skill-revoke`) e
+M8.1d fechado (ancora anti-rollback; backend `nsgdb` `NSGC` por omissao com
+migracao one-shot do `crdt.jsonl`). ISO `NIXAIOS051` reconstruida, gate `MQEMU`
+PASS. Residuais: CI no GitHub (primeira execucao), segmento local sem
+indice/BQ, ancora no mesmo data-dir, S2d (chaves de publicador/auditoria),
+frota >2 nos e metal. Evidencia: `docs/RELEASE_0.6.0-alpha.10.md`,
+`docs/evidence/QEMU_0.6.0-alpha.10.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

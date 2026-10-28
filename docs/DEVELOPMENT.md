@@ -68,3 +68,12 @@ Política: zero GGUF/AgentJev na imagem.
 - Hub: [`docs/README.md`](README.md)
 - Ao mudar comportamento user-facing: actualizar GETTING_STARTED / API / CHANGELOG.
 - Conventional Commits; ver [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
+## CI local (espelho do GitHub Actions)
+
+`bash scripts/ci-local.sh` corre fmt, clippy (all-features), `cargo test
+--workspace`, `nix build .#nosd` (compila e corre testes em Linux), o VM smoke e
+os 5 checks de frota **um de cada vez** (`--max-jobs 1`; em paralelo sao 10 QEMU
+e faz OOM em maquinas de 7 GB).
+
+`--fast` salta a parte Nix. O GitHub continua a ser a prova externa.

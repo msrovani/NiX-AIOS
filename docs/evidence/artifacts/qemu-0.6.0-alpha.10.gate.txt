@@ -1,0 +1,4 @@
+stage=MQEMU ring=Ring3_Linux_qemu layer=DELEGATE claim_status=OBSERVED result=PASS detail=qemu_serial_boot_markers log=docs/evidence/artifacts/qemu-0.6.0-alpha.10.serial.log
+stage=MQEMU ring=Ring3_Linux_qemu layer=ADAPT claim_status=OBSERVED result=PASS detail=nosd_start_ok_in_qemu_log
+---
+gate_summary fails=0 stage=MQEMU idea=#707 playbook=docs/BOOT_TO_JARBAS.md
