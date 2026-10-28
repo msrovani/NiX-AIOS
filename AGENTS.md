@@ -104,9 +104,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **S1 skills trust**: BLAKE3 (64 hex) + manifesto `skill/<n>/meta` +
   `skill.explain <focus>` com score 0-100 e `why` no CRDT. **Sem** assinatura
   de publisher/allowlist (S2) nem historico no score.
-- **Skills trust**: requisito registado (`docs/SKILL_TRUST_AND_SELECTION.md`):
-  BLAKE3 + manifesto assinado + allowlist + caps declaradas + scoring por foco
-  (Hermes escolhe e audita). **Nao implementado**; hoje FNV sem autoria.
+- **S2 skills (falta)**: assinatura de publisher + allowlist + caps declaradas
+  + historico no score + versao monotonica. Desenho em
+  `docs/SKILL_TRUST_AND_SELECTION.md`.
 - **M9.1 SKILL_PUSH**: modulo viaja cifrado (`kind=3`) e so activa se o hash
   bater; 512 KiB/push (base64 no envelope); hash FNV, sem gossip/revogacao.
 - **M8.1e log autenticado**: linha = json+tab+sig Ed25519 do no; replay recusa
