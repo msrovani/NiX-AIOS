@@ -7,6 +7,7 @@ mod job;
 mod model;
 mod nix_wifi;
 mod security;
+mod skills;
 mod ui_orb;
 mod voice_transmute;
 
@@ -523,6 +524,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         return r;
     }
     if let Some(r) = job::dispatch(state, req.clone()) {
+        return r;
+    }
+    if let Some(r) = skills::dispatch(state, req.clone()) {
         return r;
     }
     if let Some(r) = voice_transmute::dispatch(state, &gate, req.clone()) {

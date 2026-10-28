@@ -39,6 +39,7 @@ tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 base64 = { workspace = true }
+wat = { workspace = true }
 parking_lot = { workspace = true }
 libc = "0.2"
 

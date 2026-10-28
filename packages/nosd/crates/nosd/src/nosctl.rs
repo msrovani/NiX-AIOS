@@ -146,6 +146,22 @@ enum Cmd {
     NixPropose {
         nix: String,
     },
+    /// M9: instala uma skill wasm (ficheiro .wasm) e activa-a.
+    #[command(name = "skill-install")]
+    SkillInstall {
+        name: String,
+        path: String,
+    },
+    /// M9: lista skills activas.
+    #[command(name = "skill-list")]
+    SkillList,
+    /// M9: corre a skill (export `run`, i32 -> i32).
+    #[command(name = "skill-run")]
+    SkillRun {
+        name: String,
+        #[arg(long, default_value_t = 0)]
+        arg: i32,
+    },
     /// M8: escreve uma chave no CRDT local.
     #[command(name = "crdt-put")]
     CrdtPut {
@@ -250,6 +266,28 @@ enum Cmd {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let (method, params, caps) = match &args.cmd {
+        Cmd::SkillInstall { name, path } => {
+            let bytes = match std::fs::read(path) {
+                Ok(b) => b,
+                Err(e) => {
+                    eprintln!("skill-install: {e}");
+                    std::process::exit(2);
+                }
+            };
+            use base64::Engine as _;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+            (
+                "skill.install",
+                serde_json::json!({ "name": name, "wasm_b64": b64 }),
+                1 << 2, // FS
+            )
+        }
+        Cmd::SkillList => ("skill.list", serde_json::json!({}), 0),
+        Cmd::SkillRun { name, arg } => (
+            "skill.run",
+            serde_json::json!({ "name": name, "arg": arg }),
+            0,
+        ),
         Cmd::CrdtPut { key, value, tick } => (
             "crdt.put",
             serde_json::json!({ "key": key, "value": value, "tick": tick }),

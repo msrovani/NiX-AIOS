@@ -101,6 +101,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 - **M8 estado**: CRDT (LWW+VV) sobre o link assinado do M7 (`kind=2`);
   `crdt.put/get/sync`; `mesh-2vm-crdt` PASS. Anti-entropy = estado completo
   (sem delta/Merkle), em claro, sem persistencia nsgdb.
+- **M9 skills**: wasmi frugal (fuel 100k/heap 256 KiB/zero caps),
+  `skill.install|list|run`, registo `skill/<n>/active` no CRDT. Local apenas
+  (sem SKILL_PUSH); fnv como id, sem BLAKE3 nem quota.
 - **M7 jobs**: `job.submit` + listener TCP `NOSD_JOB_BIND` com frames
   assinados; worker tem de ser peer fixado. Sem Noise/fila/quota por peer.
   Check `mesh-2vm-jobs` PASS. Ver `docs/SKYNET_DISTRIBUTED_PLAN.md`.

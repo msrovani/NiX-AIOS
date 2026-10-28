@@ -46,6 +46,7 @@
 | S-08 suíte de regressão | **feito** | `ipc_auth` (10-11) + `nos-ipc` (3) + HTTP/grant/fetch |
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
 | M6 identidade (HB Ed25519) | **feito** | `nos-mesh::ident` + `mesh-2vm-signed` |
+| M9 skills wasmi | **parcial** | `skill.install/list/run` + sandbox frugal; falta distribuicao do binario e BLAKE3 |
 | M8 CRDT wire | **parcial** | `kind=2` + `crdt.sync` + `mesh-2vm-crdt`; falta delta/Merkle/bloom e nsgdb |
 | M7 jobs remotos | **parcial** | `nos-mesh::job`, `job.submit`, `mesh-2vm-jobs`; falta Noise/fila/quota |
 | M5 lab mesh 2-VM | **OBSERVED (lab)** | `checks.x86_64-linux.mesh-2vm`; peers/TOFU/eleição; `evidence/MESH_2VM_0.6.0-alpha.7.md` |

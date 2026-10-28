@@ -20,6 +20,13 @@ Versionamento [SemVer](https://semver.org/).
 - Firstboot obtém o grant com `nosctl consent transmute`.
 
 ## [Unreleased] — frota (M6/M7)
+### Added (M9)
+
+- **Skills wasmi:** `skill.install` (wat/wasm_b64) content-addressed,
+  `skill.list`/`skill.run` e `nosctl skill-*`; registo `skill/<n>/active` no
+  CRDT; sandbox frugal (fuel 100k, heap 256 KiB, zero capacidades).
+  Testes: identidade, fuel exhausted, infer negado.
+
 ### Added (M8)
 
 - **Estado replicado:** CRDT (LWW + version vector) sobre o link autenticado do

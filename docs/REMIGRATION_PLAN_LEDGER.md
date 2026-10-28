@@ -54,6 +54,15 @@ Anti-entropy v1 envia estado completo (sem delta/Merkle/bloom); em claro (Noise
 = M6.1); sem persistencia em nsgdb. Evidencia:
 `docs/evidence/M8_CRDT_0.6.0-alpha.8.md`.
 
+**M9 skills wasmi (2026-10-27):** `skill.install` (wat ou wasm_b64),
+storage content-addressed em `<data-dir>/skills/<fnv>.wasm`, registo
+`skill/<nome>/active` no CRDT, `skill.list`/`skill.run` (+ nosctl). Sandbox
+frugal do `nos-wasm`: fuel 100k, heap 256 KiB, zero capacidades (import
+`aios_ai::infer` devolve -1). Testes: install/run/list (7==7), fuel bomb
+recusada, infer sem cap negado (14 PASS em ipc_auth). Residual: fnv nao e
+commitment (BLAKE3 no M8.1), sem SKILL_PUSH/distribuicao do binario, sem quota
+por skill, sem Noise. Evidencia: `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

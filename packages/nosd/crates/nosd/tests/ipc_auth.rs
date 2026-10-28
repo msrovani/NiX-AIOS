@@ -562,3 +562,95 @@ fn client_hitl_boolean_is_never_consent() {
     );
     assert_eq!(r2["ok"], false, "wrong-kind grant must be denied: {r2}");
 }
+
+// ---- M9: skills wasmi -----------------------------------------------------
+
+const WAT_IDENT: &str = r#"(module (func (export "run") (param i32) (result i32) local.get 0))"#;
+const WAT_FUEL_BOMB: &str = r#"(module
+    (func (export "run") (param i32) (result i32)
+        (loop $l (br $l))
+        (unreachable)))"#;
+const WAT_INFER: &str = r#"(module
+    (import "aios_ai" "infer" (func $infer (result i32)))
+    (func (export "run") (param i32) (result i32)
+        (call $infer)))"#;
+
+#[test]
+fn skill_install_run_and_list() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "ident", "wat": WAT_IDENT }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    assert!(inst["result"]["hash"].as_str().unwrap_or("").len() >= 8);
+
+    let run = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "ident", "arg": 7 }),
+    );
+    assert_eq!(run["ok"], true, "{run}");
+    assert_eq!(run["result"]["value"], 7, "{run}");
+
+    let list = rpc(&daemon, Some(&t), "skill.list", json!({}));
+    assert_eq!(list["ok"], true, "{list}");
+    let arr = list["result"].as_array().expect("array");
+    assert!(arr.iter().any(|v| v["name"] == "ident"), "{list}");
+}
+
+#[test]
+fn skill_fuel_exhaustion_is_rejected() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "bomb", "wat": WAT_FUEL_BOMB }),
+    );
+    assert_eq!(
+        inst["ok"], true,
+        "instalacao valida (fuel nao e erro de modulo): {inst}"
+    );
+    let run = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "bomb", "arg": 0 }),
+    );
+    assert_eq!(run["ok"], false, "{run}");
+    let e = run["error"].as_str().unwrap_or("");
+    assert!(e.to_ascii_lowercase().contains("fuel"), "{run}");
+}
+
+#[test]
+fn skill_infer_is_denied_without_cap() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "probe", "wat": WAT_INFER }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    let run = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "probe", "arg": 0 }),
+    );
+    assert_eq!(run["ok"], true, "{run}");
+    assert_eq!(
+        run["result"]["value"], -1,
+        "sem INFER a skill nao fala com o modelo: {run}"
+    );
+}
