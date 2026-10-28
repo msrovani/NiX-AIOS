@@ -337,6 +337,20 @@
               a.succeed(ca + " skill-push 192.168.50.2:19001 ident | grep -q '\"verified\": true'")
               b.wait_until_succeeds(ca + " skill-list | grep -q 'ident'", timeout=30)
               b.succeed(ca + " skill-run ident --arg 9 | grep -q '\"value\": 9'")
+              # S2c: cadeia assinada (assinar -> instalar -> push -> signed ->
+              # revogar -> recusar). Usa o CLI, nao inventa assinaturas.
+              import json
+              r = json.loads(a.succeed(ca + " skill-install sum /tmp/ident.wat --focus sum --version 1.0.0"))
+              h = r["result"]["hash"]
+              sj = json.loads(a.succeed("sudo " + ca + " skill-sign sum " + h + " --focus sum --version 1.0.0"))
+              pub, sig = sj["publisher"], sj["sig"]
+              a.succeed(ca + " skill-install sum /tmp/ident.wat --focus sum --version 1.0.0 --publisher " + pub + " --sig " + sig)
+              rp = json.loads(a.succeed(ca + " skill-push 192.168.50.2:19001 sum"))
+              assert rp["result"]["verified"] is True, rp
+              m = json.loads(b.succeed(ca + " crdt-get skill/sum/meta"))
+              assert json.loads(m["result"]["value"])["provenance"] == "signed", m
+              b.succeed(ca + " skill-revoke " + pub)
+              a.fail(ca + " skill-push 192.168.50.2:19001 sum")
               a.fail(ca + " skill-push 192.168.50.2:19001 nao-existe")
             '';
           };

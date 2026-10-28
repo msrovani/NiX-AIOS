@@ -190,6 +190,14 @@ revogacao, e2e em VM, expiracao e downgrade HITL. Evidencia:
 (crdt.put skill/revoked/<hex>). Desbloqueia o e2e do push assinado no check de
 VM. Evidencia: `docs/evidence/CLI_SKILL_AUTH_0.6.0-alpha.9.md`.
 
+**S2c e2e push assinado (2026-10-27):** `mesh-2vm-skills` passou a provar a
+cadeia completa com o CLI real: install -> skill-sign (chave do no) -> install
+com --publisher/--sig -> push -> `provenance=signed` no destino -> revogar ->
+push recusado. Assercoes com `json.loads` (sem grep fragil). Isto fecha o
+"implementado mas nao provado". Residual: chaves de publicador separadas,
+HITL/auditoria na revogacao, expiracao, downgrade HITL e decaimento do
+historico. Evidencia: `docs/evidence/S2C_SIGNED_PUSH_E2E_0.6.0-alpha.9.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

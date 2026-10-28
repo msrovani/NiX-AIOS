@@ -27,6 +27,12 @@ Versionamento [SemVer](https://semver.org/).
 
 
 ## [Unreleased] — frota (M6/M7)
+### Tests (S2c)
+
+- **E2E do push assinado** em `mesh-2vm-skills`: assinar com a chave do no,
+  instalar com autoria, empurrar, verificar `provenance=signed` no destino e
+  recusar apos revogacao.
+
 ### Added (S2c)
 
 - **CLI de autoria:** `nosctl skill-sign`, flags `--focus/--version/--publisher/--sig`
