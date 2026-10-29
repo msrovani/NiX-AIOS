@@ -201,6 +201,10 @@
               # JFK é EN; fixa o locale de voz no teste.
               systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
                 "NOSD_LOCALE=en_US.UTF-8"
+                # G1 (T1.1-T1.3): identidade do mesh no VM — âncora CRDT
+                # assinada + pins/seq do HB persistidos ao lado da chave.
+                "NOSD_MESH_KEY=/var/lib/nosd/keys/mesh.key"
+                "NOSD_MESH_REQUIRE_SIG=1"
               ];
               environment.systemPackages = [ self.packages.${system}.nosd ];
               environment.etc."nixaios-accept-m3.sh".source = ./scripts/accept-m3.sh;
@@ -244,6 +248,113 @@
               machine.succeed("systemctl start nosd-nix-apply.service || true")
               machine.succeed("test ! -e /etc/nixos/ai-managed.nix")
               machine.succeed("test ! -e /var/lib/nosd/nix-apply.request")
+
+              # G1 (T1.1-T1.3): com identidade, a ancora do log CRDT fica
+              # ASSINADA (3 campos) e os artefactos de persistência sobrevivem
+              # ao restart — o reopen com ancora assinada tem de continuar
+              # verde (fail-closed correcta, nao falso rollback).
+              machine.succeed("systemctl restart nosd.service")
+              machine.wait_for_file("/run/nosd/nosd.sock")
+              machine.succeed(nosctl + " health")
+              anchor = "/var/lib/nosd/nsgdb/crdt/seg.anchor"
+              machine.wait_for_file(anchor)
+              machine.succeed("test \"$(wc -w < " + anchor + ")\" = 3")
+              machine.succeed("test -e /var/lib/nosd/keys/pins.dat")
+              machine.succeed("test -s /var/lib/nosd/keys/hb.seq")
+            '';
+          };
+
+          # T3.3: helper root two-phase (G3.2) com o ring ARMADO neste node.
+          # `nixos-rebuild` é STUB: o alvo é o protocolo do helper — fase 1
+          # (copy + test, boot intacta), espera de `nix.confirm` (TTL 600 s),
+          # recusa de confirm expirado, fase 2 (switch) e gravação de
+          # geração. O rebuild real dentro de VM tester não é viável (TCG +
+          # sem nixpkgs resolúvel) e não é o alvo.
+          nixaios-ring = pkgs.testers.nixosTest {
+            name = "nixaios-ring";
+            nodes.machine = { lib, pkgs, config, ... }: {
+              imports = [
+                self.nixosModules.neural-os
+                self.nixosModules.cortex-nix-ring
+              ];
+              services.nosdNixRing = {
+                enable = true;
+                autoSwitch = false;
+                # G3.3: SÓ neste node de teste (o nixaios-vm base continua
+                # provando o desarmado por omissão).
+                armRing = true;
+                buildVmFirst = false;
+                twoPhase = true;
+              };
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 0;
+              };
+              systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
+                "NOSD_LOCALE=en_US.UTF-8"
+              ];
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              # T3.3: stub — `nixos-rebuild` loga o argv e sai 0; fase 1 e
+              # fase 2 distinguem-se pelo 1º argumento (test vs switch).
+              systemd.services.nosd-nix-apply.path = lib.mkForce [
+                (pkgs.writeShellScriptBin "nixos-rebuild" ''
+                  echo "rebuild $*" >> /var/lib/nosd/rebuild-stub.log
+                  exit 0
+                '')
+                pkgs.nix
+                pkgs.util-linux
+                pkgs.coreutils
+              ];
+              system.stateVersion = "25.11";
+            };
+            testScript = ''
+              machine.wait_for_unit("nosd.service")
+              machine.wait_for_file("/run/nosd/nosd.sock")
+              nosctl = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
+              machine.succeed(nosctl + " health")
+              LOG = "/var/lib/nosd/nix-apply.log"
+              STUB = "/var/lib/nosd/rebuild-stub.log"
+
+              # 1) ring ARMADO com pedido forjado sem staging válido: recusa.
+              machine.succeed("echo 'staging=/var/lib/nosd/pwn.nix' > /var/lib/nosd/nix-apply.request")
+              machine.succeed("systemctl start nosd-nix-apply.service || true")
+              machine.succeed("test ! -e /etc/nixos/ai-managed.nix")
+              machine.succeed("test ! -e /var/lib/nosd/nix-apply.request")
+
+              # 2) T3.1: propose por FIELDS tipados (template fixo, sem texto livre).
+              machine.succeed(nosctl + " nix-propose --fields '{\"hostname\":\"ring-vm\"}'")
+              machine.succeed("grep -q 'networking.hostName' /var/lib/nosd/staging-ai-managed.nix")
+
+              # 3) HITL grant (kind=nix.apply) + fase 1: copy + test.
+              #    Nada de `switch` no stub e a geraçao de boot fica intacta.
+              cid_out = machine.succeed(nosctl + " consent nix.apply")
+              cid = cid_out.split('"confirm_id":"')[1].split('"')[0]
+              machine.succeed(nosctl + " nix-apply --confirm-id " + cid)
+              machine.wait_until_succeeds("grep -q 'aguarda nix.confirm' " + LOG)
+              machine.succeed("test $(grep -c 'rebuild test' " + STUB + ") -eq 1")
+              machine.succeed("! grep -q 'rebuild switch' " + STUB)
+              machine.succeed("test ! -e /var/lib/nosd/nix-apply.request")
+              # fase 1 copia o staging para o target fixo.
+              machine.succeed("grep -q 'networking.hostName' /etc/nixos/ai-managed.nix")
+
+              # 4) confirm EXPIRADO (ts antigo): fase 2 recusa (TTL 600 s).
+              machine.succeed("echo 'ts=1' > /var/lib/nosd/nix-confirm.request")
+              machine.succeed("echo 'staging=/var/lib/nosd/staging-ai-managed.nix' > /var/lib/nosd/nix-apply.request")
+              machine.succeed("systemctl start nosd-nix-apply.service || true")
+              machine.wait_until_succeeds("grep -q 'FAIL confirm expirado' " + LOG)
+              machine.succeed("! grep -q 'rebuild switch' " + STUB)
+              machine.succeed("test ! -e /var/lib/nosd/nix-confirm.request")
+              machine.succeed("test ! -e /var/lib/nosd/nix-apply.request")
+
+              # 5) fase 2 por RPC: consent → nix.confirm (grava confirm com
+              #    ts fresco) → switch no stub + geração gravada.
+              cid_out = machine.succeed(nosctl + " consent nix.apply")
+              cid2 = cid_out.split('"confirm_id":"')[1].split('"')[0]
+              machine.succeed(nosctl + " nix-confirm --confirm-id " + cid2)
+              machine.wait_until_succeeds("grep -q 'rebuild switch' " + STUB)
+              machine.wait_until_succeeds("grep -q 'switch OK' " + LOG)
+              machine.succeed("test -s /var/lib/nosd/last-generation.txt")
             '';
           };
 

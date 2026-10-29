@@ -143,8 +143,14 @@ enum Cmd {
         pattern: Option<String>,
     },
     /// CapGate NIX_WRITE → staging (+ auto-apply se NOSD_NIX_AUTO_SWITCH=1).
+    /// Caminho preferido (T3.1): `--fields '{"hostname":"x"}'` — staging nasce
+    /// de template fixo com valores charset-restrito; sem `--fields`, o
+    /// texto livre continua aceite (deny-list + syntax check).
     NixPropose {
-        nix: String,
+        nix: Option<String>,
+        /// JSON de campos tipados p/ `render_ai_managed`.
+        #[arg(long)]
+        fields: Option<String>,
     },
     /// M9: instala uma skill wasm (ficheiro .wasm) e activa-a.
     #[command(name = "skill-install")]
@@ -236,6 +242,13 @@ enum Cmd {
     },
     /// Arma apply root (nosd-nix-apply.service). Exige grant (--confirm-id).
     NixApply {
+        /// Grant server-authored (kind=nix.apply). Ver `nosctl consent nix.apply`.
+        #[arg(long)]
+        confirm_id: Option<String>,
+    },
+    /// Fase 2 do two-phase (G3.2): escreve `nix-confirm.request` (TTL 600 s no
+    /// helper) e dispara o switch. Grant kind=nix.apply.
+    NixConfirm {
         /// Grant server-authored (kind=nix.apply). Ver `nosctl consent nix.apply`.
         #[arg(long)]
         confirm_id: Option<String>,
@@ -547,13 +560,32 @@ async fn main() -> anyhow::Result<()> {
             }
             ("orb.set", p, 0)
         }
-        Cmd::NixPropose { nix } => (
-            "nix.propose",
-            serde_json::json!({ "nix": nix }),
-            1 << 5, // NIX_WRITE
-        ),
+        Cmd::NixPropose { nix, fields } => {
+            let p = match fields {
+                Some(raw) => {
+                    let f: serde_json::Value = serde_json::from_str(raw).unwrap_or_else(|e| {
+                        eprintln!("nix-propose --fields: JSON invalido: {e}");
+                        std::process::exit(2);
+                    });
+                    serde_json::json!({ "fields": f })
+                }
+                None => match nix.as_deref() {
+                    Some(t) => serde_json::json!({ "nix": t }),
+                    None => {
+                        eprintln!("nix-propose: passa o texto Nix ou --fields '<json>'");
+                        std::process::exit(2);
+                    }
+                },
+            };
+            ("nix.propose", p, 1 << 5) // NIX_WRITE
+        }
         Cmd::NixApply { confirm_id } => (
             "nix.apply",
+            serde_json::json!({ "confirm_id": confirm_id }),
+            1 << 5,
+        ),
+        Cmd::NixConfirm { confirm_id } => (
+            "nix.confirm",
             serde_json::json!({ "confirm_id": confirm_id }),
             1 << 5,
         ),

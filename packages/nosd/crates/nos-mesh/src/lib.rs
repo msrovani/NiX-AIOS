@@ -493,13 +493,18 @@ impl MeshEngine {
             .and_then(|s| s.trim().parse::<u64>().ok())
             .unwrap_or(0);
         let now = now_ms().max(1);
-        self.hb_seq.store(
-            now.max(stored.saturating_add(1)),
-            std::sync::atomic::Ordering::Relaxed,
-        );
+        let floor = now.max(stored.saturating_add(1));
+        self.hb_seq
+            .store(floor, std::sync::atomic::Ordering::Relaxed);
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
+        // T1.3: o piso (floor) fica em disco já no arranque — assim um restart
+        // imediato (sem HB emitido) ainda arranca à frente do seq já visto
+        // pelos peers.
+        let tmp = path.with_extension("seq.tmp");
+        let _ = std::fs::write(&tmp, floor.to_string());
+        let _ = std::fs::rename(&tmp, path);
         self.hb_seq_store = Some(path.to_path_buf());
         Ok(self)
     }
