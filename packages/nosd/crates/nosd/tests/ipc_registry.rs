@@ -45,6 +45,22 @@ fn security_rotate_requires_admin_caps() {
     assert!(c.contains(CapBits::HITL));
 }
 
+/// Brain self-upgrade (ADR addenda 0118-qwen-embedded-brain): contracto
+/// caps — plan é Observe puro; accept carrega NET|FS e exige grant HITL
+/// (Escalate no dispatch), side-effect registado no OPAR.
+#[test]
+fn brain_plan_and_accept_caps() {
+    assert_eq!(sample_req("brain.plan").required_cap(), CapBits::NONE);
+    let accept = sample_req("brain.accept").required_cap();
+    assert!(accept.contains(CapBits::NET));
+    assert!(accept.contains(CapBits::FS));
+    assert!(accept.contains(CapBits::HITL));
+    assert!(
+        nos_hermes::SIDE_EFFECT_METHODS.contains(&"brain.accept"),
+        "brain.accept é side-effect (OPAR obrigatório)"
+    );
+}
+
 #[test]
 fn mesh_skillsync_removed_from_side_effects() {
     assert!(!SIDE_EFFECT_METHODS.contains(&"mesh.skillsync"));

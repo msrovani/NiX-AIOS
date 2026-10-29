@@ -542,6 +542,110 @@ async fn hermes_runtime_loop(
                 Err(e) => tracing::warn!(target: "nosd", "crdt compact: {e}"),
             }
         }
+        // Brain self-upgrade (ADR addenda 0118-qwen-embedded-brain):
+        // pós-boot (NOSD_BRAIN_PROPOSE=1), a AI OBSEVA o hw e PROPÕE o tier
+        // alcançável — card HITL server-side (grant kind brain.upgrade);
+        // o operador aceita via HUD ou `nosctl consent brain.upgrade` +
+        // `nosctl brain-accept`. Execute NUNCA automático.
+        // Anti-spam: mesmo tier_id só reaparece após 24 h (memória CRDT).
+        if n.is_multiple_of(30) && std::env::var("NOSD_BRAIN_PROPOSE").ok().as_deref() == Some("1")
+        {
+            let cap = nos_cortex::CapacityProber::probe();
+            let plan = {
+                let engine = state.hermes.hotswap.engine_name();
+                let mut label = "boot default".to_string();
+                let mut bytes: Option<u64> = None;
+                for (slot, st) in state.hermes.hub.list() {
+                    if st.loaded {
+                        label = slot.name().to_string();
+                        bytes = Some(st.bytes_len);
+                        break;
+                    }
+                }
+                nos_hermes::brain_upgrade::plan(&cap, &label, bytes, engine, state.nix_ring_armed)
+            };
+            if let Some(pr) = plan.proposal.as_ref() {
+                let tier_key = format!(
+                    "{}|{}|{}",
+                    pr.tier, pr.candidate.name, pr.candidate.size_bytes
+                );
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                const DAY_MS: u64 = 24 * 60 * 60 * 1000;
+                let skip = state
+                    .mesh
+                    .crdt_get("brain/upgrade/last")
+                    .and_then(|e| serde_json::from_str::<serde_json::Value>(&e.value).ok())
+                    .map(|l| {
+                        l.get("id")
+                            .and_then(|x| x.as_str())
+                            .map(|i| i == tier_key)
+                            .unwrap_or(false)
+                            && l.get("ts")
+                                .and_then(|x| x.as_u64())
+                                .map(|ts| ts + DAY_MS > now_ms)
+                                .unwrap_or(false)
+                    })
+                    .unwrap_or(false);
+                if !skip {
+                    // Card no HUD do kiosk (server-side window; o grant é
+                    // server-authored no Submit — o cliente nunca autoriza).
+                    let wid = state.hermes.windows.alloc_id();
+                    let title = format!("Brain upgrade — tier {} ({})", pr.tier, pr.candidate.name);
+                    let body = format!(
+                        "{}\n\nAceitar: `nosctl consent brain.upgrade` + \
+                         `nosctl brain-accept {} --confirm-id <id>`",
+                        nos_hermes::brain_upgrade::card_body(&plan),
+                        pr.tier
+                    );
+                    let mut spec = nos_core::WindowSpec::hitl_confirm(
+                        wid,
+                        title,
+                        body,
+                        nos_core::UiSource::Hermes,
+                    );
+                    spec.grant_kind = "brain.upgrade".to_string();
+                    let gate = nos_core::CapGate::new(nos_core::CapBits::HITL, 1);
+                    match state
+                        .hermes
+                        .windows
+                        .open(&gate, state.ipc_generation(), spec)
+                    {
+                        Ok(_) => {
+                            state.mesh.crdt_put(
+                                state.mesh.local_id(),
+                                "brain/upgrade/last",
+                                &serde_json::json!({ "id": tier_key, "ts": now_ms }).to_string(),
+                                0,
+                            );
+                            state.hermes.bus.publish(
+                                "BRAIN_UPGRADE_PROPOSED",
+                                serde_json::json!({ "tier": pr.tier, "name": pr.candidate.name }),
+                            );
+                            info!(
+                                target: "nosd",
+                                "brain upgrade proposto (tier {}) — HITL card aberta",
+                                pr.tier
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                target: "nosd",
+                                "brain propose: card HITL não abriu ({e:?}) — proposta registrada no CRDT"
+                            );
+                            state.mesh.crdt_put(
+                                state.mesh.local_id(),
+                                "brain/upgrade/last",
+                                &serde_json::json!({ "id": tier_key, "ts": now_ms }).to_string(),
+                                0,
+                            );
+                        }
+                    }
+                }
+            }
+        }
         if let Some(ref u) = mesh_udp {
             state.hermes.tick_mesh_hints(&state.mesh, n);
             u.tick_tx().await;

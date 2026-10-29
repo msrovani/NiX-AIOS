@@ -82,6 +82,10 @@ impl Request {
             // Abrir/fechar janela = livre; submeter HITL = CapBits::HITL
             "ui.open" | "ui.close" => CapBits::NONE,
             "ui.action" => CapBits::HITL,
+            // Brain self-upgrade (ADR addenda 0118-qwen-embedded-brain):
+            // plan = Observe puro; accept = NET+FS+HITL (grant server-authored).
+            "brain.plan" => CapBits::NONE,
+            "brain.accept" => CapBits::NET.union(CapBits::FS).union(CapBits::HITL),
             _ => CapBits::DENY_UNKNOWN,
         }
     }

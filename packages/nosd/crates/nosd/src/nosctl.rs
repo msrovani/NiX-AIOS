@@ -253,6 +253,18 @@ enum Cmd {
         #[arg(long)]
         confirm_id: Option<String>,
     },
+    /// Brain self-upgrade: candidata pós-boot (custo/ganho, pinado).
+    #[command(name = "brain-plan")]
+    BrainPlan,
+    /// Aceita proposta de upgrade (fetch pinado + sha256 + hot_load).
+    /// Ver `nosctl consent brain.upgrade`.
+    #[command(name = "brain-accept")]
+    BrainAccept {
+        tier: u8,
+        /// Grant server-authored (kind=brain.upgrade).
+        #[arg(long)]
+        confirm_id: Option<String>,
+    },
     /// Rotaciona token TCP/HTTP + geração (LocalAdmin). Devolve o novo token.
     #[command(name = "security-rotate")]
     SecurityRotate,
@@ -588,6 +600,12 @@ async fn main() -> anyhow::Result<()> {
             "nix.confirm",
             serde_json::json!({ "confirm_id": confirm_id }),
             1 << 5,
+        ),
+        Cmd::BrainPlan => ("brain.plan", serde_json::json!({}), 0),
+        Cmd::BrainAccept { tier, confirm_id } => (
+            "brain.accept",
+            serde_json::json!({ "tier": tier, "confirm_id": confirm_id }),
+            (1 << 1) | (1 << 2) | (1 << 6), // NET | FS | HITL
         ),
         Cmd::SecurityRotate => (
             "security.rotate",

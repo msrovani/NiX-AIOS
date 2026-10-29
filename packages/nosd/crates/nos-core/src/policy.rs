@@ -41,6 +41,9 @@ pub enum ActDomain {
     GpuPowerLimit,
     Repartition,
     MeshSkillSyncExec,
+    /// Brain self-upgrade (ADR-0118 addenda 0118-qwen-embedded-brain):
+    /// aceita proposta de modelo maior/melhor — HITL sempre.
+    BrainUpgrade,
 }
 
 /// Política canónica NIXAIOS (prod). ISO lab pode relaxar NixSwitch via env.
@@ -62,6 +65,7 @@ pub fn disposition(domain: ActDomain, lab_auto_switch: bool) -> ActDisposition {
         }
         NixRollback | DeviceFirmware | FactorySynthesize => Escalate,
         SeekHostOffAllowlist | AgentSpawnUnsigned => Escalate,
+        BrainUpgrade => Escalate,
         GpuPowerLimit | Repartition | MeshSkillSyncExec => Deny,
     }
 }
@@ -110,6 +114,7 @@ pub fn policy_matrix_prod() -> Vec<(ActDomain, ActDisposition)> {
         GpuPowerLimit,
         Repartition,
         MeshSkillSyncExec,
+        BrainUpgrade,
     ];
     DOMAINS
         .iter()

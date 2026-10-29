@@ -1,4 +1,5 @@
 //! RPC surface do nosd (0.5.4) — dispatch fatiado por domínio.
+mod brain;
 mod chat;
 mod factory_store;
 mod health;
@@ -168,6 +169,7 @@ fn grant_kind_for(dom: ActDomain) -> &'static str {
         ActDomain::GpuPowerLimit => "gpu.power",
         ActDomain::Repartition => "repartition",
         ActDomain::MeshSkillSyncExec => "mesh.skill",
+        ActDomain::BrainUpgrade => "brain.upgrade",
         _ => "act",
     }
 }
@@ -494,6 +496,8 @@ fn method_domain(method: &str) -> Option<ActDomain> {
     Some(match method {
         "chat" | "chat.submit" | "route.explain" => ActDomain::ChatRoute,
         "model.plan" | "model.suggest" => ActDomain::ModelPlanSuggest,
+        "brain.plan" => ActDomain::ModelPlanSuggest, // Observe puro (Auto)
+        "brain.accept" => ActDomain::BrainUpgrade,   // Escalate = HITL obrigatório
         "model.fetch" | "model.search" | "blob.deliberate" => ActDomain::ModelFetch,
         "firmware.fetch" => ActDomain::DeviceFirmware,
         "model.load" => ActDomain::HotSwapKnownHash,
@@ -652,6 +656,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         return r;
     }
     if let Some(r) = model::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = brain::dispatch(state, &gate, req.clone()) {
         return r;
     }
     if let Some(r) = chat::dispatch(state, &gate, req.clone()) {

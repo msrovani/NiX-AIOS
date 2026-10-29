@@ -3,6 +3,24 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+### Added (Brain self-upgrade — HITL completo)
+
+- **`brain.plan` / `brain.accept`** (nosd RPC + `nosctl brain-plan`/`brain-accept`):
+  a AI observa o hw real (posture RAM/VRAM/DRM) e propõe o tier alcançável
+  mais alto — **tier 2** Qwen3.5-0.8B **Q8_0** (mesmo modelo, precisão
+  4→8-bit), **tier 3** Qwen3.5-4B Q4_K_M (5x parâmetros, CPU/iGPU), **tier 4**
+  Qwen3.5-9B Q4_K_M (alvo dGPU supervisionada, exige ring armado). A card
+  HITL mostra **custo exato** (bytes/MB pinados; RAM/VRAM rotulados "est."),
+  ganho honesto (sem tokens/s prometidos), rollback local (o anterior fica
+  em disco) e o **sha256 pinado** do LFS do HF — o accept faz fetch →
+  **verificação do sha256** (diverge = apagado, fail-closed) → hot_load →
+  OPAR. Executa NUNCA automático (Escalate, grant `brain.upgrade`
+  server-authored, single-use). Gancho pós-boot (`NOSD_BRAIN_PROPOSE=1`)
+  abre a card no HUD a cada 30 ticks com memória anti-spam 24h no CRDT
+  (`brain/upgrade/last`).
+- Registo de tiers pinado em `nos-hermes/src/brain_upgrade.rs` (SRI +
+  bytes exactos auditados no tree `unsloth/...-GGUF`).
+
 ### Added (Brain embutido iso-hw — ADR-0118 addenda)
 
 - **`packages.qwen35-08b-q4km` / `qwen35-08b-q8`** (flake): GGUF

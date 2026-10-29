@@ -19,6 +19,8 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 parking_lot = { workspace = true }
 ureq = { workspace = true }
+# Brain upgrade (T4 tier upgrades): pin sha256 do LFS do HF.
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = { workspace = true }

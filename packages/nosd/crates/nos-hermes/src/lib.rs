@@ -5,6 +5,7 @@
 mod agency;
 mod autolearn;
 mod blob_deliberate;
+pub mod brain_upgrade;
 mod card;
 mod cognitive_act;
 mod cognitive_bridge;
@@ -22,6 +23,9 @@ pub use autolearn::{plan_from_seek, plan_learn, LearnAction, LearnPlan};
 pub use blob_deliberate::{
     deliberate_blob_fetch, gate_allows_fetch, iso_must_not_ship_blobs, note_persona_download,
     remember_deliberation, BlobDeliberation, BlobKind, BlobNeed,
+};
+pub use brain_upgrade::{
+    accept, card_body, plan, sha256_file, AcceptError, AcceptOutcome, BrainUpgradePlan,
 };
 pub use card::{parse_card_prompt, CardKv, CardSpec};
 pub use cognitive_act::{wrap_opar, wrap_opar_with_seek, CognitiveAct};
