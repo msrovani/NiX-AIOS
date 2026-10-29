@@ -378,6 +378,9 @@
               machine.succeed(nosctl + " nix-confirm --confirm-id " + cid2)
               machine.wait_until_succeeds("grep -q 'rebuild switch' " + STUB)
               machine.wait_until_succeeds("grep -q 'switch OK' " + LOG)
+              # Diagnóstico visível no log do teste (antes do assert).
+              machine.execute("cat " + LOG + " || true")
+              machine.execute("cat /var/lib/nosd/last-generation.txt 2>&1 || true")
               machine.succeed("test -s /var/lib/nosd/last-generation.txt")
             '';
           };
