@@ -5,6 +5,7 @@
 
 pub mod cap;
 pub mod cost;
+pub mod dag;
 pub mod decision;
 pub mod gguf;
 pub mod hash;
@@ -23,6 +24,9 @@ pub mod ui_window;
 
 pub use cap::{CapBits, CapGate, CapRegistry, PeerProfile};
 pub use cost::{tokens_estimate, CostModel, JOULES_PER_KWH};
+pub use dag::{
+    plan as dag_plan, scopes_conflict, DagError, DagNode, DagPlan, MAX_NODES as DAG_MAX_NODES,
+};
 pub use decision::{
     s1_backend_effective, s1_backend_from_env, s1_backend_label, s1_blob_present, s1_scorer_absent,
     score_intent_s1, AbstainReason, Decision, S1Backend,

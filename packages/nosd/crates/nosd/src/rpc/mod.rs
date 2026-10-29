@@ -1,6 +1,7 @@
 //! RPC surface do nosd (0.5.4) — dispatch fatiado por domínio.
 mod brain;
 mod chat;
+mod dag;
 mod factory_store;
 mod health;
 mod http_lab;
@@ -711,6 +712,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         return r;
     }
     if let Some(r) = mcp::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = dag::dispatch(state, &gate, req.clone()) {
         return r;
     }
     if let Some(r) = voice_transmute::dispatch(state, &gate, req.clone()) {

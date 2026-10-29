@@ -12,7 +12,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.6.0-alpha.15** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.6.0-alpha.16** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -139,6 +139,9 @@ Resumo executavel; detalhe em
     `nix build` em WSL apanhou isto; o host Windows não (lá o mesmo caminho é
     absoluto e os testes passavam). Listas de candidatos a binários têm de
     largar os candidatos "estrangeiros" da plataforma.
+36. **Commit leva `Tested:` / `Not-tested:`** no corpo (doutrina oh-my-hermes).
+    O `git log` é o ledger barato: sem o que **não** foi testado, "verde" vira
+    folclore e a sessão seguinte não sabe onde olhar.
 
 ## Comandos
 
@@ -261,6 +264,15 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   (`nosd_start_ok`, cage ACTIVE, firstboot DONE). Residual: metal AWAITING_HW,
   MCP resources/prompts, prompt-eval não medido.
   Ver `docs/evidence/V8_OMH_ECO_0.6.0-alpha.15.md`.
+- **Tranche 0.6.0-alpha.16 (in-tree, V9 — DAG + kiosk)**: `nos-core::dag`
+  (camadas topológicas + **isolamento de write-scope** por segmento; ciclo/
+  dep desconhecida/duplicado = erro; 256 nós; determinístico) exposto por
+  `dag.plan` (NONE, **não executa**) e `nosctl dag-plan <file>`; kiosk
+  (`KIOSK_METHODS`) passa a expor `observe.energy` e `ui.pending` com teste de
+  contrato (caps NONE/INFER/HITL; 17 métodos de escrita recusados); convenção
+  `Tested:`/`Not-tested:` (lição 36). **Execução** do DAG (job.submit/factory)
+  fica para V10. Host OBSERVED (`dag-plan` diamante/conflito, 374 testes,
+  smokes V0–V8 verdes). Ver `docs/evidence/V9_DAG_KIOSK_0.6.0-alpha.16.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.
@@ -318,6 +330,6 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `docs/API.md`. Testado em bancada (unit + ponta-a-ponta com daemon local);
   **ainda não observado em QEMU/metal**.
 
-## Evidência 0.6.0-alpha.15
+## Evidência 0.6.0-alpha.16
 
-`docs/evidence/V8_OMH_ECO_0.6.0-alpha.15.md`, `docs/evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md`, `docs/evidence/QWEN35_0.8B_0.6.0-alpha.12.md`, `docs/RELEASE_0.6.0-alpha.11.md`, `docs/evidence/QEMU_0.6.0-alpha.11.md`, `docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`, `docs/RELEASE_0.6.0-alpha.10.md`, `docs/evidence/QEMU_0.6.0-alpha.10.md`, `docs/evidence/M8.1D_NSGDB_BACKEND_0.6.0-alpha.9.md`, `docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`, `docs/evidence/S2C_SIGNED_PUSH_E2E_0.6.0-alpha.9.md`, `docs/evidence/S2C_REVOKE_0.6.0-alpha.9.md`, `docs/evidence/CLI_SKILL_AUTH_0.6.0-alpha.9.md`, `docs/RELEASE_0.6.0-alpha.9.md`, `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`, `docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`, `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`, `docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`, `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`, `docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`, `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`, `docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`, `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`, `docs/evidence/M7_JOBS_0.6.0-alpha.8.md`, `docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`, `docs/evidence/M6_IDENTITY_0.6.0-alpha.8.md`, `docs/evidence/HITL_0.6.0-alpha.8.md`, `docs/RELEASE_0.6.0-alpha.7.md`, `docs/evidence/NIX_RING_0.6.0-alpha.7.md`, `docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.
+`docs/evidence/V9_DAG_KIOSK_0.6.0-alpha.16.md`, `docs/evidence/V8_OMH_ECO_0.6.0-alpha.15.md`, `docs/evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md`, `docs/evidence/QWEN35_0.8B_0.6.0-alpha.12.md`, `docs/RELEASE_0.6.0-alpha.11.md`, `docs/evidence/QEMU_0.6.0-alpha.11.md`, `docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`, `docs/RELEASE_0.6.0-alpha.10.md`, `docs/evidence/QEMU_0.6.0-alpha.10.md`, `docs/evidence/M8.1D_NSGDB_BACKEND_0.6.0-alpha.9.md`, `docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`, `docs/evidence/S2C_SIGNED_PUSH_E2E_0.6.0-alpha.9.md`, `docs/evidence/S2C_REVOKE_0.6.0-alpha.9.md`, `docs/evidence/CLI_SKILL_AUTH_0.6.0-alpha.9.md`, `docs/RELEASE_0.6.0-alpha.9.md`, `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`, `docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`, `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`, `docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`, `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`, `docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`, `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`, `docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`, `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`, `docs/evidence/M7_JOBS_0.6.0-alpha.8.md`, `docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`, `docs/evidence/M6_IDENTITY_0.6.0-alpha.8.md`, `docs/evidence/HITL_0.6.0-alpha.8.md`, `docs/RELEASE_0.6.0-alpha.7.md`, `docs/evidence/NIX_RING_0.6.0-alpha.7.md`, `docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.

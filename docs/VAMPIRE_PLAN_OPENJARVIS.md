@@ -390,3 +390,20 @@ Evidência: [`evidence/V8_OMH_ECO_0.6.0-alpha.15.md`](evidence/V8_OMH_ECO_0.6.0-
 Passo 6 **fechado em QEMU** (`nix build .#nosd`, ISO `NIXAIOS051` sha256
 `4c9c55a6…`, `gate --stage MQEMU` fails=0). Metal continua **AWAITING_HW**.
 
+---
+
+## 13. Ataque V9 (2026-10-29, `0.6.0-alpha.16`)
+
+| ID | Item | Estado |
+|----|------|--------|
+| **V9.1** | DAG com isolamento de write-scope | **feito** — `nos-core::dag` + `dag.plan` + `nosctl dag-plan` (11 testes; e2e diamante/conflito). Execução fica para V10 |
+| **V9.4** | kiosk: energia + fila HITL | **feito** — `observe.energy`/`ui.pending` na allowlist + teste de contrato |
+| **V9.5** | `Tested:`/`Not-tested:` nos commits | **feito** — lição 36 |
+| V9.2 | memória `prepared` vs `approved` | desenho (§3 da evidência) — depende do M8/metal |
+| V9.3 | skills declarativas executáveis | desenho (§3 da evidência) — precisa de decisão de semântica |
+
+Evidência: [`evidence/V9_DAG_KIOSK_0.6.0-alpha.16.md`](evidence/V9_DAG_KIOSK_0.6.0-alpha.16.md).
+
+**V10 (proposta):** ligar o DAG ao `job.submit`/factory (execução com um nó
+verificador separado do autor) e fechar o LoobGuard no factory.
+

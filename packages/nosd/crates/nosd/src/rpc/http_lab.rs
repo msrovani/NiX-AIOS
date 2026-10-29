@@ -15,6 +15,26 @@ const ORB_LAB_HTML: &str = include_str!("../../static/orb_lab.html");
 const MAX_BODY: usize = 1024 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// V9.4 — superfície do bridge do kiosk (browser). **Só leitura + chat/HITL.**
+///
+/// Esta lista é a fronteira: o perfil `Jarbas` tem FS/NET/INFER/HITL, por isso
+/// é aqui (e não nas caps) que se impede o browser de escrever. Métodos novos
+/// exigem teste de contrato (`kiosk_methods_are_scope_limited`).
+const KIOSK_METHODS: &[&str] = &[
+    "health",
+    "score",
+    "cognitive.tick",
+    "orb.get",
+    "orb.set",
+    "orb.sense",
+    "ui.list",
+    "ui.action",
+    "ui.pending",
+    "chat",
+    "voice.turn",
+    "observe.energy",
+];
+
 /// Lab cinemático: GET `/` → HTML (cam+mic+padrões); GET `/transmute` → wizard;
 /// POST `/rpc` → dispatch autenticado por token.
 pub async fn serve_orb_lab(addr: String, state: Arc<AppState>) -> anyhow::Result<()> {
@@ -242,18 +262,7 @@ where
         }
     };
 
-    let allowed_methods = [
-        "health",
-        "score",
-        "cognitive.tick",
-        "orb.get",
-        "orb.set",
-        "orb.sense",
-        "ui.list",
-        "ui.action",
-        "chat",
-        "voice.turn",
-    ];
+    let allowed_methods = KIOSK_METHODS;
     if !allowed_methods.contains(&req.method.as_str()) {
         return write_response(
             sock,
@@ -362,5 +371,58 @@ mod tests {
         assert!(!is_local_origin("http://127.0.0.1.evil.example"));
         assert!(!is_local_origin("http://evil.example"));
         assert!(!is_local_origin("https://127.0.0.1:7701"));
+    }
+
+    /// V9.4: contrato da allowlist do kiosk.
+    #[test]
+    fn kiosk_methods_are_scope_limited() {
+        use nos_core::CapBits;
+        let mut seen = std::collections::BTreeSet::new();
+        for m in KIOSK_METHODS {
+            assert!(seen.insert(*m), "método duplicado na allowlist: {m}");
+            let req = nos_ipc::Request {
+                id: 1,
+                method: (*m).to_string(),
+                caps: 0,
+                cap_gen: 0,
+                agent: "test".into(),
+                token: None,
+                params: serde_json::json!({}),
+            };
+            let need = req.required_cap();
+            // Só INFER (chat/voz), HITL (ui.action) ou NONE. Nunca FS/NET/
+            // NIX_WRITE/AGENT_SPAWN/MEMORY — o perfil Jarbas tem-nos.
+            assert!(
+                need == CapBits::NONE || need == CapBits::INFER || need == CapBits::HITL,
+                "{m} exige {need:?}: fora do âmbito do kiosk"
+            );
+        }
+        for m in ["observe.energy", "ui.pending"] {
+            assert!(KIOSK_METHODS.contains(&m), "{m} devia estar exposto");
+        }
+        for forbidden in [
+            "nix.apply",
+            "nix.confirm",
+            "nix.rollback",
+            "skill.install",
+            "skill.import",
+            "skill.push",
+            "model.fetch",
+            "model.load",
+            "transmute.run",
+            "wifi.connect",
+            "security.rotate",
+            "systemctl.scoped",
+            "self.heal.evaluate",
+            "mcp.call",
+            "crdt.put",
+            "crdt.sync",
+            "memory.remember",
+        ] {
+            assert!(
+                !KIOSK_METHODS.contains(&forbidden),
+                "{forbidden} NÃO pode estar na allowlist do kiosk"
+            );
+        }
     }
 }

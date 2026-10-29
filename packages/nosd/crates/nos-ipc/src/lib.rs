@@ -61,7 +61,7 @@ impl Request {
             // `mcp.call` aplica as caps DA TOOL no handler (o registry é
             // server-authored); o piso IPC é NONE para permitir tools NONE.
             "config.show" | "observe.energy" | "cognitive.trace" | "ui.pending" | "mcp.list"
-            | "mcp.call" => CapBits::NONE,
+            | "mcp.call" | "dag.plan" => CapBits::NONE,
             "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
             | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
             "skill.list" | "skill.run" | "crdt.get" => CapBits::NONE,

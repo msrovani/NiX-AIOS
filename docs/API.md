@@ -66,6 +66,7 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 | `config-show` | `config.show` | configuração efectiva; env `NOSD_*` **sem segredos** |
 | `energy` | `observe.energy` | joules/W por janela + `source` (rapl/nvml/tdp_estimate/absent) |
 | `trace [--last N]` | `cognitive.trace` | OPAR: domínio + comprimentos; **sem notas/PII** |
+| `dag-plan FILE` | `dag.plan` | valida DAG + write-scope; **não executa** |
 | `dash [--plain]` | health+score+energy+pending | HUD de terminal (serial/metal), zero deps |
 
 ### Modelos

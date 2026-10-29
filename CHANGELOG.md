@@ -3,6 +3,24 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.16] — in-tree (V9: DAG + kiosk)
+
+### Added (V9.1/V9.4/V9.5)
+
+- **V9.1 `nos-core::dag`**: plano topológico com **isolamento de write-scope**
+  por camada (prefixo por segmento: `src/a` conflita com `src/a/b`, não com
+  `src/ab`); id vazio/duplicado, dep desconhecida e ciclo = erro; `write_scope`
+  vazio = read-only declarado; máximo 256 nós; ordem determinística.
+  RPC `dag.plan` (NONE, **não executa**) + `nosctl dag-plan <file.json>`.
+- **V9.4 kiosk**: `observe.energy` e `ui.pending` na allowlist do bridge
+  (`KIOSK_METHODS`), com teste de contrato que exige caps NONE/INFER/HITL e
+  recusa 17 métodos de escrita.
+- **V9.5**: convenção `Tested:`/`Not-tested:` no corpo dos commits (lição 36).
+
+### Changed
+
+- `http_lab`: allowlist extraída para `KIOSK_METHODS` (uma fonte, testável).
+
 ## [0.6.0-alpha.15] — in-tree (V8: doações OMH + eco-tokens)
 
 ### Added (V8.1–V8.6 — doações oh-my-hermes + eco-tokens)

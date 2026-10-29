@@ -337,6 +337,12 @@ enum Cmd {
     },
     /// V4 — fila HITL (tier + TTL; o nonce nunca é exposto).
     Pending,
+    /// V9.1 — valida um DAG (isolamento de write-scope) **sem executar**.
+    #[command(name = "dag-plan")]
+    DagPlan {
+        /// JSON: `{"nodes":[{id,deps,write_scope}]}` ou o array directo.
+        path: String,
+    },
     /// V5 — tools MCP disponíveis para este perfil.
     #[command(name = "mcp-list")]
     McpList,
@@ -731,6 +737,21 @@ async fn async_main() -> anyhow::Result<()> {
         Cmd::Energy => ("observe.energy", serde_json::json!({}), 0),
         Cmd::Trace { last } => ("cognitive.trace", serde_json::json!({ "last": last }), 0),
         Cmd::Pending => ("ui.pending", serde_json::json!({}), 0),
+        Cmd::DagPlan { path } => {
+            let raw = match std::fs::read_to_string(path) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("dag-plan: {e}");
+                    std::process::exit(2);
+                }
+            };
+            let v: serde_json::Value = serde_json::from_str(&raw).unwrap_or_else(|e| {
+                eprintln!("dag-plan: JSON invalido: {e}");
+                std::process::exit(2);
+            });
+            let nodes = v.get("nodes").cloned().unwrap_or(v);
+            ("dag.plan", serde_json::json!({ "nodes": nodes }), 0)
+        }
         Cmd::McpList => ("mcp.list", serde_json::json!({}), 0),
         Cmd::McpCall { tool, args: raw } => {
             let v: serde_json::Value = serde_json::from_str(raw).unwrap_or_else(|e| {
