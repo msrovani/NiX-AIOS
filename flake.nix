@@ -137,6 +137,7 @@
       nixosModules.nosd-early = import ./modules/nosd-early.nix;
       nixosModules.transmute-stage = import ./modules/transmute-stage.nix;
       nixosModules.aios-host-perf = import ./modules/aios-host-perf.nix;
+      nixosModules.nosd-brain = import ./modules/nosd-brain.nix;
       nixosModules.default = { ... }: {
         imports = [
           self.nixosModules.neural-os
@@ -145,6 +146,7 @@
           self.nixosModules.log-fat32
           self.nixosModules.cortex-nix-ring
           self.nixosModules.nosd-engine
+          self.nixosModules.nosd-brain
           self.nixosModules.nosd-early
           self.nixosModules.transmute-stage
           self.nixosModules.aios-host-perf
