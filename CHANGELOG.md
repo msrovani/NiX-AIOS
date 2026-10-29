@@ -3,6 +3,21 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.15] — in-tree (V8: doações OMH + eco-tokens)
+
+### Fixed (D1 — inventário de spawns)
+
+- **`nvidia-smi` por allowlist absoluta** (`nos-core::proc`): candidatos
+  fechados (`/run/current-system/sw/bin/nvidia-smi`, `/usr/bin`, …) e override
+  `NOSD_NVIDIA_SMI` **só se absoluto**; um `PATH` manipulado deixa de decidir o
+  binário. Usado em `nos-observe::energy` **e** `nos-cortex::capacity` (antes
+  ambos falhavam em NixOS → `nvml_absent` mesmo com GPU).
+- **`path` do unit**: `systemd` (journalctl) e `coreutils` (`timeout`) — sem
+  eles o snapshot de journal e `voice.stt` ficavam vazios/falhavam em NixOS.
+- **`docs/SPAWN_INVENTORY.md`**: inventário dos 35 `Command::new` com resolução
+  e dívida (nomes nus vs caminho absoluto).
+- Opção `services.nosd.nvidiaSmi` (null = allowlist).
+
 ## [0.6.0-alpha.14] — 2026-10-29 (Plano vampiro V0–V7)
 
 ### Added (Plano vampiro V0–V7 — absorção selectiva do OpenJarvis)

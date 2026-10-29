@@ -13,6 +13,7 @@ pub mod metrics;
 pub mod model_slot;
 pub mod orb;
 pub mod policy;
+pub mod proc;
 pub mod safety_trust;
 pub mod score;
 pub mod ui_window;
@@ -33,6 +34,7 @@ pub use policy::{
     disposition, lab_auto_switch_from_env, policy_matrix_prod, with_abstain, ActDisposition,
     ActDomain,
 };
+pub use proc::{first_existing, nvidia_smi_candidates, nvidia_smi_path, NVIDIA_SMI_NIXOS};
 pub use safety_trust::{
     check_invariant, note_violation, trust_allow, violation_count, SafetyInvariant,
     SafetyViolation, TrustToken,

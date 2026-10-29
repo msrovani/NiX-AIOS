@@ -3304,6 +3304,7 @@ dependencies = [
 name = "nos-observe"
 version = "0.6.0-alpha.14"
 dependencies = [
+ "nos-core",
  "serde",
  "serde_json",
 ]

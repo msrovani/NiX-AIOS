@@ -8,3 +8,4 @@ description = "Host observe snapshot — hwmon, drm, meminfo, presence (assistd 
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+nos-core = { path = "../nos-core" }

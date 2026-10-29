@@ -63,7 +63,8 @@ impl CapacityProber {
 
 /// `nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits`
 fn probe_nvidia_smi_free_mb() -> Option<u64> {
-    let out = Command::new("nvidia-smi")
+    let smi = nos_core::nvidia_smi_path()?;
+    let out = Command::new(smi)
         .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"])
         .output()
         .ok()?;

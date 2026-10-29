@@ -47,7 +47,8 @@ pub fn read_rapl_uj() -> Option<u64> {
 ///
 /// Ausência do binário ou de driver = `None` (não é erro).
 pub fn read_nvml_watts() -> Option<f64> {
-    let out = std::process::Command::new("nvidia-smi")
+    let smi = nos_core::nvidia_smi_path()?;
+    let out = std::process::Command::new(smi)
         .args(["--query-gpu=power.draw", "--format=csv,noheader,nounits"])
         .output()
         .ok()?;

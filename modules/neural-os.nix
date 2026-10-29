@@ -83,6 +83,16 @@ in
         null = sem estimativa (source=absent, zero joules).
       '';
     };
+    # D1: caminho absoluto do nvidia-smi (o PATH do unit não decide).
+    nvidiaSmi = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        NOSD_NVIDIA_SMI — caminho absoluto. null = allowlist do daemon
+        (/run/current-system/sw/bin/nvidia-smi, /usr/bin, ...).
+        Ex.: "${config.hardware.nvidia.package}/bin/nvidia-smi".
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -137,6 +147,11 @@ in
         llama-cpp
         whisper-cpp
         espeak-ng
+        # observe: journalctl (D1 inventário de spawns; sem isto o snapshot
+        # de journal fica vazio em NixOS — o PATH do unit é fechado).
+        systemd
+        # voice: `timeout` é coreutils (gravação com limite) — faltava no path.
+        coreutils
       ];
       serviceConfig = {
         Type = "notify";
@@ -187,7 +202,8 @@ in
           "NOSD_PRICE_REF_DATE=${cfg.priceRefDate}"
           "NOSD_PRICE_REF_MODEL=${cfg.priceRefModel}"
           "RUST_LOG=info"
-        ] ++ lib.optional (cfg.tdpWatts != null) "NOSD_TDP_W=${toString cfg.tdpWatts}";
+        ] ++ lib.optional (cfg.tdpWatts != null) "NOSD_TDP_W=${toString cfg.tdpWatts}"
+          ++ lib.optional (cfg.nvidiaSmi != null) "NOSD_NVIDIA_SMI=${cfg.nvidiaSmi}";
       };
     };
   };
