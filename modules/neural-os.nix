@@ -100,9 +100,13 @@ in
       isSystemUser = true;
       group = "nosd";
       # R-01/NX.3: journal legível + DRM.
-      extraGroups = [ "video" "render" "systemd-journal" ];
+      # `audio`: /dev/snd/* é root:audio 0660 — sem este grupo o `arecord`
+      # (mic) e o `aplay` (TTS) falham com EACCES no metal (voz muda).
+      extraGroups = [ "video" "render" "systemd-journal" "audio" ];
     };
     users.groups.nosd = { };
+    # Idempotente: garante o grupo mesmo se nenhum módulo de áudio o definir.
+    users.groups.audio = { };
 
     systemd.tmpfiles.rules = [
       "d ${cfg.dataDir} 0750 nosd nosd -"
