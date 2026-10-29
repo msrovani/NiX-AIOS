@@ -350,8 +350,10 @@
 
               # 3) HITL grant (kind=nix.apply) + fase 1: copy + test.
               #    Nada de `switch` no stub e a geraçao de boot fica intacta.
+              #    (to_string_pretty imprime `"confirm_id": "..."` — split
+              #    tolera o espaço após o ':'.)
               cid_out = machine.succeed(nosctl + " consent nix.apply")
-              cid = cid_out.split('"confirm_id":"')[1].split('"')[0]
+              cid = cid_out.split('"confirm_id":')[1].split('"')[1]
               machine.succeed(nosctl + " nix-apply --confirm-id " + cid)
               machine.wait_until_succeeds("grep -q 'aguarda nix.confirm' " + LOG)
               machine.succeed("test $(grep -c 'rebuild test' " + STUB + ") -eq 1")
@@ -372,7 +374,7 @@
               # 5) fase 2 por RPC: consent → nix.confirm (grava confirm com
               #    ts fresco) → switch no stub + geração gravada.
               cid_out = machine.succeed(nosctl + " consent nix.apply")
-              cid2 = cid_out.split('"confirm_id":"')[1].split('"')[0]
+              cid2 = cid_out.split('"confirm_id":')[1].split('"')[1]
               machine.succeed(nosctl + " nix-confirm --confirm-id " + cid2)
               machine.wait_until_succeeds("grep -q 'rebuild switch' " + STUB)
               machine.wait_until_succeeds("grep -q 'switch OK' " + LOG)
