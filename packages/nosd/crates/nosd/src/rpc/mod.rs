@@ -637,15 +637,25 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
                 dom,
                 ActDomain::NixSwitch | ActDomain::WifiConnect | ActDomain::FactorySeekInstall
             )
-            && !hitl_grant_ok(state, &req, grant_kind_for(dom))
-            && !(lab && matches!(dom, ActDomain::NixSwitch))
         {
-            return Response {
-                id: req.id,
-                ok: false,
-                error: Some(format!("SITE_POLICY confirm domain={dom:?}")),
-                result: json!({ "disposition": "confirm", "need_hitl": true }),
+            // S-04: o dispatch é o ÚNICO consumidor do grant (handlers não
+            // re-verificam — double-consume apanhado pelo nixaios-ring).
+            // Tipo especial: nix.build_vm usa o seu próprio kind.
+            let want_kind = if req.method == "nix.build_vm" {
+                "nix.build_vm"
+            } else {
+                grant_kind_for(dom)
             };
+            if !hitl_grant_ok(state, &req, want_kind)
+                && !(lab && matches!(dom, ActDomain::NixSwitch))
+            {
+                return Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(format!("SITE_POLICY confirm domain={dom:?}")),
+                    result: json!({ "disposition": "confirm", "need_hitl": true }),
+                };
+            }
         }
     }
 

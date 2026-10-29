@@ -83,15 +83,11 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "nix.apply" | "nix.confirm" => {
-            // S-04: apply root exige grant server-authored, não booleano do cliente.
-            if !super::hitl_grant_ok(state, &req, "nix.apply") {
-                return Some(Response {
-                    id: req.id,
-                    ok: false,
-                    error: Some("HITL required: confirm_id from ui.action (kind=nix.apply)".into()),
-                    result: json!({ "need": "confirm_id", "kind": "nix.apply" }),
-                });
-            }
+            // S-04: apply root exige grant server-authored — verificado e
+            // CONSUMIDO pelo gate SITE_POLICY do dispatch (Confirm/Escalate).
+            // O handler NÃO re-verifica: re-consumir o grant matava o fluxo
+            // correcto ("HITL required" com grant válido — apanhado pelo
+            // nixaios-ring; ver docs/memory/SESSION_20261029_TRANCHE_BRAIN.md).
             // Anel Cortex: arma apply root (HITL confirm = mesmo path, policy já gated)
             let method = req.method.as_str();
             match if method == "nix.confirm" {
@@ -125,16 +121,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
         "nix.build_vm" => {
-            if !super::hitl_grant_ok(state, &req, "nix.build_vm") {
-                return Some(Response {
-                    id: req.id,
-                    ok: false,
-                    error: Some(
-                        "HITL required: confirm_id from ui.action (kind=nix.build_vm)".into(),
-                    ),
-                    result: json!({ "need": "confirm_id", "kind": "nix.build_vm" }),
-                });
-            }
+            // Grant consumido no dispatch (ver comentário do nix.apply).
             match nix_managed::request_build_vm(&state.data_dir) {
                 Ok(r) => {
                     opar_after_ok(
@@ -319,6 +306,9 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .unwrap_or("")
                     .into(),
             };
+            // self.heal.evaluate = domínio NixPropose (Confirm FORA da lista
+            // do gate SITE_POLICY) — o handler é o ÚNICO consumidor do grant
+            // (single-use provado por replay em ipc_auth).
             let hitl = super::hitl_grant_ok(state, &req, "self.heal");
             if !hitl {
                 return Some(Response {
@@ -393,16 +383,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             },
         },
         "wifi.connect" => {
-            if !super::hitl_grant_ok(state, &req, "wifi.connect") {
-                return Some(Response {
-                    id: req.id,
-                    ok: false,
-                    error: Some(
-                        "HITL required: confirm_id from ui.action (kind=wifi.connect)".into(),
-                    ),
-                    result: json!({ "need": "confirm_id", "kind": "wifi.connect" }),
-                });
-            }
+            // Grant consumido no dispatch (SITE_POLICY Confirm) — sem re-check.
             let ssid = req
                 .params
                 .get("ssid")
