@@ -56,6 +56,7 @@ use nos_factory::{
 use nos_memory::{MemoryRecord, NosMemory};
 use parking_lot::Mutex;
 use serde_json::json;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 use tracing::info;
@@ -74,6 +75,9 @@ pub enum HermesError {
     #[error("ui: {0}")]
     Ui(&'static str),
 }
+
+/// V3: capacidade do ring buffer OPAR exposto à UI.
+pub const OPAR_TRACE_CAP: usize = 64;
 
 pub struct HermesEngine {
     pub hub: ModelHub,
@@ -98,6 +102,8 @@ pub struct HermesEngine {
     pub chat_budget: Mutex<IterationBudget>,
     pub persona: Mutex<PersonaState>,
     pub idle_ticks: AtomicU64,
+    /// V3 (plano vampiro): ring buffer OPAR para a UI — só metadados.
+    pub opar_trace: Mutex<VecDeque<(u64, CognitiveAct)>>,
 }
 
 /// Config de boot do composition root (hub scan + hotswap + S2 + brokers).
@@ -178,6 +184,7 @@ impl HermesEngine {
             chat_budget: Mutex::new(IterationBudget::new(256)),
             persona: Mutex::new(PersonaState::default()),
             idle_ticks: AtomicU64::new(0),
+            opar_trace: Mutex::new(VecDeque::new()),
         };
         eng.seed_cinematic_boot();
         Ok(eng)
@@ -611,6 +618,18 @@ impl HermesEngine {
             "COGNITIVE_ACT",
             serde_json::to_value(&act).unwrap_or(json!({})),
         );
+        // V3: ring buffer para a UI (metadados; as notas ficam na memória).
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        {
+            let mut trace = self.opar_trace.lock();
+            trace.push_back((now, act.clone()));
+            while trace.len() > OPAR_TRACE_CAP {
+                trace.pop_front();
+            }
+        }
         act
     }
 
@@ -921,6 +940,33 @@ impl HermesEngine {
             .action(gate, self.cap_gen, act)
             .map_err(HermesError::Ui)
     }
+
+    /// V3 (plano vampiro): últimos `n` actos OPAR, **só metadados**.
+    ///
+    /// Redacção por construção: devolve domínio, comprimentos das quatro
+    /// fases, `remembered` e `seek` — nunca o texto das notas (que pode conter
+    /// prompt/PII e chegar a um canal com allowlist de browser).
+    pub fn opar_trace(&self, n: usize) -> Vec<serde_json::Value> {
+        let trace = self.opar_trace.lock();
+        let start = trace.len().saturating_sub(n.max(1));
+        trace
+            .range(start..)
+            .map(|(ms, a)| {
+                json!({
+                    "ts_ms": ms,
+                    "domain": a.domain,
+                    "phases": {
+                        "observe_len": a.observe_note.chars().count(),
+                        "plan_len": a.plan_note.chars().count(),
+                        "act_len": a.act_note.chars().count(),
+                        "verify_len": a.verify_note.chars().count(),
+                    },
+                    "remembered": a.remembered,
+                    "seek": a.seek_audit,
+                })
+            })
+            .collect()
+    }
 }
 
 fn lane_name(l: SystemLane) -> &'static str {
@@ -977,6 +1023,7 @@ mod tests {
             chat_budget: Mutex::new(IterationBudget::new(64)),
             persona: Mutex::new(PersonaState::default()),
             idle_ticks: AtomicU64::new(0),
+            opar_trace: Mutex::new(VecDeque::new()),
         };
         TestEng { _dir: dir, eng }
     }
@@ -1113,5 +1160,31 @@ mod tests {
         let t = eng();
         let act = wrap_opar(&t.eng.memory, "hermes", "observe", "plan", "act", "verify");
         assert!(act.remembered);
+    }
+
+    #[test]
+    fn opar_trace_never_leaks_notes() {
+        let t = eng();
+        t.eng
+            .record_opar("chat", "SEGREDO-XYZ", "plan", "act", "ok");
+        let trace = t.eng.opar_trace(4);
+        assert_eq!(trace.len(), 1);
+        let s = serde_json::to_string(&trace).unwrap();
+        assert!(!s.contains("SEGREDO-XYZ"), "trace vazou notas: {s}");
+        assert_eq!(trace[0]["domain"], "chat");
+        assert_eq!(trace[0]["phases"]["observe_len"], 11);
+        assert_eq!(trace[0]["phases"]["plan_len"], 4);
+    }
+
+    #[test]
+    fn opar_trace_is_bounded_and_ordered() {
+        let t = eng();
+        for i in 0..(OPAR_TRACE_CAP + 5) {
+            t.eng.record_opar("chat", "o", "p", "a", &format!("v{i}"));
+        }
+        assert_eq!(t.eng.opar_trace(1000).len(), OPAR_TRACE_CAP);
+        let last = t.eng.opar_trace(1);
+        assert_eq!(last.len(), 1);
+        assert_eq!(last[0]["phases"]["verify_len"], 3); // "v69"
     }
 }

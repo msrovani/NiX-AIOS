@@ -48,6 +48,9 @@ export component HudWindow inherits Window {
     in-out property <bool> orb_video_on: false;
     in-out property <string> orb_lab_url: "http://127.0.0.1:7701/";
     in-out property <bool> hub_ok: false;
+    /// V1/V4 (plano vampiro): energia por janela e fila HITL.
+    in-out property <string> energy_line: "";
+    in-out property <int> hitl_pending: 0;
 
     callback submit-chat(string);
     callback hitl-submit(int, string);
@@ -244,6 +247,26 @@ export component HudWindow inherits Window {
         font-size: 9px;
         font-weight: 700;
         vertical-alignment: center;
+    }
+    // V4: fila HITL visível sem abrir formulário (o grant continua a exigir ação).
+    Text {
+        x: 32px; y: 66px; width: 200px; height: 13px;
+        text: "HITL · " + root.hitl_pending;
+        color: root.hitl_pending > 0 ? #ffb54a : #405363;
+        font-size: 9px;
+        font-weight: 700;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    // V1: energia medida/estimada da última janela (source sempre visível).
+    Text {
+        x: root.width - 245px; y: 58px; width: 215px; height: 14px;
+        text: root.energy_line;
+        color: #6f8fa3;
+        font-size: 9px;
+        vertical-alignment: center;
+        horizontal-alignment: left;
+        overflow: elide;
     }
     Rectangle {
         x: root.width - 264px; y: 23px; width: 10px; height: 10px;

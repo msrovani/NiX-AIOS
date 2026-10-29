@@ -5,9 +5,11 @@ mod factory_store;
 mod health;
 mod http_lab;
 mod job;
+mod mcp;
 mod model;
 mod nix_wifi;
 mod security;
+mod skill_md;
 pub mod skills;
 mod ui_orb;
 mod voice_transmute;
@@ -92,6 +94,24 @@ impl HitlGrantStore {
 
     pub fn len(&self) -> usize {
         self.grants.lock().len()
+    }
+
+    /// V4: resumo agregado (kind + TTL restante). **Nunca** devolve o nonce.
+    pub fn summary(&self) -> Vec<serde_json::Value> {
+        let now = now_ms();
+        let mut grants = self.grants.lock();
+        grants.retain(|_, g| g.expires_ms > now);
+        let mut out: Vec<serde_json::Value> = grants
+            .values()
+            .map(|g| {
+                json!({
+                    "kind": g.kind,
+                    "ttl_ms": g.expires_ms.saturating_sub(now),
+                })
+            })
+            .collect();
+        out.sort_by_key(|v| v.get("ttl_ms").and_then(|x| x.as_u64()).unwrap_or(0));
+        out
     }
 
     pub fn is_empty(&self) -> bool {
@@ -216,6 +236,8 @@ pub struct AppState {
     pub shutting_down: AtomicBool,
     /// Contador do loop Continuous Hermes (0 = ainda não tickou / desligado).
     pub hermes_ticks: std::sync::atomic::AtomicU64,
+    /// V1 (plano vampiro): medidor de energia (RAPL/NVML/TDP) por janela.
+    pub energy: Mutex<nos_observe::energy::EnergyMeter>,
 }
 
 impl AppState {
@@ -683,6 +705,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
     if let Some(r) = skills::dispatch(state, req.clone()) {
         return r;
     }
+    if let Some(r) = mcp::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
     if let Some(r) = voice_transmute::dispatch(state, &gate, req.clone()) {
         return r;
     }
@@ -715,6 +740,16 @@ mod tests {
         assert!(store.consume(&id2, "self.heal"));
         assert!(!store.consume(&id2, "self.heal"));
         assert!(store.is_empty());
+    }
+
+    #[test]
+    fn grant_summary_never_leaks_nonce() {
+        let store = HitlGrantStore::default();
+        let (id, _) = store.issue("nix.apply");
+        let s = serde_json::to_string(&store.summary()).expect("json");
+        assert!(s.contains("nix.apply"));
+        assert!(s.contains("ttl_ms"));
+        assert!(!s.contains(&id), "summary vazou o nonce: {s}");
     }
 
     fn write_token(path: &Path, value: &str) {

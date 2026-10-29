@@ -347,7 +347,7 @@ recolher `docs/evidence/hw/`. Ver `docs/HW_TEST.md`.
 | P.3 | AgentJev-0.6B backend S1 CapGate | **PARTIAL**↑ | gate efectivo + `guard-iso-no-s1-blob.sh` no build ISO; blob load runtime AWAITING |
 | P.4 | whisper.cpp+Piper EngineAbsent off | **PARTIAL** | `VoiceEnginePosture::EngineReady` se CLI no PATH; sem bin = Absent honesto |
 | P.5 | AirLLM layer-stream TooTight | **DONE** (host thin) | `run_layer_stream` + hub; llama mmap real residual |
-| P.6 | Membrane + MCP + Cross-OS discover | **PARTIAL** | `MembraneGrant`; MCP bridge/discover live **NOT** |
+| P.6 | Membrane + MCP + Cross-OS discover | **PARTIAL+** (V5) | `MembraneGrant`; MCP **in-process** (`nos-mcp`: initialize/list/call, caps por tool, HITL p/ side-effect); `stdio`/SSE e discover live **NOT_DONE** |
 | P.7 | Mesh crypto Noise/ML-KEM RESEARCH | **PARTIAL** | RESEARCH doc; ML-KEM **NOT** |
 | P.8 | wasmi `aios_ai::infer` CapGate | **DONE** | host import + testes deny |
 | P.9 | SleepCycle 5 fases consolidate nsgdb real | **PARTIAL** | Consolidate→`tick_sleep_consolidate`+SLEEP_CONSOLIDATE; nsgdb MCP real **NOT** |

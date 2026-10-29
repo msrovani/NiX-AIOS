@@ -298,6 +298,7 @@ async fn main() -> anyhow::Result<()> {
         package_store: parking_lot::Mutex::new(nos_factory::PackageStore::new()),
         shutting_down: AtomicBool::new(false),
         hermes_ticks: std::sync::atomic::AtomicU64::new(0),
+        energy: parking_lot::Mutex::new(nos_observe::energy::EnergyMeter::new()),
     });
 
     // M7: listener de jobs (TCP, frames assinados). Opt-in por env.

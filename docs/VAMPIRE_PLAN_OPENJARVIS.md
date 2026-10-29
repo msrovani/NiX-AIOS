@@ -1,0 +1,319 @@
+# Plano Vampiro — absorção selectiva do OpenJarvis
+
+**Estado:** PROPOSTA (não aceite até confirmação do dono).
+**Âmbito:** copiar **ideias, specs e algoritmos** do
+[`open-jarvis/OpenJarvis`](https://github.com/open-jarvis/OpenJarvis) para o
+JARBAS/`nosd`. **Nunca** o runtime (Python, React, Tauri, PyO3).
+**Alvos:** `packages/nosd` (0.6.x) · HUD `nos-jarbas` · ISO `NIXAIOS051`.
+**Doutrina:** ADR-0113 (honesty) · ADR-0118 (portabilidade) ·
+[`AGENTS.md`](../AGENTS.md) · [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md).
+
+> *"Ultron não come aquilo que o mata."* — a lista de **veneno** (§2) é a parte
+> mais importante deste plano. Tudo o resto é apetite.
+
+---
+
+## 0. As cinco leis da sucção
+
+| # | Lei | Consequência prática |
+|---|-----|----------------------|
+| **L1** | Só se suga o que o `nosd` **não tem** | §3 é o mapa de duplicação: o que já existe é recusado por nome |
+| **L2** | Entra como **PORT (Rust)** ou **SPEC (doc)** — nunca como dependência | zero Python, zero Node, zero `uv`, zero FOD na ISO |
+| **L3** | Nada entra sem `required_cap` + OPAR + teste no nível do bug + evidência | `docs/evidence/VAMPIRE_<id>_<release>.md` com `claim_status` |
+| **L4** | O veneno é proibido **por nome**, não por intenção | §2 fecha a porta antes de haver tentação |
+| **L5** | Uma mordida = uma tranche; não bloqueia M3/M4/M5 | regra 10 do AGENTS.md ("uma release, um objectivo") |
+
+**Regra de código:** se a peça original tiver **≤200 linhas e zero deps
+pesadas**, copia-se com atribuição (`NOTICE`). Acima disso, **reescreve-se**.
+Copiar 6 MiB de Python "aos pedaços" é a forma mais lenta de o portar.
+
+---
+
+## 1. Tipos sanguíneos (licença)
+
+- OpenJarvis é **Apache-2.0**: derivado é permitido com `NOTICE` e indicação de
+  alterações. Ideias/algoritmos não são copyrightáveis; **código é**.
+- Não se copia prosa nem código do `neural-os-core` — essa regra é do
+  [ADR-0118](BOOT_TO_JARBAS.md) e aplica-se por analogia: **spec > código**.
+- Onde houver dúvida, a mordida entrega um **documento** no NixAIOS e um
+  comentário `// inspirado em open-jarvis/OpenJarvis <path> (Apache-2.0)`.
+
+---
+
+## 2. Veneno — o que NUNCA atravessa a membrana
+
+| Veneno | Origem | Regra que viola |
+|--------|--------|-----------------|
+| `posthog`, `posthog-js` | deps core + `frontend/` | local-first; default de telemetria ligado |
+| `shell_exec`, `code_interpreter`, `docker_shell_exec`, `repl` | `tools/builtin/` | RCE no mesmo PID que detém o token do engine — fura o CapGate (regras 1/4) |
+| `sandbox-wasm` (**wasmtime**) | `sandbox/wasm_runner.py` | wasmtime path A = REJECT (ADR-0059/0118) |
+| `permission_memory` (`always_approve` por fingerprint) | `tools/approval_store.py` | regra 2: HITL é nonce de uso único, server-authored |
+| `CapabilityPolicy(default_deny=False)` | `security/capabilities.py` | regra 4: fail-closed |
+| `@tauri-apps/plugin-shell`, `plugin-updater`, `self_update_cmd` | `frontend/`, `cli/` | appliance imutável; self-update fora da store |
+| `config.toml` como fonte de verdade em `$HOME` | `configs/openjarvis/` | estado≠configuração; `ProtectHome` quebra-o em silêncio |
+| Engines cloud por omissão (`openai`/`anthropic`/`google`) | `engine/` | local-first; sem nuvem implícita |
+| React/Tailwind/Tauri na ISO | `frontend/` | Node 22 + npm 11 no release (packaging) |
+| Ollama obrigatório (`:11434`) | `scripts/quickstart.sh` | ADR-0118 hotswap-hf: "não embutir Ollama" |
+| `jarvis doctor` com self-heal de estado | `scripts/install/bg-orchestrator.sh` | artefacto tem de existir **antes** da máquina |
+
+---
+
+## 3. Mapa de duplicação — o que **não** se morde
+
+| Capacidade | Já temos | Fonte | Veredicto |
+|---|---|---|---|
+| Engines / attach | `nos-cortex::hotswap` + `NOSD_LLAMA_SERVER` | G2/T2 | não morder |
+| Agentes / loop | `nos-hermes` OPAR + S2Queue | M3c | não morder (ler padrões de UI) |
+| Memória | `nos-memory` (nsgdb `seg.bin`) | M8.1d | não morder |
+| Skills | S1/S2 (BLAKE3 + Ed25519 + allowlist + caps) | alpha.8/9 | morder só o **formato** (V6) |
+| Frota | `nos-mesh` Ed25519 + Noise + CRDT | M6/M8 | não morder |
+| HITL | nonce server-authored + `nosctl consent` | S-04 | morder só a **fila/tier** (V4) |
+| Tools | `nos-wasm` wasmi 256 KiB / 100k fuel | N.8 | não morder |
+| Scheduler | systemd timers | — | não morder |
+| Telemetria | `nos-observe` (sysfs, udev, NM) — **sem energia** | NX.3 | morder energia (V1) |
+
+---
+
+## 4. As mordidas
+
+Rubrica: **GOAL · SEEK · MEASURE · OK · LOST · claim**.
+
+### V0 — `nosctl doctor` + `config.show` + pesos métricos
+**Sangue:** `cli/doctor_cmd.py` (forma), `configs/openjarvis/config.toml`
+(`[learning.metrics]`).
+**Destino:** `packages/nosd/crates/nosd/src/nosctl.rs` · `nos-core` (pesos).
+
+| | |
+|--|--|
+| GOAL | Um ecrã de triage e uma config legível; pesos de score explícitos |
+| SEEK | `nosctl doctor` · `nosctl config.show --json` |
+| MEASURE | `nosctl doctor --json` → `{ok:true,sub:{health,score,engine,landlock,firstboot,mesh}}`; exit 0 só com sub verde |
+| OK | doctor agrega `health`+`score`+`observe`+engine+landlock+firstboot+mesh; `config.show` nunca imprime token/segredo |
+| LOST | doctor "verde" com subsistema em falta (SKILL: SKIP≠OK) |
+| claim | IMPLEMENTED (host) |
+| esforço | 1,5 dia · **zero deps** |
+
+Pesos: `services.nosd.score.metrics = { accuracy, latency, cost, efficiency }`
+(default 0.6/0.2/0.1/0.1, **declarado**, não escondido). Alimenta `score_v0` e o
+`Cost`/`Gain` do `brain.plan`.
+
+### V1 — Energia por turno (o buraco maior)
+**Sangue:** `telemetry/{energy_nvidia,energy_rapl,energy_amd,flops,itl}.rs`
+(41 KiB, self-contained).
+**Destino:** `nos-observe` + `score_v0` + HUD.
+
+| | |
+|--|--|
+| GOAL | joules + tokens/s + ITL do último turno, medidos ou honestamente estimados |
+| SEEK | `/sys/class/powercap/intel-rapl:*/energy_uj` · `nvidia-smi --query-gpu=power.draw` |
+| MEASURE | 2 turnos seguidos; contador RAPL monotónico; J/token estável ±30% |
+| OK | `nosctl observe --energy` devolve `{joules, tokens, j_per_token, source:rapl\|nvml\|estimate}` |
+| LOST | número sem `source`; ou estimativa apresentada como medição |
+| claim | OBSERVED (host) → VERIFIED só com 3 repetições e artefacto |
+| esforço | 2–3 dias · **zero deps** (sysfs + `nvidia-smi` existente) |
+
+**Gotcha:** `powercap` exige root ou regra udev (`0440 root:powercap`). Se não
+houver: `source:estimate` (CPU-time × TDP), sempre rotulado. Nunca "medido".
+
+### V2 — Custo evitado vs nuvem
+**Sangue:** `server/{savings,cost_calculator}.py` + showcase "Track Your Savings".
+**Destino:** `nos-observe`/`nos-hermes` + HUD.
+
+| | |
+|--|--|
+| GOAL | tornar o local-first legível: `local X € · cloud ref. Y €` |
+| SEEK | `docs/PRICE_REFERENCE.md` (preços datados) × tokens do turno |
+| MEASURE | `nosctl observe --cost` com `ref_date` e `ref_model` no payload |
+| OK | valor sempre acompanhado de `ref_date` + `ref_model` + `HYPOTHESIS` |
+| LOST | número sem fonte datada = **marketing**, proibido (ADR-0113) |
+| claim | HYPOTHESIS (por definição — é contrafactual) |
+| esforço | 1 dia |
+
+### V3 — Trace OPAR visível
+**Sangue:** `agents/executor.py` (display de passos).
+**Destino:** `nos-hermes` (ring buffer de `CognitiveAct`) + `cognitive.trace`.
+
+| | |
+|--|--|
+| GOAL | ver O→P→A→V do último turno no HUD |
+| SEEK | `CognitiveAct` já gravado (`record_opar`) |
+| MEASURE | `nosctl cognitive.trace --last 1` → 4 fases + ms |
+| OK | fases e durações; **sem** texto de prompt/PII (redacção no servidor) |
+| LOST | trace devolver conteúdo do utilizador a um canal com allowlist de browser |
+| claim | IMPLEMENTED (host) |
+| esforço | 2 dias |
+
+### V4 — Fila HITL com tier e TTL
+**Sangue:** `tools/approval_store.py` — **só** `pending_actions`, tiers
+(`trivial/low/medium/high`) e estados (`pending/approved/denied/expired/executed`).
+**Destino:** `nos-hermes::ui_window` + RPC `ui.pending`.
+
+| | |
+|--|--|
+| GOAL | o utilizador vê **quantos** pedidos esperam, de que tier, com quanto TTL |
+| SEEK | `ui.list` + novo `ui.pending` (`CapBits::NONE`, read-only) |
+| MEASURE | 2 pedidos pendentes → HUD mostra 2 + TTL a descer; grant consome 1 |
+| OK | tier+TTL na UI; grant continua nonce de uso único |
+| LOST | qualquer "lembrar decisão" / `always_approve` persistido |
+| claim | IMPLEMENTED (host) · VM depois |
+| esforço | 2 dias |
+
+### V5 — MCP server em Rust com CapGate (a mordida grande)
+**Sangue:** `mcp/{protocol,transport,server}.py` — spec apenas (o crate Rust deles
+tem 8 KiB e não serve).
+**Destino:** crate novo `nos-mcp` + RPC `mcp.*` + `required_cap` por tool.
+
+| | |
+|--|--|
+| GOAL | fechar o residual "VERIFIED MCP sem MCP" (`P.6 PARTIAL`) |
+| SEEK | `mcp.list`/`mcp.call`; side-effect em `opar_gate` |
+| MEASURE | servidor MCP de teste: `tools/list` + `tools/call` de uma tool pura; `mcp.call` com cap em falta = deny |
+| OK | fail-closed por tool; sem `stdio` shell; timeouts; nenhum caminho root |
+| LOST | tool MCP a chegar ao FS/NET sem passar pelo `CapGate` |
+| claim | IMPLEMENTED → OBSERVED com 2 servidores |
+| esforço | 1–2 semanas |
+
+### V6 — Formato `agentskills.io` no S1/S2
+**Sangue:** `skills/{parser,loader,security}.py` — **só a spec** do `SKILL.md`
+(frontmatter declarativo).
+**Destino:** parser em `nosd::rpc::skills` → manifesto `skill/<n>/meta`.
+
+| | |
+|--|--|
+| GOAL | aceitar skills públicas sem aceitar código |
+| SEEK | `skill.install --from SKILL.md` |
+| MEASURE | skill com `caps: [code:execute]` → recusa; com `caps: [log]` → aceita |
+| OK | mapeamento frontmatter→manifesto + BLAKE3 + publisher (S2) intactos |
+| LOST | qualquer skill que peça execução sem wasm assinado |
+| claim | IMPLEMENTED (host) |
+| esforço | 1 semana |
+
+### V7 — `nosctl dash` (TUI para serial/metal)
+**Sangue:** `server/dashboard.py` (Textual) — forma apenas.
+**Destino:** subcomando `nosctl dash` (ratatui, **feature-gated**, bin só).
+
+| | |
+|--|--|
+| GOAL | HUD legível por serial quando o `screendump` sai preto com o cage |
+| SEEK | `nosctl dash --serial` (sem truecolor, ASCII) |
+| MEASURE | no QEMU: `console=ttyS0` mostra health+score+tick sem artefactos |
+| OK | refresh 1 s, <2% CPU, zero escrita no daemon |
+| LOST | TUI que exige tty gráfico ou colore com ANSI que a serial come |
+| claim | OBSERVED (QEMU) |
+| esforço | 1–2 dias |
+
+### Caixa de gelo (não agora)
+Streaming token-a-token no chat (SSE sobre o bridge, sem abrir métodos) ·
+Markdown subset no Slint · presets como `profile` Nix · `rig-core` como backend
+alternativo ao `llama-server` · compressão de sessão.
+
+---
+
+## 5. Sequência e gates
+
+| Tranche | Mordidas | Pré-requisito | Gate |
+|---|---|---|---|
+| **T-A "sangue seco"** | V0 | nenhum | `cargo test --workspace` + `nosctl doctor` manual |
+| **T-B "metabolismo"** | V1 + V2 | T-A | `journalctl -u nosd` com `source=rapl` ou `estimate` |
+| **T-C "espelho"** | V3 + V4 | T-B | HUD em QEMU; `ui.pending` **não** na allowlist do kiosk até haver teste |
+| **T-D "mão"** | V5 | M3 **fechado** | `nixaios-vm` + check `mcp-deny` |
+| **T-E "boca"** | V6 | V5 (ou independente) | `skill.install` com recusa de `code:execute` |
+| **T-F "olho"** | V7 | M4 metal em curso | QEMU serial + metal |
+
+Regra de ouro: **T-A e T-B não podem bloquear M3/M4/M5**. Se colidirem,
+pausam-se — o Norte é o Norte.
+
+---
+
+## 6. Orçamento (**HYPOTHESIS**)
+
+| Mordida | Dias |
+|---|---|
+| V0 | 1,5 |
+| V1 | 2–3 |
+| V2 | 1 |
+| V3 | 2 |
+| V4 | 2 |
+| V5 | 7–10 |
+| V6 | 5 |
+| V7 | 1–2 |
+| **Total** | **~22–27 dias** (≈5–6 semanas a meio-tempo) |
+
+Comparação: o port completo do produto seria **~170–190k linhas** (≈7–8× o
+`nosd` inteiro). Isto é **~4% do custo** e entrega ~80% do valor visível.
+
+---
+
+## 7. Riscos e critérios de aborto
+
+| Risco | Mitigação | Aborta se |
+|---|---|---|
+| Scope creep ("só mais um painel") | L5: uma mordida por tranche | 2 mordidas na mesma tranche |
+| Métrica de vaidade (energia mal calibrada) | `source` obrigatório + repetição | número sem `source` |
+| Abrir a allowlist do kiosk | método novo só `CapBits::NONE` + teste de contrato | precisar de escrita no browser |
+| MCP virar superfície de RCE | sem `stdio`, sem shell, cap por tool | qualquer caminho que evite o `CapGate` |
+| Contrafactual de custo virar marketing | `ref_date` + `HYPOTHESIS` | falta de fonte datada |
+| Deriva de identidade do JARBAS | copiar informação, não estética | proposta de "tema OpenJarvis" |
+
+Aborto global: se `bash scripts/gate-boot-to-jarbas.sh --strict` regredir por
+causa de uma mordida, a mordida é revertida — não o gate.
+
+---
+
+## 8. Definição de DONE (por mordida)
+
+1. `cargo fmt --check` + `clippy -D warnings` + `cargo test --workspace` verdes.
+2. Teste **no nível do bug** (ex.: `ui.pending` não devolve payload de HITL;
+   RAPL sem root → `estimate`).
+3. `docs/evidence/VAMPIRE_<id>_<release>.md` com `claim_status` e artefacto.
+4. `CHANGELOG.md` + [`REMIGRATION_PLAN_LEDGER.md`](REMIGRATION_PLAN_LEDGER.md)
+   actualizados (`P.6` para V5, `DB.1` se V1 tocar nsgdb).
+5. Se tocar a ISO: `bash scripts/gate-boot-to-jarbas.sh --strict` verde.
+
+---
+
+## 9. Primeira acção (esta semana)
+
+```bash
+# 1) V0 — doctor + config.show (zero deps)
+#    tocar: packages/nosd/crates/nosd/src/nosctl.rs, nos-core, modules/nosd*.nix
+cargo test --workspace
+nosctl doctor --json
+
+# 2) evidência
+docs/evidence/VAMPIRE_V0_<release>.md
+
+# 3) só depois: V1 (RAPL) — medir antes de mostrar
+cat /sys/class/powercap/intel-rapl:0/energy_uj
+```
+
+---
+
+## 10. Anti-goals explícitos
+
+Fork do OpenJarvis · runtime Python/Node na ISO · frontend React/Tauri ·
+`posthog` · `shell_exec` · wasmtime · `permission_memory` · engines cloud por
+omissão · Ollama obrigatório · "tema" visual do OpenJarvis · marketplace de
+skills sem assinatura.
+
+---
+
+## 11. Estado da execução (2026-10-29)
+
+Evidência: [`evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md`](evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md).
+
+| ID | Entrega | claim |
+|----|---------|-------|
+| V0 | `nosctl doctor` + `config-show` + pesos do score | **OBSERVED (host) + unit** |
+| V1 | energia RAPL/NVML/TDP + `observe.energy` + `turn` no chat | **OBSERVED** (`nvml`/`gpu`); RAPL AWAITING_HW |
+| V2 | custo local vs nuvem datado | **OBSERVED** · HYPOTHESIS |
+| V3 | `cognitive.trace` redigido | **OBSERVED + unit** |
+| V4 | `ui.pending` (tier+TTL, sem nonce) | **OBSERVED + unit** |
+| V5 | `nos-mcp` in-process + `mcp.list/call` | **OBSERVED** · stdio/SSE NOT_DONE |
+| V6 | `skill.import` (`SKILL.md`) | **OBSERVED + parser unit** |
+| V7 | `nosctl dash` (`--plain`) | **OBSERVED (host)** · QEMU AWAITING |
+
+Pendente antes de release: `nix-instantiate --parse` dos módulos + `nix build`
+da ISO + VM test + (V1) medição RAPL real. O HUD Slint já mostra energia/fila
+HITL/domínio OPAR, mas não foi visto em QEMU/metal.
+

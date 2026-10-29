@@ -43,6 +43,46 @@ in
       default = "255.255.255.255:19000";
       description = "NOSD_MESH_BROADCAST";
     };
+    # V0 (plano vampiro): pesos do score declarados (accuracy,latency,cost,efficiency).
+    scoreWeights = lib.mkOption {
+      type = lib.types.str;
+      default = "0.6,0.2,0.1,0.1";
+      description = "NOSD_SCORE_WEIGHTS — 4 valores; normalizados no daemon";
+    };
+    # V2: preços do contrafactual local-vs-nuvem (sempre com ref_date).
+    kwhPriceEur = lib.mkOption {
+      type = lib.types.float;
+      default = 0.25;
+      description = "NOSD_KWH_PRICE_EUR — tarifa usada no custo local";
+    };
+    cloudUsdIn = lib.mkOption {
+      type = lib.types.float;
+      default = 0.60;
+      description = "NOSD_CLOUD_USD_IN — USD/1M tokens de entrada (referência)";
+    };
+    cloudUsdOut = lib.mkOption {
+      type = lib.types.float;
+      default = 2.40;
+      description = "NOSD_CLOUD_USD_OUT — USD/1M tokens de saída (referência)";
+    };
+    priceRefDate = lib.mkOption {
+      type = lib.types.str;
+      default = "2026-10-29";
+      description = "NOSD_PRICE_REF_DATE — data dos preços de referência";
+    };
+    priceRefModel = lib.mkOption {
+      type = lib.types.str;
+      default = "cloud API genérica 4B-9B (referência, não benchmark)";
+      description = "NOSD_PRICE_REF_MODEL — modelo/API do contrafactual";
+    };
+    tdpWatts = lib.mkOption {
+      type = lib.types.nullOr lib.types.float;
+      default = null;
+      description = ''
+        NOSD_TDP_W — estimativa de energia (W) quando não há RAPL/NVML.
+        null = sem estimativa (source=absent, zero joules).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -62,6 +102,18 @@ in
     ];
 
     boot.kernel.sysctl."vm.nr_hugepages" = lib.mkDefault 256;
+
+    # V0: falha no eval, não no runtime (o daemon também valida).
+    assertions = [
+      {
+        assertion = builtins.length (lib.splitString "," cfg.scoreWeights) == 4;
+        message = "services.nosd.scoreWeights: 4 valores (accuracy,latency,cost,efficiency)";
+      }
+      {
+        assertion = cfg.kwhPriceEur >= 0.0;
+        message = "services.nosd.kwhPriceEur não pode ser negativo";
+      }
+    ];
 
     systemd.services.nosd = {
       description = "Neural-OS Daemon";
@@ -127,8 +179,15 @@ in
           "NOSD_AUTOLEARN=0"
           # S1.2: early/ISO keyword; AgentJev só via LOO + NOSD_S1_BLOB
           "NOSD_S1_BACKEND=keyword"
+          # V0/V2 (plano vampiro): score declarado + custo com fonte datada.
+          "NOSD_SCORE_WEIGHTS=${cfg.scoreWeights}"
+          "NOSD_KWH_PRICE_EUR=${toString cfg.kwhPriceEur}"
+          "NOSD_CLOUD_USD_IN=${toString cfg.cloudUsdIn}"
+          "NOSD_CLOUD_USD_OUT=${toString cfg.cloudUsdOut}"
+          "NOSD_PRICE_REF_DATE=${cfg.priceRefDate}"
+          "NOSD_PRICE_REF_MODEL=${cfg.priceRefModel}"
           "RUST_LOG=info"
-        ];
+        ] ++ lib.optional (cfg.tdpWatts != null) "NOSD_TDP_W=${toString cfg.tdpWatts}";
       };
     };
   };

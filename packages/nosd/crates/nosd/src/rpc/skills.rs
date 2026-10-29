@@ -610,6 +610,65 @@ pub(crate) fn dispatch(state: &AppState, req: Request) -> Option<Response> {
                 }),
             }
         }
+        // V6 (plano vampiro): importa `SKILL.md` declarativo (agentskills.io).
+        // Não activa nada: grava manifesto S1 (`skill/<n>/meta`) com caps numa
+        // allowlist e `kind=declarative`. Sem wasm ⇒ não executável.
+        "skill.import" => {
+            let raw = req
+                .params
+                .get("skill_md")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if raw.is_empty() {
+                return Some(err(req.id, "skill.import: skill_md vazio"));
+            }
+            if raw.len() > 256 * 1024 {
+                return Some(err(req.id, "skill.import: skill_md > 256 KiB"));
+            }
+            let doc = match super::skill_md::parse_skill_md(raw) {
+                Ok(d) => d,
+                Err(e) => return Some(err(req.id, e)),
+            };
+            let focus = req
+                .params
+                .get("focus")
+                .and_then(|v| v.as_str())
+                .unwrap_or(doc.focus.as_str())
+                .to_string();
+            let hash = nos_mesh::content_hash(raw.as_bytes());
+            put_meta(
+                state,
+                &doc.name,
+                &focus,
+                &doc.version,
+                &hash,
+                raw.len(),
+                "declarative",
+                &doc.caps,
+            );
+            state.mesh.crdt_put(
+                state.mesh.local_id(),
+                &format!("skill/{}/kind", doc.name),
+                "declarative",
+                0,
+            );
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "name": doc.name,
+                    "focus": focus,
+                    "version": doc.version,
+                    "caps": doc.caps,
+                    "hash": hash,
+                    "bytes": raw.len(),
+                    "kind": "declarative",
+                    "active": false,
+                    "honesty": "sem wasm: não executável; caps declaradas no manifesto S1/S2",
+                }),
+            }
+        }
         _ => return None,
     })
 }

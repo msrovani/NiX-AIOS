@@ -57,11 +57,16 @@ impl Request {
             | "route.explain" | "cognitive.tick" | "artifact.validate" | "ui.list" | "ui.card"
             | "wifi.scan" | "voice.status" | "transmute.status" | "orb.get" | "orb.set"
             | "orb.sense" => CapBits::NONE,
+            // Plano vampiro V0/V1/V3/V4/V5: leitura pura (sem PII, sem nonces).
+            // `mcp.call` aplica as caps DA TOOL no handler (o registry é
+            // server-authored); o piso IPC é NONE para permitir tools NONE.
+            "config.show" | "observe.energy" | "cognitive.trace" | "ui.pending" | "mcp.list"
+            | "mcp.call" => CapBits::NONE,
             "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
             | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
             "skill.list" | "skill.run" | "crdt.get" => CapBits::NONE,
             "skill.explain" | "skill.select" => CapBits::MEMORY,
-            "skill.install" | "skill.push" => CapBits::FS,
+            "skill.install" | "skill.push" | "skill.import" => CapBits::FS,
             "crdt.put" | "crdt.sync" => CapBits::MEMORY,
             "model.load" => CapBits::INFER.union(CapBits::FS),
             "model.fetch" | "model.search" | "firmware.fetch" => CapBits::NET.union(CapBits::FS),

@@ -4,6 +4,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod energy;
+
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 

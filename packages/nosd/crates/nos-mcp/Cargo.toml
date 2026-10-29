@@ -1,0 +1,13 @@
+[package]
+name = "nos-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "MCP (Model Context Protocol) mínimo com CapGate por tool — V5 do plano vampiro"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+nos-core = { path = "../nos-core" }

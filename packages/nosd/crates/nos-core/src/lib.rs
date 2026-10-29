@@ -4,10 +4,12 @@
 #![forbid(unsafe_code)]
 
 pub mod cap;
+pub mod cost;
 pub mod decision;
 pub mod gguf;
 pub mod hash;
 pub mod iteration;
+pub mod metrics;
 pub mod model_slot;
 pub mod orb;
 pub mod policy;
@@ -16,6 +18,7 @@ pub mod score;
 pub mod ui_window;
 
 pub use cap::{CapBits, CapGate, CapRegistry, PeerProfile};
+pub use cost::{tokens_estimate, CostModel, JOULES_PER_KWH};
 pub use decision::{
     s1_backend_effective, s1_backend_from_env, s1_backend_label, s1_blob_present, s1_scorer_absent,
     score_intent_s1, AbstainReason, Decision, S1Backend,
@@ -23,6 +26,7 @@ pub use decision::{
 pub use gguf::{parse_gguf_header, GgufHeaderInfo};
 pub use hash::{ct_eq, fnv1a64, fnv1a64_hex16};
 pub use iteration::IterationBudget;
+pub use metrics::{ScoreWeights, DEFAULT_WEIGHTS};
 pub use model_slot::ModelSlot;
 pub use orb::{OrbPattern, OrbSense, OrbSnapshot, OrbState};
 pub use policy::{
@@ -34,4 +38,7 @@ pub use safety_trust::{
     SafetyViolation, TrustToken,
 };
 pub use score::{NosScore, Sev};
-pub use ui_window::{HitlField, UiSource, WindowAction, WindowActionKind, WindowKind, WindowSpec};
+pub use ui_window::{
+    tier_for_grant_kind, HitlField, HitlTier, UiSource, WindowAction, WindowActionKind, WindowKind,
+    WindowSpec,
+};

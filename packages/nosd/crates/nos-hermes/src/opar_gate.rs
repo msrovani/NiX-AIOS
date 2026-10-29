@@ -28,6 +28,8 @@ pub const SIDE_EFFECT_METHODS: &[&str] = &[
     "self.heal.evaluate",
     "security.rotate",
     "brain.accept",
+    "mcp.call",
+    "skill.import",
 ];
 
 pub fn is_side_effect(method: &str) -> bool {
@@ -59,6 +61,8 @@ mod tests {
         assert!(is_side_effect("store.install"));
         assert!(is_side_effect("nix.build_vm"));
         assert!(is_side_effect("systemctl.scoped"));
+        assert!(is_side_effect("mcp.call"));
+        assert!(is_side_effect("skill.import"));
         assert!(!is_side_effect("health"));
         assert!(!is_side_effect("route.explain"));
         assert!(!is_side_effect("observe.snapshot"));

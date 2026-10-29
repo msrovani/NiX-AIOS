@@ -1,8 +1,37 @@
-//! RPC handlers — fatia 0.5.2.
+//! RPC handlers — fatia 0.5.2 (+ V0/V1/V3 do plano vampiro).
 use super::*;
-use nos_core::CapGate;
+use nos_core::{CapGate, CostModel, ScoreWeights};
 use nos_ipc::{Request, Response};
 use serde_json::json;
+use std::collections::BTreeMap;
+
+/// Variáveis `NOSD_*` visíveis no `config.show` — **nunca** segredos.
+///
+/// Filtro por nome (fail-closed): qualquer chave que contenha TOKEN/SECRET/
+/// KEY/PASS/PUBLISHER fica de fora, mesmo que comece por `NOSD_`.
+fn filtered_env() -> BTreeMap<String, String> {
+    filter_env_pairs(std::env::vars())
+}
+
+/// Parte pura do filtro (testável sem mexer no ambiente do processo).
+fn filter_env_pairs<I>(pairs: I) -> BTreeMap<String, String>
+where
+    I: IntoIterator<Item = (String, String)>,
+{
+    const DENY: &[&str] = &["TOKEN", "SECRET", "KEY", "PASS", "PUBLISHER"];
+    let mut out = BTreeMap::new();
+    for (k, v) in pairs {
+        if !k.starts_with("NOSD_") {
+            continue;
+        }
+        let upper = k.to_ascii_uppercase();
+        if DENY.iter().any(|d| upper.contains(d)) {
+            continue;
+        }
+        out.insert(k, v);
+    }
+    out
+}
 
 pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Option<Response> {
     Some(match req.method.as_str() {
@@ -258,6 +287,111 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
             }
         }
 
+        // V0 (plano vampiro): configuração efectiva num só sítio, sem segredos.
+        "config.show" => {
+            let (weights, weights_error) = ScoreWeights::from_env();
+            let cost = CostModel::from_env();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "source": "daemon",
+                    "data_dir": state.data_dir.display().to_string(),
+                    "engine": state.hermes.hotswap.engine_name(),
+                    "hub_loaded": state.hermes.hub.loaded_count(),
+                    "s1_backend": s1_backend_label(),
+                    "landlock": format!("{:?}", crate::landlock::applied_status()),
+                    "hermes_tick_secs": std::env::var("NOSD_HERMES_TICK_SECS").unwrap_or_default(),
+                    "mesh_bind": std::env::var("NOSD_MESH_BIND").unwrap_or_default(),
+                    "nix_ring_armed": state.nix_ring_armed,
+                    "lab_auto_switch": lab_auto_switch_from_env(),
+                    "score_weights": weights,
+                    "score_weights_error": weights_error,
+                    "cost_model": cost,
+                    "env": filtered_env(),
+                    "secrets_filtered": true,
+                }),
+            }
+        }
+
+        // V1 (plano vampiro): energia medida/estimada + custo local acumulado.
+        "observe.energy" => {
+            let delta = state.energy.lock().sample();
+            let cost = CostModel::from_env();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "joules": delta.joules,
+                    "joules_total": delta.joules_total,
+                    "watts": delta.watts,
+                    "source": delta.source,
+                    "scope": delta.scope,
+                    "ts_ms": delta.ts_ms,
+                    "cost": {
+                        "local_eur_total": cost.local_eur(delta.joules_total),
+                        "kwh_price_eur": cost.kwh_price_eur,
+                        "ref_date": cost.ref_date,
+                        "honesty": "local = medido/estimado (ver source); cloud só por turno com tokens",
+                    },
+                    "rapl_candidates": nos_observe::energy::RAPL_CANDIDATES,
+                }),
+            }
+        }
+
+        // V3 (plano vampiro): trace OPAR — metadados, nunca notas/PII.
+        "cognitive.trace" => {
+            let last = req
+                .params
+                .get("last")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(8)
+                .clamp(1, 64) as usize;
+            let acts = state.hermes.opar_trace(last);
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "count": acts.len(),
+                    "acts": acts,
+                    "redaction": "domain+lengths only (no prompt/PII)",
+                }),
+            }
+        }
+
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_env_filter_drops_secrets_by_name() {
+        let pairs = vec![
+            ("NOSD_HERMES_TICK_SECS".to_string(), "5".to_string()),
+            ("NOSD_IPC_TOKEN".to_string(), "deadbeef".to_string()),
+            ("NOSD_MESH_KEY".to_string(), "/run/key".to_string()),
+            ("NOSD_WIFI_PASSWORD".to_string(), "x".to_string()),
+            ("NOSD_SKILL_PUBLISHERS".to_string(), "aa".to_string()),
+            ("PATH".to_string(), "/usr/bin".to_string()),
+        ];
+        let out = filter_env_pairs(pairs);
+        assert_eq!(out.get("NOSD_HERMES_TICK_SECS"), Some(&"5".to_string()));
+        assert!(!out.contains_key("NOSD_IPC_TOKEN"));
+        assert!(!out.contains_key("NOSD_MESH_KEY"));
+        assert!(!out.contains_key("NOSD_WIFI_PASSWORD"));
+        assert!(!out.contains_key("NOSD_SKILL_PUBLISHERS"));
+        assert!(!out.contains_key("PATH"));
+    }
+
+    #[test]
+    fn config_env_filter_is_empty_safe() {
+        assert!(filter_env_pairs(Vec::<(String, String)>::new()).is_empty());
+    }
 }

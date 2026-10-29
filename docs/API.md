@@ -62,6 +62,11 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 | `health` | `health` | hermes, mesh, landlock, llama posture |
 | `score` | `score` | `NOSD_SCORE` + early_boot se existir |
 | `observe` | `observe.snapshot` | journal/NM/sysfs best-effort |
+| `doctor [--json]` | agrega 6 leituras | exit 1 se algum subsistema falhar (SKIP≠OK) |
+| `config-show` | `config.show` | configuração efectiva; env `NOSD_*` **sem segredos** |
+| `energy` | `observe.energy` | joules/W por janela + `source` (rapl/nvml/tdp_estimate/absent) |
+| `trace [--last N]` | `cognitive.trace` | OPAR: domínio + comprimentos; **sem notas/PII** |
+| `dash [--plain]` | health+score+energy+pending | HUD de terminal (serial/metal), zero deps |
 
 ### Modelos
 
@@ -96,8 +101,21 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 | Comando | Método |
 |---------|--------|
 | `ui-list` / `ui-open` / `ui-close` / `ui-action` | `ui.*` |
+| `pending` | `ui.pending` (fila HITL: tier + TTL; **nunca** o nonce) |
 | `orb-get` / `orb-set` | `orb.*` |
 | `voice-status` / `voice-turn` | `voice.*` |
+
+### Skills / MCP
+
+| Comando | Método | Notas |
+|---------|--------|-------|
+| `skill-install NAME PATH` | `skill.install` | wasm/wat, hash BLAKE3 |
+| `skill-import FILE.md` | `skill.import` | `SKILL.md` **declarativo**; caps em allowlist; não activa |
+| `mcp-list` | `mcp.list` | tools filtradas pelas caps do peer |
+| `mcp-call TOOL --args JSON` | `mcp.call` | caps **da tool** no `CapGate`; side-effect exige HITL |
+
+`mcp.call` tem piso IPC `NONE` de propósito: o registry é server-authored e a
+autorização é por tool (`nos-mcp`). Transporte `stdio`/SSE **não** implementado.
 
 ### Nix / Wi‑Fi / transmute
 

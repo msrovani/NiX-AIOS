@@ -29,6 +29,7 @@ nos-mesh = { path = "../nos-mesh" }
 nos-voice = { path = "../nos-voice" }
 nos-wasm = { path = "../nos-wasm" }
 nos-observe = { path = "../nos-observe" }
+nos-mcp = { path = "../nos-mcp" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

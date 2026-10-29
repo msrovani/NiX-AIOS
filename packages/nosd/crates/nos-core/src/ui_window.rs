@@ -84,6 +84,48 @@ pub struct WindowAction {
     pub values: serde_json::Map<String, serde_json::Value>,
 }
 
+/// V4 (plano vampiro) — tier de uma janela HITL, derivado do tipo de grant.
+///
+/// Origem da ideia: `openjarvis/tools/approval_store.py` (`trivial/low/medium/high`).
+/// **Sem** memória de permissões: o grant continua nonce de uso único (regra 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HitlTier {
+    /// Sem confirmação humana necessária (só informativo).
+    Trivial,
+    /// Pedido único, impacto reversível.
+    Low,
+    /// Pedido único com efeito externo (rede, credenciais).
+    Medium,
+    /// Sempre confirmar; efeitos de sistema/frota.
+    High,
+}
+
+impl HitlTier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Trivial => "trivial",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
+}
+
+/// Mapeamento estático grant-kind → tier (determinístico, testável, auditável).
+///
+/// O default é `Medium`: um kind desconhecido **não** desce de tier.
+pub fn tier_for_grant_kind(kind: &str) -> HitlTier {
+    match kind.trim() {
+        "" | "hitl.confirm" | "act" => HitlTier::Trivial,
+        "blob.fetch" | "firmware.fetch" | "factory.install" => HitlTier::Low,
+        "wifi.connect" | "mesh.skill" | "pipewire.volume" => HitlTier::Medium,
+        "nix.apply" | "nix.build_vm" | "self.heal" | "brain.upgrade" | "repartition"
+        | "gpu.power" | "systemctl" | "security.rotate" => HitlTier::High,
+        _ => HitlTier::Medium,
+    }
+}
+
 /// Tópicos EventBus canónicos (conectores).
 pub mod topics {
     pub const UI_OPEN: &str = "UI_WINDOW_OPEN";
@@ -179,5 +221,26 @@ mod tests {
         assert_eq!(w.kind, WindowKind::HitlWifi);
         assert_eq!(w.fields.len(), 2);
         assert!(w.escalate);
+    }
+
+    #[test]
+    fn tiers_are_monotonic_by_risk() {
+        assert_eq!(tier_for_grant_kind(""), HitlTier::Trivial);
+        assert_eq!(tier_for_grant_kind("blob.fetch"), HitlTier::Low);
+        assert_eq!(tier_for_grant_kind("wifi.connect"), HitlTier::Medium);
+        assert_eq!(tier_for_grant_kind("nix.apply"), HitlTier::High);
+        assert_eq!(tier_for_grant_kind("brain.upgrade"), HitlTier::High);
+    }
+
+    #[test]
+    fn unknown_grant_kind_never_downgrades() {
+        assert_eq!(tier_for_grant_kind("kind.inventado"), HitlTier::Medium);
+        assert_eq!(tier_for_grant_kind("  "), HitlTier::Trivial);
+    }
+
+    #[test]
+    fn tier_serializes_lowercase() {
+        let j = serde_json::to_string(&HitlTier::High).unwrap();
+        assert_eq!(j, "\"high\"");
     }
 }

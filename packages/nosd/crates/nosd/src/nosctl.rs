@@ -320,10 +320,69 @@ enum Cmd {
         #[arg(long)]
         confirm_id: Option<String>,
     },
+    /// V0 — triage de subsistemas num só ecrã (exit 1 se algum falhar).
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
+    /// V0 — configuração efectiva do daemon (segredos filtrados).
+    #[command(name = "config-show")]
+    ConfigShow,
+    /// V1 — energia por janela (RAPL/NVML/TDP) + custo local.
+    Energy,
+    /// V3 — últimos actos OPAR (metadados, sem notas/PII).
+    Trace {
+        #[arg(long, default_value_t = 8)]
+        last: usize,
+    },
+    /// V4 — fila HITL (tier + TTL; o nonce nunca é exposto).
+    Pending,
+    /// V5 — tools MCP disponíveis para este perfil.
+    #[command(name = "mcp-list")]
+    McpList,
+    /// V5 — invoca uma tool MCP (caps da tool aplicadas no servidor).
+    #[command(name = "mcp-call")]
+    McpCall {
+        tool: String,
+        #[arg(long, default_value = "{}")]
+        args: String,
+    },
+    /// V6 — importa `SKILL.md` declarativo (sem wasm).
+    #[command(name = "skill-import")]
+    SkillImport {
+        path: String,
+        #[arg(long)]
+        focus: Option<String>,
+    },
+    /// V7 — HUD de terminal (serial/metal). `--plain` = sem ANSI.
+    Dash {
+        #[arg(long)]
+        plain: bool,
+        #[arg(long, default_value_t = 1)]
+        interval: u64,
+        /// 0 = infinito.
+        #[arg(long, default_value_t = 0)]
+        count: u64,
+    },
+}
+
+/// Clap constrói a árvore de subcomandos na stack. Em debug no Windows a stack
+/// default (1 MiB) rebenta com a superfície actual de `nosctl`; 16 MiB é barato
+/// e determinístico. (Não é `#[tokio::main]` + `block_on` aninhado: o runtime
+/// nasce dentro da thread já com a stack grande.)
+fn main() -> anyhow::Result<()> {
+    let handle = std::thread::Builder::new()
+        .name("nosctl".into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(async_main)?;
+    match handle.join() {
+        Ok(result) => result,
+        Err(_) => anyhow::bail!("nosctl: worker thread panicked"),
+    }
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn async_main() -> anyhow::Result<()> {
     let args = Args::parse();
     // S2: assinatura local do manifesto (nao fala com o daemon).
     if let Cmd::SkillSign {
@@ -665,6 +724,39 @@ async fn main() -> anyhow::Result<()> {
             }),
             (1 << 1) | (1 << 2) | (1 << 5), // NET | FS | NIX_WRITE
         ),
+        // Doctor/Dash têm caminho próprio (multi-RPC).
+        Cmd::Doctor { .. } => ("doctor.noop", serde_json::json!({}), 0),
+        Cmd::Dash { .. } => ("dash.noop", serde_json::json!({}), 0),
+        Cmd::ConfigShow => ("config.show", serde_json::json!({}), 0),
+        Cmd::Energy => ("observe.energy", serde_json::json!({}), 0),
+        Cmd::Trace { last } => ("cognitive.trace", serde_json::json!({ "last": last }), 0),
+        Cmd::Pending => ("ui.pending", serde_json::json!({}), 0),
+        Cmd::McpList => ("mcp.list", serde_json::json!({}), 0),
+        Cmd::McpCall { tool, args: raw } => {
+            let v: serde_json::Value = serde_json::from_str(raw).unwrap_or_else(|e| {
+                eprintln!("mcp-call --args: JSON invalido: {e}");
+                std::process::exit(2);
+            });
+            (
+                "mcp.call",
+                serde_json::json!({ "tool": tool, "arguments": v }),
+                0,
+            )
+        }
+        Cmd::SkillImport { path, focus } => {
+            let raw = match std::fs::read_to_string(path) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("skill-import: {e}");
+                    std::process::exit(2);
+                }
+            };
+            let mut p = serde_json::json!({ "skill_md": raw });
+            if let Some(f) = focus {
+                p["focus"] = serde_json::json!(f);
+            }
+            ("skill.import", p, 1 << 2) // FS
+        }
     };
     // Token-first: se o ficheiro existir, a CLI fica LocalAdmin também no Unix.
     // Sem token, o daemon usa SO_PEERCRED (Jarbas/LocalUser).
@@ -710,6 +802,20 @@ async fn main() -> anyhow::Result<()> {
         if !acted.ok {
             std::process::exit(1);
         }
+        return Ok(());
+    }
+
+    if let Cmd::Doctor { json: as_json } = &args.cmd {
+        let code = run_doctor(&args, token.clone(), *as_json).await?;
+        std::process::exit(code);
+    }
+    if let Cmd::Dash {
+        plain,
+        interval,
+        count,
+    } = &args.cmd
+    {
+        run_dash(&args, token.clone(), *plain, *interval, *count).await?;
         return Ok(());
     }
 
@@ -801,6 +907,234 @@ async fn rpc_call(
     }
 }
 
+/// V0: subsistemas que o `doctor` agrega (todos leitura, caps NONE).
+const DOCTOR_CHECKS: &[&str] = &[
+    "health",
+    "score",
+    "observe.snapshot",
+    "model.list",
+    "transmute.status",
+    "voice.status",
+];
+
+fn write_out(s: &str) {
+    // Lição 7: `grep -q`/`head` fecham o pipe; BrokenPipe nunca é erro.
+    use std::io::Write as _;
+    let mut out = std::io::stdout().lock();
+    let _ = out.write_all(s.as_bytes()).and_then(|_| out.flush());
+}
+
+fn summarize(method: &str, v: &serde_json::Value) -> String {
+    let s = |k: &str| {
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .unwrap_or("n/a")
+            .to_string()
+    };
+    let n = |k: &str| v.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+    match method {
+        "health" => format!(
+            "engine={} peers={} hub={}",
+            s("engine"),
+            n("mesh_peers"),
+            n("hub_loaded")
+        ),
+        "score" => format!(
+            "sev={} s1={} llama={}",
+            s("sev"),
+            s("s1_backend"),
+            s("llama_server")
+        ),
+        "model.list" => format!("slots={}", v.as_array().map(|a| a.len()).unwrap_or(0)),
+        "transmute.status" => format!("stage={}", s("stage")),
+        "voice.status" => format!("stt={} tts={}", s("stt"), s("tts")),
+        "observe.snapshot" => format!("presence={}", s("presence")),
+        _ => "ok".into(),
+    }
+}
+
+/// Sinais de ausência **específicos** do subsistema (não um `absent` genérico
+/// no JSON — `llama_server:"absent"` é posture normal com `cpu-echo`).
+fn warn_reason(method: &str, v: &serde_json::Value) -> Option<String> {
+    if method != "voice.status" {
+        return None;
+    }
+    let blob = v.to_string();
+    if blob.contains("EngineAbsent") || blob.contains("\"absent\"") {
+        Some("voz EngineAbsent (honesto, não é falha)".into())
+    } else {
+        None
+    }
+}
+
+/// V0 — triage honesto: agrega subsistemas, `fail` só com erro real.
+async fn run_doctor(args: &Args, token: Option<String>, as_json: bool) -> anyhow::Result<i32> {
+    let mut subs = serde_json::Map::new();
+    let mut fails = 0u32;
+    let mut warns = 0u32;
+
+    for method in DOCTOR_CHECKS {
+        let (status, detail) =
+            match rpc_call(args, token.clone(), method, serde_json::json!({}), 0).await {
+                Ok(r) if r.ok => match warn_reason(method, &r.result) {
+                    Some(reason) => {
+                        warns += 1;
+                        ("warn", reason)
+                    }
+                    None => ("ok", summarize(method, &r.result)),
+                },
+                Ok(r) => {
+                    fails += 1;
+                    ("fail", r.error.unwrap_or_else(|| "erro sem detalhe".into()))
+                }
+                Err(e) => {
+                    fails += 1;
+                    ("fail", e.to_string())
+                }
+            };
+        subs.insert(
+            (*method).to_string(),
+            serde_json::json!({ "status": status, "detail": detail }),
+        );
+    }
+
+    // Firstboot só é observável no host (--tcp remoto = unknown, não fail).
+    let local = args.tcp.is_none();
+    let fb = std::path::Path::new("/var/lib/nosd/firstboot.done").exists();
+    let (fb_status, fb_detail) = if !local {
+        ("unknown", "remoto (--tcp)".to_string())
+    } else if fb {
+        ("ok", "/var/lib/nosd/firstboot.done".to_string())
+    } else {
+        warns += 1;
+        (
+            "warn",
+            "firstboot.done ausente (Q1–Q5 por correr)".to_string(),
+        )
+    };
+    subs.insert(
+        "firstboot".into(),
+        serde_json::json!({ "status": fb_status, "detail": fb_detail }),
+    );
+
+    let ok = fails == 0;
+    let generated_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let report = serde_json::json!({
+        "ok": ok,
+        "fails": fails,
+        "warns": warns,
+        "subs": subs,
+        "generated_ms": generated_ms,
+    });
+    if as_json {
+        print_json(&report)?;
+    } else {
+        write_out(&render_doctor(&report));
+    }
+    Ok(if ok { 0 } else { 1 })
+}
+
+fn render_doctor(report: &serde_json::Value) -> String {
+    let mut out = String::from("NIXAIOS doctor\n");
+    if let Some(subs) = report.get("subs").and_then(|v| v.as_object()) {
+        for (k, v) in subs {
+            let st = v.get("status").and_then(|x| x.as_str()).unwrap_or("?");
+            let d = v.get("detail").and_then(|x| x.as_str()).unwrap_or("");
+            out.push_str(&format!("{k:<18} {st:<7} {d}\n"));
+        }
+    }
+    out.push_str(&format!(
+        "\nok={} fails={} warns={}\n",
+        report.get("ok").and_then(|v| v.as_bool()).unwrap_or(false),
+        report.get("fails").and_then(|v| v.as_u64()).unwrap_or(0),
+        report.get("warns").and_then(|v| v.as_u64()).unwrap_or(0),
+    ));
+    out
+}
+
+/// V7 — HUD de terminal, zero deps, legível em serial (`--plain`).
+fn render_dash(
+    health: &serde_json::Value,
+    score: &serde_json::Value,
+    energy: &serde_json::Value,
+    pending: &serde_json::Value,
+) -> String {
+    let s = |v: &serde_json::Value, k: &str| {
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .unwrap_or("n/a")
+            .to_string()
+    };
+    let n = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+    let f = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0);
+    let watts = energy
+        .get("watts")
+        .and_then(|x| x.as_f64())
+        .map(|w| format!("{w:.1}"))
+        .unwrap_or_else(|| "n/a".into());
+    let grants = pending
+        .get("grants")
+        .and_then(|v| v.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    format!(
+        "NIXAIOS dash\n\
+         health  ok    engine={} peers={}\n\
+         score   ok    sev={} s1={}\n\
+         energy  {} ({})  J/turn={:.3} W={} total={:.3} J\n\
+         hitl    ok    pending={} grants={}\n",
+        s(health, "engine"),
+        n(health, "mesh_peers"),
+        s(score, "sev"),
+        s(score, "s1_backend"),
+        s(energy, "source"),
+        s(energy, "scope"),
+        f(energy, "joules"),
+        watts,
+        f(energy, "joules_total"),
+        n(pending, "count"),
+        grants,
+    )
+}
+
+async fn run_dash(
+    args: &Args,
+    token: Option<String>,
+    plain: bool,
+    interval: u64,
+    count: u64,
+) -> anyhow::Result<()> {
+    let mut i = 0u64;
+    loop {
+        let h = rpc_call(args, token.clone(), "health", serde_json::json!({}), 0).await?;
+        let s = rpc_call(args, token.clone(), "score", serde_json::json!({}), 0).await?;
+        let e = rpc_call(
+            args,
+            token.clone(),
+            "observe.energy",
+            serde_json::json!({}),
+            0,
+        )
+        .await?;
+        let p = rpc_call(args, token.clone(), "ui.pending", serde_json::json!({}), 0).await?;
+        let mut frame = String::new();
+        if !plain {
+            frame.push_str("\x1b[2J\x1b[H");
+        }
+        frame.push_str(&render_dash(&h.result, &s.result, &e.result, &p.result));
+        write_out(&frame);
+        i += 1;
+        if count > 0 && i >= count {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(interval.max(1))).await;
+    }
+    Ok(())
+}
+
 fn load_token(explicit: Option<String>, file: Option<PathBuf>) -> Option<String> {
     if let Some(token) = explicit {
         let token = token.trim().to_string();
@@ -841,5 +1175,69 @@ async fn read_resp<S: AsyncReadExt + Unpin>(s: &mut S) -> anyhow::Result<Respons
         if let Some((body, _)) = take_frame(&acc)? {
             return Ok(decode_body(&body)?);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn dash_renders_four_rows_and_energy() {
+        let d = render_dash(
+            &json!({"status":"ok","engine":"llama-server","mesh_peers":2}),
+            &json!({"sev":"ok","s1_backend":"keyword"}),
+            &json!({"source":"rapl","joules":1.5,"watts":7.5,"joules_total":10.0}),
+            &json!({"count":1,"grants":[{"kind":"nix.apply","ttl_ms":1000}]}),
+        );
+        // header + 4 linhas
+        assert_eq!(d.lines().count(), 5, "{d}");
+        assert!(d.contains("J/turn=1.500"), "{d}");
+        assert!(d.contains("W=7.5"), "{d}");
+        assert!(d.contains("pending=1"), "{d}");
+        assert!(d.contains("grants=1"), "{d}");
+    }
+
+    #[test]
+    fn dash_degrades_to_n_a_without_energy_source() {
+        let d = render_dash(
+            &json!({}),
+            &json!({}),
+            &json!({"source":"absent"}),
+            &json!({}),
+        );
+        assert!(d.contains("W=n/a"), "{d}");
+        assert!(d.contains("J/turn=0.000"), "{d}");
+        assert!(d.contains("engine=n/a"), "{d}");
+    }
+
+    #[test]
+    fn doctor_render_lists_subs_and_verdict() {
+        let r = json!({
+            "ok": false,
+            "fails": 1,
+            "warns": 1,
+            "subs": {
+                "health": {"status":"ok","detail":"engine=x"},
+                "score": {"status":"fail","detail":"timeout"},
+                "voice.status": {"status":"warn","detail":"EngineAbsent (voice.status)"}
+            }
+        });
+        let s = render_doctor(&r);
+        assert!(s.starts_with("NIXAIOS doctor"), "{s}");
+        assert!(s.contains("health"));
+        assert!(s.contains("fail"));
+        assert!(s.contains("EngineAbsent"));
+        assert!(s.contains("ok=false"), "{s}");
+        assert!(s.contains("fails=1"), "{s}");
+        assert!(s.contains("warns=1"), "{s}");
+    }
+
+    #[test]
+    fn summarize_is_stable_for_unknown_shapes() {
+        assert_eq!(summarize("health", &json!({})), "engine=n/a peers=0 hub=0");
+        assert_eq!(summarize("model.list", &json!([])), "slots=0");
+        assert_eq!(summarize("inventado", &json!({})), "ok");
     }
 }

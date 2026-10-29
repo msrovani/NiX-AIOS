@@ -3,6 +3,58 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.6.0-alpha.14] — 2026-10-29 (Plano vampiro V0–V7)
+
+### Added (Plano vampiro V0–V7 — absorção selectiva do OpenJarvis)
+
+Nada do runtime Python/Node foi incluído: só ideias/specs reimplementadas em
+Rust, atrás do `CapGate`. Evidência:
+[`docs/evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md`](docs/evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md).
+
+- **V0** `nosctl doctor` (agrega health/score/observe/modelos/transmute/voz/
+  firstboot; `--json`; exit 1 em falha, SKIP≠OK) e `nosctl config-show`
+  (`config.show`: configuração efectiva com env `NOSD_*` **filtrado por nome**
+  — TOKEN/SECRET/KEY/PASS/PUBLISHER nunca saem). Pesos do score declarados:
+  `services.nosd.scoreWeights` → `NOSD_SCORE_WEIGHTS` (`nos-core::metrics`,
+  normalizado, inválido = default + motivo no `config.show`).
+- **V1** energia por janela: crate `nos-observe::energy` (RAPL
+  `/sys/class/powercap/…`, NVML via `nvidia-smi`, `tdp_estimate` só com
+  `NOSD_TDP_W`, senão `absent` = zero joules). `observe.energy` devolve
+  J/W/`source`/acumulado; `chat`/`chat.submit` anexam bloco `turn`.
+  Wrap do contador = `rapl_wrap` (nunca joules inventados).
+- **V2** custo: `nos-core::cost` (local €/kWh + contrafactual de nuvem
+  sempre com `ref_date`/`ref_model`/`HYPOTHESIS`) e
+  [`docs/PRICE_REFERENCE.md`](docs/PRICE_REFERENCE.md); tokens `chars/4`
+  rotulados `char_heuristic`.
+- **V3** `cognitive.trace`: ring buffer OPAR (64) no Hermes exposto **só** como
+  domínio + comprimentos das fases + `remembered`/`seek` (redacção por
+  construção; teste com sentinela garante que notas/PII não saem).
+- **V4** `ui.pending`: fila HITL com `tier` (`trivial/low/medium/high`,
+  `nos-core::ui_window`) e TTL agregado dos grants — **sem** `confirm_id` e
+  **sem** memória de permissões (regra 2).
+- **V5** crate `nos-mcp`: JSON-RPC 2.0 `initialize`/`tools/list`/`tools/call`,
+  registry server-authored, deny-by-default por `CapGate` (tool sem caps =
+  deny), side-effect exige HITL; `mcp.list`/`mcp.call` no nosd. `stdio`/SSE
+  **NOT_DONE**.
+- **V6** `skill.import`: parser `SKILL.md` (agentskills.io) → manifesto S1
+  (`skill/<n>/meta`, `kind=declarative`, BLAKE3) com caps em **allowlist**
+  (`log`, `memory:read`, `aios_ai.infer`, `net:read`); `code:execute`/`shell`/
+  `file:write`/`network:fetch` recusados por nome. Não activa nada.
+- **V7** `nosctl dash [--plain] [--interval N] [--count N]`: HUD de terminal
+  zero-deps (health/score/energia/fila HITL) para serial/metal.
+- **HUD Slint**: `energy_line` + `hitl_pending` no topo e `tick_line` com o
+  último domínio OPAR (poll no ciclo existente, sem threads novas).
+- **Honestidade da energia**: cada amostra traz `scope`
+  (`cpu_package`|`gpu`|`machine_estimate`|`none`) — RAPL mede a CPU, NVML a
+  GPU; o custo local é **limite inferior** excepto com `tdp_estimate`.
+- **`scripts/smoke-vampire.sh`**: smoke V0–V7 contra um `nosd` a correr
+  (config-show/doctor/energy/chat/trace/pending/mcp/skill-import/dash), com
+  asserções de não-vazamento (`confirm_id`, `NOSD_IPC_TOKEN`).
+- `mcp.call` e `skill.import` entram em `SIDE_EFFECT_METHODS` (OPAR).
+- **Fix**: `nosctl` corria para stack overflow (`--help`) com a superfície
+  actual — `clap` constrói a árvore na stack (1 MiB no Windows); `main()`
+  passou a correr o runtime numa thread de 16 MiB.
+
 ### Added (Brain self-upgrade — HITL completo)
 
 - **`brain.plan` / `brain.accept`** (nosd RPC + `nosctl brain-plan`/`brain-accept`):

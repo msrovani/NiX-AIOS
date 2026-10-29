@@ -14,11 +14,12 @@ members = [
   "crates/nos-mesh",
   "crates/nos-wasm",
   "crates/nos-observe",
+  "crates/nos-mcp",
   "crates/nosd",
 ]
 
 [workspace.package]
-version = "0.6.0-alpha.11"
+version = "0.6.0-alpha.14"
 edition = "2021"
 license = "AGPL-3.0"
 authors = ["Neural OS / NixAIOS"]

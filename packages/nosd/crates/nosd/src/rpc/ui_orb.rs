@@ -256,6 +256,60 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             }
         }
 
+        // V4 (plano vampiro): fila HITL com tier — o nonce nunca sai do servidor.
+        "ui.pending" => {
+            let windows = state.hermes.ui_list();
+            let pending: Vec<serde_json::Value> = windows
+                .iter()
+                .filter(|w| !w.grant_kind.is_empty())
+                .map(|w| {
+                    json!({
+                        "window_id": w.id,
+                        "kind": kind_name(w.kind),
+                        "title": w.title,
+                        "grant_kind": w.grant_kind,
+                        "tier": nos_core::tier_for_grant_kind(&w.grant_kind).as_str(),
+                        "escalate": w.escalate,
+                    })
+                })
+                .collect();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "count": pending.len(),
+                    "windows": pending,
+                    "grants": state.hitl.summary(),
+                    "ttl_semantics": "grant TTL server-authored (single-use); nonce nunca exposto",
+                    "permission_memory": "not implemented (regra 2: HITL por pedido)",
+                }),
+            }
+        }
+
         _ => return None,
     })
+}
+
+fn kind_name(k: nos_core::WindowKind) -> &'static str {
+    match k {
+        nos_core::WindowKind::Info => "info",
+        nos_core::WindowKind::Status => "status",
+        nos_core::WindowKind::HitlWifi => "hitl_wifi",
+        nos_core::WindowKind::HitlConfirm => "hitl_confirm",
+        nos_core::WindowKind::HitlText => "hitl_text",
+        nos_core::WindowKind::Custom => "custom",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn window_kinds_are_stable_strings() {
+        assert_eq!(kind_name(nos_core::WindowKind::HitlWifi), "hitl_wifi");
+        assert_eq!(kind_name(nos_core::WindowKind::Info), "info");
+        assert_eq!(kind_name(nos_core::WindowKind::Custom), "custom");
+    }
 }

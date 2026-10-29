@@ -118,6 +118,21 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             ));
             // Conector janelas HITL — JARBAS materializa o que Hermes/Cortex pediram
             let wins = ep_poll.rpc_blocking(next_req(&mut id, "ui.list", 0, serde_json::json!({})));
+            // V1/V3/V4 (plano vampiro): energia, trace OPAR e fila HITL.
+            let energy = ep_poll.rpc_blocking(next_req(
+                &mut id,
+                "observe.energy",
+                0,
+                serde_json::json!({}),
+            ));
+            let pending =
+                ep_poll.rpc_blocking(next_req(&mut id, "ui.pending", 0, serde_json::json!({})));
+            let trace = ep_poll.rpc_blocking(next_req(
+                &mut id,
+                "cognitive.trace",
+                0,
+                serde_json::json!({ "last": 1 }),
+            ));
 
             let ui_w = ui_poll.clone();
             let _ = slint::invoke_from_event_loop(move || {
@@ -230,6 +245,60 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                         if r.ok {
                             if let Some(p) = r.result.get("phase").and_then(|v| v.as_str()) {
                                 ui.set_tick_line(p.into());
+                            }
+                        }
+                    }
+                    // V1: energia da última janela (source explícita).
+                    if let Ok(r) = &energy {
+                        if r.ok {
+                            let src = r
+                                .result
+                                .get("source")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("n/a");
+                            let j = r
+                                .result
+                                .get("joules")
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(0.0);
+                            let w = r.result.get("watts").and_then(|v| v.as_f64());
+                            let scope = r
+                                .result
+                                .get("scope")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("none");
+                            let line = match w {
+                                Some(w) => format!("{src}/{scope} · {j:.2} J · {w:.1} W"),
+                                None => format!("{src}/{scope} · {j:.2} J"),
+                            };
+                            ui.set_energy_line(line.into());
+                        }
+                    }
+                    // V4: fila HITL (contagem; o grant continua a exigir ação).
+                    if let Ok(r) = &pending {
+                        if r.ok {
+                            let n = r.result.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
+                            ui.set_hitl_pending(n as i32);
+                        }
+                    }
+                    // V3: último acto OPAR (domínio; sem notas/PII).
+                    if let Ok(r) = &trace {
+                        if r.ok {
+                            if let Some(a) = r
+                                .result
+                                .get("acts")
+                                .and_then(|v| v.as_array())
+                                .and_then(|a| a.first())
+                            {
+                                if let Some(d) = a.get("domain").and_then(|v| v.as_str()) {
+                                    let prev = ui.get_tick_line();
+                                    let base = if prev.is_empty() {
+                                        d.to_string()
+                                    } else {
+                                        format!("{prev} · {d}")
+                                    };
+                                    ui.set_tick_line(base.into());
+                                }
                             }
                         }
                     }
