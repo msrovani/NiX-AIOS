@@ -31,6 +31,29 @@ NOSD_TCP=… bash scripts/smoke-vampire.sh   # PASS
 
 **Não executado:** `nix build`/VM/QEMU (host Windows; passo 6 do plano).
 
+**Parcial (passo 6, WSL):** `nix-instantiate --parse` de todos os
+`modules/*.nix`, `images/*.nix` e `flake.nix` → `parse_fail=0` (2026-10-29,
+Nix 2.35.3 em WSL2). O `nix build`/ISO/QEMU ficam registados abaixo quando
+fecharem.
+
+### Bug real apanhado pelo `nix build` (e não pelo host)
+
+O 1.º `nix build .#nosd` falhou em 2 testes de `nos-core::proc`:
+
+```
+proc::tests::default_list_starts_with_nixos_and_has_no_bare_names
+proc::tests::resolver_never_returns_a_bare_name
+```
+
+Causa: no **Linux**, `C:\Windows\System32\nvidia-smi.exe` é um caminho
+**relativo** (um único componente). A allowlist podia, portanto, `stat`/executar
+um ficheiro relativo ao **cwd do daemon** — exactamente o que a allowlist
+devia impedir. No Windows os testes passavam (lá o caminho é absoluto).
+
+Correcção: `nvidia_smi_candidates_with` filtra por `Path::is_absolute()`, logo
+cada plataforma só vê os seus candidatos; teste exige `is_absolute()` e recusa
+o nome nu. Lição no AGENTS.md (35).
+
 ## 3. Decisões de honestidade
 
 - **`reported_rate` só em contagens**, não em dinheiro: o custo local↔nuvem é

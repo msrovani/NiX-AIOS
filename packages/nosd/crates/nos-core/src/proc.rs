@@ -26,6 +26,11 @@ pub const NVIDIA_SMI_CANDIDATES: &[&str] = &[
 ///
 /// - override absoluto e não vazio → **só** esse (intenção explícita);
 /// - override ausente/relativo → lista por omissão.
+///
+/// A lista é **filtrada por `is_absolute()`**: cada plataforma só reconhece o
+/// seu próprio estilo, por isso os candidatos "estrangeiros" caem. Isto é
+/// essencial no Linux — `C:\Windows\...` é um caminho **relativo** lá, e um
+/// `stat` relativo resolveria contra o cwd do daemon.
 pub fn nvidia_smi_candidates_with(override_path: Option<&str>) -> Vec<PathBuf> {
     if let Some(raw) = override_path {
         let raw = raw.trim();
@@ -36,7 +41,11 @@ pub fn nvidia_smi_candidates_with(override_path: Option<&str>) -> Vec<PathBuf> {
             }
         }
     }
-    NVIDIA_SMI_CANDIDATES.iter().map(PathBuf::from).collect()
+    NVIDIA_SMI_CANDIDATES
+        .iter()
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .collect()
 }
 
 /// Lê `NOSD_NVIDIA_SMI` e devolve a lista efectiva.
@@ -62,10 +71,24 @@ mod tests {
     #[test]
     fn default_list_starts_with_nixos_and_has_no_bare_names() {
         let list = nvidia_smi_candidates_with(None);
+        // Candidatos "estrangeiros" são filtrados (no Linux, `C:\…` é relativo).
+        #[cfg(unix)]
         assert_eq!(list[0], PathBuf::from(NVIDIA_SMI_NIXOS));
-        // Nenhum nome nu ("nvidia-smi") — o PATH não pode decidir.
-        // (Não se usa `is_absolute`: um caminho Unix não é "absoluto" no Windows.)
-        assert!(list.iter().all(|p| p.components().count() > 1), "{list:?}");
+        #[cfg(windows)]
+        assert!(
+            list[0]
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .ends_with("nvidia-smi.exe"),
+            "{list:?}"
+        );
+        assert!(!list.is_empty());
+        assert!(list.iter().all(|p| p.is_absolute()), "{list:?}");
+        // Nunca um nome nu: o PATH não decide.
+        assert!(
+            list.iter().all(|p| p.as_os_str() != "nvidia-smi"),
+            "{list:?}"
+        );
     }
 
     #[test]
@@ -78,10 +101,13 @@ mod tests {
 
     #[test]
     fn relative_or_empty_override_is_ignored() {
+        let def = nvidia_smi_candidates_with(None);
         for bad in ["", "   ", "nvidia-smi", "./nvidia-smi", "../smi"] {
-            let list = nvidia_smi_candidates_with(Some(bad));
-            assert_eq!(list[0], PathBuf::from(NVIDIA_SMI_NIXOS), "override={bad:?}");
-            assert!(list.len() > 1);
+            assert_eq!(
+                nvidia_smi_candidates_with(Some(bad)),
+                def,
+                "override={bad:?}"
+            );
         }
     }
 
@@ -109,7 +135,8 @@ mod tests {
     #[test]
     fn resolver_never_returns_a_bare_name() {
         for p in nvidia_smi_candidates() {
-            assert!(p.components().count() > 1, "{p:?}");
+            assert!(p.is_absolute(), "{p:?}");
+            assert_ne!(p.as_os_str(), "nvidia-smi", "{p:?}");
         }
     }
 }

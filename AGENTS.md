@@ -133,6 +133,12 @@ Resumo executavel; detalhe em
 34. **Loop-breaker = fingerprint + recusa, nunca revert.** O
     `git checkout .` do eco-tokens apaga trabalho por teste flaky. Em `nosd`:
     `LoopGuard` (BLAKE3) recusa com `loop_detected` e `reverted:false`.
+35. **Allowlist cross-platform: filtrar por `is_absolute()` em runtime.** No
+    Linux, `C:\Windows\System32\nvidia-smi.exe` é um caminho **relativo** (1
+    componente) — um `stat`/`Command` resolve-o contra o cwd do daemon. O
+    `nix build` em WSL apanhou isto; o host Windows não (lá o mesmo caminho é
+    absoluto e os testes passavam). Listas de candidatos a binários têm de
+    largar os candidatos "estrangeiros" da plataforma.
 
 ## Comandos
 
