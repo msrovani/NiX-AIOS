@@ -238,6 +238,11 @@ pub struct AppState {
     pub hermes_ticks: std::sync::atomic::AtomicU64,
     /// V1 (plano vampiro): medidor de energia (RAPL/NVML/TDP) por janela.
     pub energy: Mutex<nos_observe::energy::EnergyMeter>,
+    /// V8.2: cobertura de energia (numerador/denominador de uma `ReportedRate`).
+    pub turns_total: std::sync::atomic::AtomicU64,
+    pub turns_measured: std::sync::atomic::AtomicU64,
+    /// V8.6: breaker por fingerprint (self.heal/factory) — nunca reverte.
+    pub self_heal_loops: Mutex<nos_core::LoopGuard>,
 }
 
 impl AppState {

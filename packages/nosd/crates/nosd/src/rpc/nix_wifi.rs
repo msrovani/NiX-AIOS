@@ -306,6 +306,38 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .unwrap_or("")
                     .into(),
             };
+            // V8.6: breaker por fingerprint do pedido (hash BLAKE3).
+            // Antes do HITL: um pedido repetido não pode queimar grants.
+            let fingerprint = nos_mesh::content_hash(
+                format!("{}|{}|{}", recipe.id, recipe.action, recipe.target).as_bytes(),
+            );
+            {
+                let mut guard = state.self_heal_loops.lock();
+                guard.cap(128);
+                if guard.is_loop(&fingerprint) {
+                    let failures = guard.failures(&fingerprint);
+                    let _ = state.hermes.record_opar(
+                        "self.heal.evaluate",
+                        &fingerprint,
+                        "loop_guard",
+                        "deny",
+                        "loop_detected",
+                    );
+                    return Some(Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some(format!(
+                            "loop_detected: mesmo pedido falhou {failures}x (sem revert; mude o artefacto)"
+                        )),
+                        result: json!({
+                            "loop_detected": true,
+                            "failures": failures,
+                            "fingerprint": fingerprint,
+                            "reverted": false,
+                        }),
+                    });
+                }
+            }
             // self.heal.evaluate = domínio NixPropose (Confirm FORA da lista
             // do gate SITE_POLICY) — o handler é o ÚNICO consumidor do grant
             // (single-use provado por replay em ipc_auth).
@@ -323,6 +355,15 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 state.ipc_generation(),
             );
             let d = nos_hermes::evaluate_self_heal(&gate, &recipe, hitl);
+            {
+                // Falha registra o fingerprint; sucesso limpa-o.
+                let mut guard = state.self_heal_loops.lock();
+                if d.allow {
+                    guard.note_success(&fingerprint);
+                } else {
+                    guard.note_failure(&fingerprint);
+                }
+            }
             opar_after_ok(
                 state,
                 "self.heal.evaluate",

@@ -10,6 +10,15 @@ use serde_json::json;
 /// de nuvem leva sempre `ref_date` + `ref_model` + `HYPOTHESIS` (ADR-0113).
 fn turn_block(state: &AppState, prompt_chars: usize, reply_chars: usize) -> serde_json::Value {
     let delta = state.energy.lock().sample();
+    // V8.2: cobertura honesta — um turno sem fonte não é "0 J medidos".
+    state
+        .turns_total
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    if matches!(delta.source.as_str(), "rapl" | "nvml" | "tdp_estimate") {
+        state
+            .turns_measured
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
     let cost = CostModel::from_env();
     let tokens_in = nos_core::tokens_estimate(prompt_chars);
     let tokens_out = nos_core::tokens_estimate(reply_chars);
@@ -54,7 +63,11 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             let out = state.hermes.chat_submit(gate, prompt);
             let (ok, error, result) = match out {
                 Ok(v) => (true, None, v),
-                Err(e) => (false, Some(e.to_string()), json!(null)),
+                Err(e) => (
+                    false,
+                    Some(nos_core::trim_diagnostic(&e.to_string(), true)),
+                    json!(null),
+                ),
             };
             let reply_chars = result
                 .get("text")
@@ -108,7 +121,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 Err(e) => Response {
                     id: req.id,
                     ok: false,
-                    error: Some(e.to_string()),
+                    error: Some(nos_core::trim_diagnostic(&e.to_string(), true)),
                     result: json!(null),
                 },
             }
@@ -134,7 +147,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 Err(e) => Response {
                     id: req.id,
                     ok: false,
-                    error: Some(e.to_string()),
+                    error: Some(nos_core::trim_diagnostic(&e.to_string(), true)),
                     result: json!(null),
                 },
             }

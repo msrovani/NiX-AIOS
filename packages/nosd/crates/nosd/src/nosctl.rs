@@ -968,6 +968,10 @@ fn warn_reason(method: &str, v: &serde_json::Value) -> Option<String> {
 }
 
 /// V0 — triage honesto: agrega subsistemas, `fail` só com erro real.
+///
+/// V8.4: cada subsistema declara **como** sabe o que diz:
+/// `reported` (o daemon respondeu) ≠ `verified` (nós verificámos localmente).
+/// `unmeasured` nunca conta como `ok`.
 async fn run_doctor(args: &Args, token: Option<String>, as_json: bool) -> anyhow::Result<i32> {
     let mut subs = serde_json::Map::new();
     let mut fails = 0u32;
@@ -989,34 +993,54 @@ async fn run_doctor(args: &Args, token: Option<String>, as_json: bool) -> anyhow
                 }
                 Err(e) => {
                     fails += 1;
-                    ("fail", e.to_string())
+                    ("fail", nos_core::trim_diagnostic(&e.to_string(), true))
                 }
             };
         subs.insert(
             (*method).to_string(),
-            serde_json::json!({ "status": status, "detail": detail }),
+            serde_json::json!({
+                "status": status,
+                "verification": "reported",
+                "detail": detail,
+            }),
         );
     }
 
-    // Firstboot só é observável no host (--tcp remoto = unknown, não fail).
+    // Firstboot só é observável (e verificável) no host.
     let local = args.tcp.is_none();
     let fb = std::path::Path::new("/var/lib/nosd/firstboot.done").exists();
-    let (fb_status, fb_detail) = if !local {
-        ("unknown", "remoto (--tcp)".to_string())
+    let (fb_status, fb_verification, fb_detail) = if !local {
+        (
+            "unmeasured",
+            "unmeasured",
+            "remoto (--tcp): não observável daqui".to_string(),
+        )
     } else if fb {
-        ("ok", "/var/lib/nosd/firstboot.done".to_string())
+        (
+            "ok",
+            "verified",
+            "firstboot.done presente (verificado localmente)".to_string(),
+        )
     } else {
         warns += 1;
         (
             "warn",
+            "verified",
             "firstboot.done ausente (Q1–Q5 por correr)".to_string(),
         )
     };
     subs.insert(
         "firstboot".into(),
-        serde_json::json!({ "status": fb_status, "detail": fb_detail }),
+        serde_json::json!({
+            "status": fb_status,
+            "verification": fb_verification,
+            "detail": fb_detail,
+        }),
     );
 
+    let reported = DOCTOR_CHECKS.len() as u64;
+    let verified = if local { 1 } else { 0 };
+    let unmeasured = if local { 0 } else { 1 };
     let ok = fails == 0;
     let generated_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1026,6 +1050,7 @@ async fn run_doctor(args: &Args, token: Option<String>, as_json: bool) -> anyhow
         "ok": ok,
         "fails": fails,
         "warns": warns,
+        "sources": { "reported": reported, "verified": verified, "unmeasured": unmeasured },
         "subs": subs,
         "generated_ms": generated_ms,
     });
@@ -1042,15 +1067,34 @@ fn render_doctor(report: &serde_json::Value) -> String {
     if let Some(subs) = report.get("subs").and_then(|v| v.as_object()) {
         for (k, v) in subs {
             let st = v.get("status").and_then(|x| x.as_str()).unwrap_or("?");
-            let d = v.get("detail").and_then(|x| x.as_str()).unwrap_or("");
-            out.push_str(&format!("{k:<18} {st:<7} {d}\n"));
+            // V8.4: reported (daemon disse) ≠ verified (nós verificámos).
+            let how = v
+                .get("verification")
+                .and_then(|x| x.as_str())
+                .unwrap_or("n/a");
+            let d: String = v
+                .get("detail")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .chars()
+                .take(48)
+                .collect();
+            out.push_str(&format!("{k:<18} {st:<10} {how:<10} {d}\n"));
         }
     }
+    let n = |k: &str| report.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+    let src = report
+        .get("sources")
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
     out.push_str(&format!(
-        "\nok={} fails={} warns={}\n",
+        "\nok={} fails={} warns={} · reported={} verified={} unmeasured={}\n",
         report.get("ok").and_then(|v| v.as_bool()).unwrap_or(false),
-        report.get("fails").and_then(|v| v.as_u64()).unwrap_or(0),
-        report.get("warns").and_then(|v| v.as_u64()).unwrap_or(0),
+        n("fails"),
+        n("warns"),
+        src.get("reported").and_then(|v| v.as_u64()).unwrap_or(0),
+        src.get("verified").and_then(|v| v.as_u64()).unwrap_or(0),
+        src.get("unmeasured").and_then(|v| v.as_u64()).unwrap_or(0),
     ));
     out
 }

@@ -16,6 +16,10 @@ path = "src/main.rs"
 name = "nosctl"
 path = "src/nosctl.rs"
 
+[[bin]]
+name = "nosmcp"
+path = "src/nosmcp.rs"
+
 [dependencies]
 nos-core = { path = "../nos-core" }
 nos-ipc = { path = "../nos-ipc" }

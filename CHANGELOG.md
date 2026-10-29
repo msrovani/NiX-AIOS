@@ -5,6 +5,27 @@ Versionamento [SemVer](https://semver.org/).
 
 ## [0.6.0-alpha.15] — in-tree (V8: doações OMH + eco-tokens)
 
+### Added (V8.1–V8.6 — doações oh-my-hermes + eco-tokens)
+
+- **V8.1 `nosmcp`**: bin MCP **stdio read-only** (`initialize`, `tools/list`,
+  `tools/call`, `ping`, `-32700` com `id:null`). Tools: `nsd.health|score|
+  energy|pending|trace`. Zero escrita, zero allowlist nova no kiosk. O
+  transporte vive em `nos-mcp::stdio` (testável com `Cursor`).
+- **V8.2 `nos-core::reported_rate`**: toda a percentagem carrega
+  `numerator_of`/`denominator_of`/`excluded`; denominador 0 ⇒ `percent:null` +
+  `basis=no_observations`; `meets_target` falha o não medido. Aplicada à
+  **cobertura de energia** (`observe.energy.coverage`).
+- **V8.3 `nos-core::trim_diagnostic`**: ANSI (CSI/OSC/escapes), 5 head + 15 tail
+  em falha, cauda de 20 no sucesso, cap 1000 chars em fronteiras de `char`.
+  Usado nos erros de chat e no `doctor`.
+- **V8.4 `doctor`**: coluna `reported|verified|unmeasured` por subsistema;
+  `unmeasured` nunca é `ok`.
+- **V8.5 ordem de prompt**: marcadores `## Persona (SOUL)` → `## Memory recall`
+  → `## User` (prefixo fixo estável para KV cache) + 2 testes de contrato.
+- **V8.6 `nos-core::LoopGuard`**: breaker por fingerprint no
+  `self.heal.evaluate` (recusa `loop_detected`, `reverted:false`); substitui o
+  `git checkout .` do eco-tokens por recusa honesta.
+
 ### Fixed (D1 — inventário de spawns)
 
 - **`nvidia-smi` por allowlist absoluta** (`nos-core::proc`): candidatos

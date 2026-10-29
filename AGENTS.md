@@ -1,7 +1,9 @@
 # AGENTS.md — regras persistentes do NixAIOS
 
 Este ficheiro é memória operacional para agentes/contribuidores. Leia antes de
-mexer no código. O plano vivo está em [`docs/IMPROVEMENT_PLAN.md`](docs/IMPROVEMENT_PLAN.md).
+mexer no código. O plano vivo está em [`docs/IMPROVEMENT_PLAN.md`](docs/IMPROVEMENT_PLAN.md);
+a tranche actual + próximos passos (V8) em
+[`docs/VAMPIRE_PLAN_OPENJARVIS.md`](docs/VAMPIRE_PLAN_OPENJARVIS.md) §12.
 
 ## Norte
 
@@ -10,7 +12,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.6.0-alpha.14** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.6.0-alpha.15** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -124,6 +126,13 @@ Resumo executavel; detalhe em
 32. **Superfície dinâmica (MCP)**: piso IPC `NONE` + caps **da tool** no handler
     é o padrão seguro (registry server-authored). Não abrir
     `http_lab::allowed_methods` sem teste de contrato.
+33. **Percentagem sem denominador é uma afirmação que ninguém verifica.**
+    Denominador vazio ⇒ `percent:null` + `basis=no_observations`, **nunca 0%**
+    (`nos-core::reported_rate`, ideia do oh-my-hermes). `meets_target` falha o
+    não medido. Contagens sim; dinheiro não (custo nuvem é contrafactual).
+34. **Loop-breaker = fingerprint + recusa, nunca revert.** O
+    `git checkout .` do eco-tokens apaga trabalho por teste flaky. Em `nosd`:
+    `LoopGuard` (BLAKE3) recusa com `loop_detected` e `reverted:false`.
 
 ## Comandos
 
@@ -232,6 +241,17 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   **sem** nix build/QEMU/metal, RAPL real AWAITING_HW, MCP stdio/SSE NOT_DONE.
   Ver `docs/evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md` e
   `docs/memory/SESSION_20261029_VAMPIRE.md`.
+- **Tranche 0.6.0-alpha.15 (in-tree, V8 — OMH + eco-tokens)**: `nosmcp` (MCP
+  stdio **read-only**: health/score/energy/pending/trace); `nos-core::
+  reported_rate` (denominador vazio = `percent:null`); `nos-core::
+  trim_diagnostic` (ANSI + 5/15 + cap 1000) usado nos erros de chat e no
+  doctor; `doctor` com `reported|verified|unmeasured`; prompt
+  `## Persona`→`## Memory recall`→`## User` (prefixo KV estável); `LoopGuard`
+  no `self.heal` (recusa, sem revert). D1: `nvidia-smi` por allowlist
+  absoluta + `docs/SPAWN_INVENTORY.md`; `path` do unit com `systemd`/`coreutils`.
+  Host **OBSERVED** (`smoke-nosmcp.sh` + `smoke-vampire.sh` PASS; 363 testes).
+  Residual: nix build/QEMU, MCP resources/prompts, prompt-eval não medido.
+  Ver `docs/evidence/V8_OMH_ECO_0.6.0-alpha.15.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.
@@ -289,6 +309,6 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `docs/API.md`. Testado em bancada (unit + ponta-a-ponta com daemon local);
   **ainda não observado em QEMU/metal**.
 
-## Evidência 0.6.0-alpha.14
+## Evidência 0.6.0-alpha.15
 
-`docs/evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md`, `docs/evidence/QWEN35_0.8B_0.6.0-alpha.12.md`, `docs/RELEASE_0.6.0-alpha.11.md`, `docs/evidence/QEMU_0.6.0-alpha.11.md`, `docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`, `docs/RELEASE_0.6.0-alpha.10.md`, `docs/evidence/QEMU_0.6.0-alpha.10.md`, `docs/evidence/M8.1D_NSGDB_BACKEND_0.6.0-alpha.9.md`, `docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`, `docs/evidence/S2C_SIGNED_PUSH_E2E_0.6.0-alpha.9.md`, `docs/evidence/S2C_REVOKE_0.6.0-alpha.9.md`, `docs/evidence/CLI_SKILL_AUTH_0.6.0-alpha.9.md`, `docs/RELEASE_0.6.0-alpha.9.md`, `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`, `docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`, `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`, `docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`, `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`, `docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`, `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`, `docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`, `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`, `docs/evidence/M7_JOBS_0.6.0-alpha.8.md`, `docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`, `docs/evidence/M6_IDENTITY_0.6.0-alpha.8.md`, `docs/evidence/HITL_0.6.0-alpha.8.md`, `docs/RELEASE_0.6.0-alpha.7.md`, `docs/evidence/NIX_RING_0.6.0-alpha.7.md`, `docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.
+`docs/evidence/V8_OMH_ECO_0.6.0-alpha.15.md`, `docs/evidence/VAMPIRE_V0_V7_0.6.0-alpha.14.md`, `docs/evidence/QWEN35_0.8B_0.6.0-alpha.12.md`, `docs/RELEASE_0.6.0-alpha.11.md`, `docs/evidence/QEMU_0.6.0-alpha.11.md`, `docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`, `docs/RELEASE_0.6.0-alpha.10.md`, `docs/evidence/QEMU_0.6.0-alpha.10.md`, `docs/evidence/M8.1D_NSGDB_BACKEND_0.6.0-alpha.9.md`, `docs/evidence/M8.1D_CRDT_ANCHOR_0.6.0-alpha.9.md`, `docs/evidence/S2C_SIGNED_PUSH_E2E_0.6.0-alpha.9.md`, `docs/evidence/S2C_REVOKE_0.6.0-alpha.9.md`, `docs/evidence/CLI_SKILL_AUTH_0.6.0-alpha.9.md`, `docs/RELEASE_0.6.0-alpha.9.md`, `docs/evidence/S2B_SKILL_CAPS_0.6.0-alpha.8.md`, `docs/evidence/S2A_SKILL_PUBLISHER_0.6.0-alpha.8.md`, `docs/evidence/S1_SKILL_TRUST_0.6.0-alpha.8.md`, `docs/evidence/M8.1e_CRDT_LOG_AUTH_0.6.0-alpha.8.md`, `docs/evidence/M8.1c_CRDT_COMPACT_0.6.0-alpha.8.md`, `docs/evidence/M8.1b_CRDT_LOG_0.6.0-alpha.8.md`, `docs/evidence/M8.1_DELTA_0.6.0-alpha.8.md`, `docs/evidence/M9.1_SKILL_PUSH_0.6.0-alpha.8.md`, `docs/evidence/M9_SKILLS_0.6.0-alpha.8.md`, `docs/evidence/M7_JOBS_0.6.0-alpha.8.md`, `docs/evidence/M6.1_NOISE_0.6.0-alpha.8.md`, `docs/evidence/M6_IDENTITY_0.6.0-alpha.8.md`, `docs/evidence/HITL_0.6.0-alpha.8.md`, `docs/RELEASE_0.6.0-alpha.7.md`, `docs/evidence/NIX_RING_0.6.0-alpha.7.md`, `docs/RELEASE_0.6.0-alpha.6.md`, `docs/evidence/SECURITY_S08_S09_0.6.0-alpha.6.md`, `docs/RELEASE_0.6.0-alpha.5.md`, `docs/evidence/BOOT_FIRSTBOOT_0.6.0-alpha.5.md`, `docs/evidence/CAGE_SLINT_0.6.0-alpha.4.md`, `docs/evidence/VOICE_0.6.0-alpha.2.md`, `docs/evidence/VM_GGUF_0.6.0-alpha.2.md`, `docs/evidence/QEMU_0.6.0-alpha.2.md`.

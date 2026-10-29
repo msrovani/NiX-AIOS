@@ -320,6 +320,21 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
         "observe.energy" => {
             let delta = state.energy.lock().sample();
             let cost = CostModel::from_env();
+            // V8.2: cobertura por turno (uma rate que carrega o denominador).
+            let total = state.turns_total.load(std::sync::atomic::Ordering::Relaxed);
+            let measured = state
+                .turns_measured
+                .load(std::sync::atomic::Ordering::Relaxed);
+            let coverage = nos_core::reported_rate(
+                measured,
+                total,
+                &["rapl", "nvml", "tdp_estimate"],
+                "chat_turns",
+                &["s2_pending", "no_energy_source"],
+            )
+            .ok()
+            .and_then(|r| serde_json::to_value(r).ok())
+            .unwrap_or(json!(null));
             Response {
                 id: req.id,
                 ok: true,
@@ -331,6 +346,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     "source": delta.source,
                     "scope": delta.scope,
                     "ts_ms": delta.ts_ms,
+                    "coverage": coverage,
                     "cost": {
                         "local_eur_total": cost.local_eur(delta.joules_total),
                         "kwh_price_eur": cost.kwh_price_eur,

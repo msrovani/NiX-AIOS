@@ -317,3 +317,75 @@ Pendente antes de release: `nix-instantiate --parse` dos módulos + `nix build`
 da ISO + VM test + (V1) medição RAPL real. O HUD Slint já mostra energia/fila
 HITL/domínio OPAR, mas não foi visto em QEMU/metal.
 
+---
+
+## 12. Próximos passos — doações aderentes (OMH + eco-tokens)
+
+Filtro aplicado: só entra o que serve os **próximos passos reais** (V8 + Nix/QEMU).
+Cada item tem origem, critério de aceite e claim esperado. Nada disto toca na
+ISO nem no M3/M4/M5.
+
+### A. Dívida aberta (fazer já)
+
+| ID | Item | Origem | Aceite | Esforço |
+|----|------|--------|--------|---------|
+| **D1** | Allowlist do spawn `nvidia-smi` em `nos-observe::energy` (`NOSD_NVIDIA_SMI`, default absoluto `/run/current-system/sw/bin/nvidia-smi`, inventário de spawns) | auto-auditoria V1 + padrão `PROCESS_SPAWN_ALLOWLIST` (OMH) | teste: sem env usa o default absoluto; `PATH` não decide; inventário no doc | 30 min |
+
+### B. V8 — tranche `0.6.0-alpha.15` (aderente, ~3 dias)
+
+| ID | Item | Origem | Aceite | Esforço |
+|----|------|--------|--------|---------|
+| **V8.1** | `nosmcp`: bin **stdio** read-only (MCP) que fala IPC com o `nosd`; tools `nsd.health`/`nsd.score`/`nsd.energy`/`nsd.pending`/`nsd.trace`; **sem** escrita | transporte de `eco-tokens/templates/mcp-server.py`; fronteira do `nos-mcp` (V5) | `initialize`/`tools/list`/`tools/call`/`ping`; parse error `id:null`; nenhuma tool de escrita existe; caps do peer aplicadas; smoke | 1 dia |
+| **V8.2** | `nos-core::reported_rate`: `percent:null` + `basis=no_observations` quando denominador vazio, `numerator_of`/`denominator_of`/`excluded`; `meets_target` falha se não medido. Usar no custo/poupança (V2) e no `score_v0` | `omh_reported_rate/v1` (OMH) | testes: denominador vazio ⇒ null; numerador composto nomeado; nenhuma percentagem sem denominador | 3 h |
+| **V8.3** | `nos-core::trim_diagnostic`: strip ANSI ECMA-48, 5 head + 15 tail quando >20 linhas, cap 1000 chars, marcador de elisão; usar em `self_heal`/factory e no gate | `smart_trim` (eco-tokens) | testes com ANSI, >20 linhas, vazio; determinístico | 2 h |
+| **V8.4** | `doctor` com `reported` vs `verified` por subsistema; `unmeasured` nunca é `ok` | vocabulário `prepared_not_observed` (OMH) | `health reported ok` ≠ `firstboot verified ok`; exit 1 só para fail | 2 h |
+| **V8.5** | Ordem de prompt cache-friendly: teste de prefixo estável em `cognitive_bridge::build_chat_prompt` (FIXO→REPO→ESTADO→DINÂMICO) + medição prompt-eval | regra de cache (eco-tokens) | teste: prefixo idêntico entre turnos; medição rotulada HYPOTHESIS | 4 h |
+| **V8.6** | Loop-breaker por BLAKE3 de artefacto em `self.heal`/factory: mesmo hash após falha = recusa + report | anti-loop (eco-tokens) **sem** o `git checkout` | teste: 2.ª tentativa com hash igual ⇒ `loop_detected`; tree intacto | 4 h |
+
+### C. V9 — backlog (não agora)
+
+| ID | Item | Origem | Porquê esperar |
+|----|------|--------|----------------|
+| V9.1 | DAG com isolamento de write-scope no `job.submit`/factory | OMH | precisa de quota/fila por peer (M7 residual) |
+| V9.2 | Memória: `prepared` vs `approved` (candidatos fora do recall) | OMH | mexe no M8/CRDT; requer migração |
+| V9.3 | Execução real de skills `agentskills.io` (hoje é manifesto) | V6 | requer modelo de activação sem wasm |
+| V9.4 | Expor `observe.energy`/`ui.pending` ao kiosk | V1/V4 | exige teste de contrato na allowlist |
+| V9.5 | Convenção de commit `Tested:` / `Not-tested:` | OMH | processo, não código |
+
+### D. Rejeitado (membrana)
+
+| Item | Origem | Motivo |
+|------|--------|--------|
+| `git checkout .` automático | eco-tokens | destrutivo; pode apagar trabalho por teste flaky — proibido no daemon |
+| MCP sem autorização | eco-tokens | aceitável em harness local, inaceitável em serviço de sistema |
+| CoD ≤5 palavras como regra global | eco-tokens | HYPOTHESIS; só com medição no brain 0.8B |
+| Harness Python/TUI/`install.sh \| sh` | OMH/eco | fora da ISO; dev-only |
+| Routing multi-provider cloud | OMH | contradiz local-first |
+
+### E. Sequência
+
+1. **D1** (30 min) → commit.
+2. **V8.1** (1 dia) → smoke `nosmcp` + doc.
+3. **V8.2 + V8.3** (5 h) → testes puros em `nos-core`.
+4. **V8.4** (2 h) → `doctor` + smoke.
+5. **V8.5 + V8.6** (1 dia) → medição + teste de loop.
+6. Só então: WSL → `nix-instantiate --parse` → `build-iso` → `gate --strict` → QEMU serial.
+
+Regra mantida: **um item = uma prova**; `IMPLEMENTED` não sobe a `OBSERVED` sem
+artefacto em `docs/evidence/`.
+
+### Estado (2026-10-29, `0.6.0-alpha.15`)
+
+| Item | Estado |
+|------|--------|
+| D1 | **feito** — `nos-core::proc` + `docs/SPAWN_INVENTORY.md` + `path` (systemd/coreutils) |
+| V8.1 | **feito** — `nosmcp` stdio read-only; `smoke-nosmcp.sh` PASS |
+| V8.2 | **feito** — `reported_rate` + `observe.energy.coverage` |
+| V8.3 | **feito** — `trim_diagnostic` (chat + doctor) |
+| V8.4 | **feito** — `doctor` reported/verified/unmeasured |
+| V8.5 | **feito (contrato)** — prefixo estável; prompt-eval HYPOTHESIS |
+| V8.6 | **feito (handler)** — `LoopGuard` no `self.heal`; factory por ligar |
+
+Evidência: [`evidence/V8_OMH_ECO_0.6.0-alpha.15.md`](evidence/V8_OMH_ECO_0.6.0-alpha.15.md).
+Falta o passo 6 (Nix/QEMU/metal) para qualquer claim de release.
+

@@ -1,4 +1,4 @@
-# Getting started — NixAIOS 0.6.0-alpha.14
+# Getting started — NixAIOS 0.6.0-alpha.15
 
 Três bancadas, três níveis de honestidade (ADR-0113):
 

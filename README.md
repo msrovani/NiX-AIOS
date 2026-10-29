@@ -4,7 +4,7 @@
 
 Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 
-**Release 0.6.0-alpha.14** (in-tree; última ISO publicada: `0.6.0-alpha.11`) — Plano vampiro V0–V7 (doctor, energia, trace OPAR, fila HITL, MCP, `SKILL.md`, dash); volid ISO `NIXAIOS051`.  
+**Release 0.6.0-alpha.15** (in-tree; última ISO publicada: `0.6.0-alpha.11`) — V8 (doações OMH + eco-tokens: `nosmcp` stdio read-only, `reported_rate`, `trim_diagnostic`, doctor reported/verified, prompt cache-friendly, loop-breaker); volid ISO `NIXAIOS051`.  
 **Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.6.0-alpha.11](docs/RELEASE_0.6.0-alpha.11.md)
 
 ## Quick start

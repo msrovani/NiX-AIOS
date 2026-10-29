@@ -63,7 +63,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     "count": tools.len(),
                     "tools": tools,
                     "transport": "in-process",
-                    "honesty": "stdio/SSE NOT_DONE; tools server-authored",
+                    "honesty": "aqui in-process; stdio read-only via `nosmcp`; resources/prompts NOT_DONE",
                 }),
             }
         }

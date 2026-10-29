@@ -115,7 +115,19 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 | `mcp-call TOOL --args JSON` | `mcp.call` | caps **da tool** no `CapGate`; side-effect exige HITL |
 
 `mcp.call` tem piso IPC `NONE` de propósito: o registry é server-authored e a
-autorização é por tool (`nos-mcp`). Transporte `stdio`/SSE **não** implementado.
+autorização é por tool (`nos-mcp`). O transporte **stdio** é servido pelo bin
+`nosmcp` (read-only: `nsd.health|score|energy|pending|trace`); HTTP/SSE e
+`resources/*`/`prompts/*` **não** implementados.
+
+### MCP por stdio (`nosmcp`)
+
+```bash
+nosmcp [--socket /run/nosd/nosd.sock] [--tcp 127.0.0.1:7700 --token-file …]
+```
+
+Fala JSON-RPC 2.0 linha a linha em stdin/stdout (`initialize`, `tools/list`,
+`tools/call`, `ping`; `-32700` com `id:null` em JSON inválido). **Não** expõe
+escrita — para agir usa-se `nosctl` (com grant HITL onde aplicável).
 
 ### Nix / Wi‑Fi / transmute
 

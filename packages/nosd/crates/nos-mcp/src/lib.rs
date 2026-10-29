@@ -7,11 +7,14 @@
 //! *antes* da chamada.
 //!
 //! Estado honesto (claim IMPLEMENTED, não VERIFIED):
-//! - transporte JSON-RPC implementado **em processo** (`handle_jsonrpc`);
-//! - `stdio` e HTTP/SSE **não** implementados (e `stdio` shell é proibido);
+//! - transporte JSON-RPC **stdio** (`stdio::serve_stdio`) e **in-process**
+//!   (`handle_jsonrpc`) implementados;
+//! - HTTP/SSE, `resources/*` e `prompts/*` **não** implementados;
 //! - tool desconhecida = deny; tool sem caps = deny; side-effect exige HITL.
 
 #![forbid(unsafe_code)]
+
+pub mod stdio;
 
 use nos_core::{CapBits, CapGate};
 use serde::{Deserialize, Serialize};
@@ -178,7 +181,7 @@ pub fn initialize() -> Value {
         "serverInfo": {
             "name": "nosd-mcp",
             "version": env!("CARGO_PKG_VERSION"),
-            "honesty": "in-process JSON-RPC; stdio/SSE NOT_DONE",
+            "honesty": "stdio + in-process; resources/prompts NOT_DONE",
         },
     })
 }
@@ -209,6 +212,7 @@ pub fn handle_jsonrpc(
 
     let out = match method.as_str() {
         "initialize" => rpc_ok(id, initialize()),
+        "ping" => rpc_ok(id, json!({})),
         "tools/list" => rpc_ok(id, json!({ "tools": reg.list(gate, gen) })),
         "tools/call" => {
             let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
