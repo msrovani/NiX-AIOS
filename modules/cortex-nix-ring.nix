@@ -214,8 +214,10 @@ in
     systemd.services.nosd-nix-apply = {
       description = "Apply nosd staging → ai-managed.nix + nixos-rebuild switch";
       after = [ "local-fs.target" "nosd.service" ];
-      # R-01: nixos-rebuild/mountpoint não estão no defaultPath.
-      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux pkgs.coreutils ];
+      # R-01: nixos-rebuild/mountpoint não estão no defaultPath. T3.3 (VM):
+      # com o ring ARMADO, o helper roda grep/cut — sem gnugrep o apply
+      # morria em exit 127 ANTES da fase 1 (latente: só provado com armed).
+      path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux pkgs.coreutils pkgs.gnugrep ];
       environment = lib.optionalAttrs cfg.armRing {
         NOSD_NIX_RING = "1";
         NOSD_NIX_TWO_PHASE = if cfg.twoPhase then "1" else "0";

@@ -326,6 +326,7 @@
                 pkgs.nix
                 pkgs.util-linux
                 pkgs.coreutils
+                pkgs.gnugrep
               ];
               system.stateVersion = "25.11";
             };
