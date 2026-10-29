@@ -444,3 +444,17 @@ helper - o kill switch do DAEMON ficava em NIX_RING_DISABLED (fix no unit
 nosd via `8681e09`). Memoria completa + aprendidos em
 `docs/memory/SESSION_20261029_TRANCHE_BRAIN.md`; licoes 23-27 no AGENTS.md.
 Status:isso sem OBSERVED (atauris VM + Q-03 externo pendentes de push).
+
+**T3.3 apanha bug #4 + ring two-phase OBSERVED (2026-10-29):** o check
+`nixaios-ring` apanhou UM 4o bug latente: **double-consume do grant HITL**
+- o gate SITE_POLICY Confirm (NixSwitch/WifiConnect) consumia o grant e os
+handlers (`nix.apply`,`nix.confirm`,`nix.build_vm`,wifi.connect) re-verificavam
+e re-consumiam: com grant valido o handler recusava "HITL required". Fix
+(padrao NixRollback): dispatch consome = autoritativo; handlers sem re-check;
+kind proprio `nix.build_vm` no gate. `self.heal` mantem re-check (NixPropose
+fora da lista do gate; single-use provado por replay no ipc_auth). Com isto,
+o ciclo two-phase corre VERDE ponta-a-ponta (RING_EXIT=0, 85 s): forjado
+recusado, propose fields, grant+fase 1 (test), aguarda confirm, expirado
+recusado, fase 2 switch, last-generation gravada. Evidencia:
+`docs/evidence/NIX_RING_TWO_PHASE_0.6.0-alpha.13.md` (OBSERVED 1x; VERIFIED
+= 3x + CI externo pendente).
