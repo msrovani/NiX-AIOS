@@ -2,7 +2,7 @@
 
 **Imagem:** `.#iso-hw` (não é a ISO de release; inclui o HUD/orb híbrido).
 **Ficheiro gerado:** `C:\Users\msrov\Downloads\nixaios-hw-051.iso`
-**SHA-256:** `28f3446c20275c073be62315e97a70ad474fc61c758f1936c0f774b6e791aec4`
+**SHA-256:** `fe83b6e6639a5ade0d9bfeb68d286d293c687e0f87228927ba7f5ae1ef39e061`
 **Volid:** `NIXAIOS051` · `makeUsbBootable = true`
 
 ## 1. Gravar no pendrive
