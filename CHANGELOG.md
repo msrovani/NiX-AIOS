@@ -3,6 +3,17 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+### Added (Brain embutido iso-hw — ADR-0118 addenda)
+
+- **`packages.qwen35-08b-q4km` / `qwen35-08b-q8`** (flake): GGUF
+  Qwen3.5-0.8B (unsloth, Apache-2.0) como **derivação Nix content-addressed**
+  (pin SRI + tamanho, focos do tree HF LFS) — p/ embutir na `iso-hw`
+  (**NUNCA release**, S1.2 mantida para release): brain começa a correr no
+  primeiro boot **sem download**. Pós-boot, modelos maiores/melhor
+  quantização = proposta JARBAS via card HITL (`blob.fetch` server-authored)
+  conforme `docs/adr-addenda/0118-qwen-embedded-brain.md` (tiers de
+  capacidade → candidato, nunca auto-switch).
+
 ### Fixed (T0 — dívida de integração fechada no código)
 
 - **SKILL_PUSH desbloqueado:** o envelope de skill (módulo em base64 ~4/3)

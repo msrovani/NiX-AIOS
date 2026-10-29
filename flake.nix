@@ -98,6 +98,25 @@
           # Then: NOSD_LLAMA_CLI=result/bin/llama-completion NOSD_LLAMA_NGL=99
           # Forward GPU = VERIFIED só com system_info CUDA + offload (não basta nvidia-smi).
           llama-cpp-cuda = pkgs.llama-cpp.override { cudaSupport = true; };
+
+          # Brain embutível na iso-hw (NUNCA na ISO de release, S1.2):
+          # HW real já arranca COM o brain — sem download no first boot.
+          # GGUF content-addressed (pin por SRI) = a reproducibilidade que o
+          # download runtime não dava (G4.1: modelo como derivação Nix).
+          # Fontes de confiança: unsloth (Apache-2.0), base_model Qwen/Qwen3.5-0.8B.
+          # Pós-boot, modelos maiores/partição melhor = PROPOSTA JARBAS
+          # (card HITL blob.fetch, grant server-authored) — ver
+          # docs/adr-addenda/0118-qwen-embedded-brain.md.
+          qwen35-08b-q4km = pkgs.fetchurl {
+            url = "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf";
+            # LFS sha256 do HF tree (unsloth/Qwen3.5-0.8B-GGUF), 532517120 B.
+            hash = "sha256-vSWHguNff0WPis7RrcBT5ukuibxzW6O+idOKBhIdxRc=";
+          };
+          # Tier upgrade proposto pós-boot quando o hw permitir (RAM/NVRAM).
+          qwen35-08b-q8 = pkgs.fetchurl {
+            url = "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q8_0.gguf";
+            hash = "sha256-CtiF/9S7Ai/E8NM6Mwj6EI74YTFZ07OmfiOrygVremw=";
+          };
         } // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           # Convenience: nix build .#iso (from WSL/Linux)
           iso = self.nixosConfigurations.nixaios-iso.config.system.build.isoImage;
