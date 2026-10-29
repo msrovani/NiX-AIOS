@@ -94,6 +94,15 @@ in
       type = lib.types.str;
       default = "/mnt/nixaios-log";
     };
+    seedModels = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Copia `models/*.gguf` (ou `*.gguf` na raiz) da FAT32 para
+        /var/lib/nosd/models antes do nosd/firstboot. Permite inferencia
+        offline no metal, sem rede no primeiro boot.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -135,6 +144,30 @@ in
       };
     };
 
+    # Seed offline: NIXAIOSLOG/models/*.gguf -> /var/lib/nosd/models antes do
+    # nosd/getty (o firstboot corre no autologin). Sem FAT nao e fatal.
+    systemd.services.nixaios-model-seed = lib.mkIf cfg.seedModels {
+      description = "Seed offline GGUF models from NIXAIOSLOG";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "local-fs.target" "nixaios-log-mount.service" ];
+      wants = [ "nixaios-log-mount.service" ];
+      before = [ "nosd.service" "getty.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        SuccessExitStatus = [ 0 1 ];
+        path = with pkgs; [ coreutils gawk util-linux dosfstools ];
+        ExecStart = pkgs.writeShellScript "nixaios-model-seed" ''
+          # O mount pode ainda nao ter acontecido; ensureMount e idempotente.
+          if ! mountpoint -q "${mnt}" 2>/dev/null; then
+            ${ensureMount} >/dev/null 2>&1 || true
+          fi
+          export MNT="${mnt}" DEST="/var/lib/nosd/models"
+          exec ${pkgs.bash}/bin/bash ${./transmute/seed-models.sh}
+        '';
+      };
+    };
+
     systemd.services.nixaios-log-export = {
       description = "Export journal -> NIXAIOSLOG FAT32";
       wantedBy = [ "multi-user.target" ];
@@ -154,8 +187,10 @@ in
             ${ensureMount} || true
           fi
           if ! mountpoint -q "$MNT" 2>/dev/null; then
-            echo "nixaios-log-export: FAT ausente — so journal RAM" >&2
-            exit 0
+            echo "nixaios-log-export: FAT ausente — logs SO em RAM (sem persistencia)" > /dev/tty1 2>/dev/null || true
+            echo "nixaios-log-export: FAT ausente — retry em 10s (Restart=on-failure)" >&2
+            # exit 1 => Restart=on-failure: monta quando o stick aparecer.
+            exit 1
           fi
           STAMP=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo boot)
           # retrato de HW para analise pos-teste
@@ -180,7 +215,8 @@ in
           (
             while true; do
               for f in /tmp/nos-firstboot.log /var/lib/nosd/firstboot.log \
-                       /var/lib/nosd/hotswap.log /var/lib/nosd/jarbas-cage.log; do
+                       /var/lib/nosd/hotswap.log /var/lib/nosd/jarbas-cage.log \
+                       /var/lib/nosd/wifi-diag.log; do
                 [ -f "$f" ] && cp -f "$f" "$MNT/$(basename "$f")" 2>/dev/null || true
               done
               sync

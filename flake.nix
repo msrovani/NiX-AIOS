@@ -202,6 +202,21 @@
           };
         in
         {
+          # Seed offline NIXAIOSLOG/models -> /var/lib/nosd/models (script puro).
+          seed-models = pkgs.runCommand "test-seed-models" {
+            nativeBuildInputs = with pkgs; [
+              bash
+              coreutils
+              gawk
+              gnugrep
+              diffutils
+            ];
+            SEED = ./modules/transmute/seed-models.sh;
+          } ''
+            bash ${./scripts/test-seed-models.sh}
+            touch $out
+          '';
+
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
             nodes.machine = { lib, ... }: {

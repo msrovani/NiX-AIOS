@@ -125,6 +125,9 @@
       log "1) Rede (cabo ou Wi-Fi) — necessario para baixar idioma/voz/modelos"
       $SUDO systemctl start NetworkManager.service 2>/dev/null || true
       sleep 1
+      # Wi-Fi: rfkill soft-block faz o nmcli listar zero SSIDs (sintoma no metal).
+      $SUDO @utilLinux@/bin/rfkill unblock all 2>/dev/null || true
+      $SUDO @networkmanager@/bin/nmcli radio wifi on 2>/dev/null || true
       if net_connected; then
         DEV=$(@networkmanager@/bin/nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null | awk -F: '$3=="connected"{print $1" ("$2")"; exit}')
         IP=$(@iproute2@/bin/ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)
@@ -135,6 +138,17 @@
         save_file network.conf "connected=1"
       else
         log "   Sem ligacao."
+        # Diagnostico para o proximo boot: copiado para a FAT pelo log-export.
+        WIFI_DIAG=/tmp/nos-wifi-diag.log
+        {
+          echo "=== wifi-diag $(date -Is 2>/dev/null || echo now) ==="
+          @utilLinux@/bin/rfkill list 2>&1 || true
+          @networkmanager@/bin/nmcli -f DEVICE,TYPE,STATE device 2>&1 || true
+          @networkmanager@/bin/nmcli -f SSID,SIGNAL,SECURITY device wifi list 2>&1 | head -30 || true
+          @utilLinux@/bin/dmesg 2>/dev/null | grep -iE 'iwlwifi|ath[0-9]|firmware|wlan' | tail -40 || true
+        } > "$WIFI_DIAG" 2>&1 || true
+        $SUDO tee /var/lib/nosd/wifi-diag.log < "$WIFI_DIAG" >/dev/null 2>&1 || true
+        $SUDO chmod a+rw /var/lib/nosd/wifi-diag.log 2>/dev/null || true
         log "   1) Wi-Fi (listar SSIDs)"
         log "   2) Esperar cabo Ethernet (30s)"
         log "   3) Continuar offline (sem download HF)"

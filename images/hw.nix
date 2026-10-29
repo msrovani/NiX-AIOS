@@ -14,6 +14,14 @@
 {
   services.nixaiosLogFat.enable = lib.mkForce true;
 
+  # Seed offline: NIXAIOSLOG/models/*.gguf -> /var/lib/nosd/models antes do nosd.
+  # Com o GGUF no pendrive a inferencia funciona sem rede no 1o boot.
+  services.nixaiosLogFat.seedModels = true;
+
+  # Metal: questionario Q1-Q5 interactivo. Em auto o Q1 nunca pergunta Wi-Fi
+  # (espera 8s e cai em --no-download), que foi o sintoma de 28/10.
+  services.nixaiosTransmute.firstbootAuto = lib.mkForce false;
+
   # A ISO de release nao inclui llama.cpp (engine=cpu-echo). A imagem HW inclui.
   environment.systemPackages = [ pkgs.llama-cpp ];
   systemd.services.nosd.path = lib.mkAfter [ pkgs.llama-cpp ];
