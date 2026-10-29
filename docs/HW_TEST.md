@@ -1,17 +1,30 @@
 # Teste em hardware real — `iso-hw` com logs persistentes
 
 **Imagem:** `.#iso-hw` (não é a ISO de release; inclui o HUD/orb híbrido).
-**Ficheiro gerado:** `C:\Users\msrov\Downloads\nixaios-hw-051.iso`
-**SHA-256:** `1e90651a06899628bfa85b26fa55983f101ffb9d7143183f64f27ca100a3806c`
+Dois artefactos:
+
+- **`.img` (recomendado — um só pendrive):**
+  `C:\Users\msrov\Downloads\nixaios-hw-051-logfat.img` = ISO + FAT32
+  `NIXAIOSLOG` (4 GiB) no mesmo dispositivo.
+- `.iso` (precisa de um segundo pendrive FAT32):
+  `C:\Users\msrov\Downloads\nixaios-hw-051.iso`.
+
+**SHA-256 `.img`:** `c58bdb48885c514a6be381a1ff5e8296b8ea5f15d7a3b0928367dfde4161a354`
+**SHA-256 `.iso`:** `03b236d20fd3fa960607643271a851d42502dcd34ee250ebd33ce7194bbe4bce`
 **Volid:** `NIXAIOS051` · `makeUsbBootable = true`
 
 ## 1. Gravar no pendrive
 
-**Windows:** Rufus → *DD mode* (não ISO mode) → selecionar o `.iso` → escrever.
-**Linux/WSL:**
+**Um só pendrive (recomendado):** Rufus → *DD mode* → `nixaios-hw-051-logfat.img`.
+São 6,7 GB; o Windows passa a mostrar `NIXAIOSLOG` (4 GiB) na mesma unidade.
+
+**Dois pendrives:** Rufus DD → `nixaios-hw-051.iso` e um segundo FAT32 com
+label `NIXAIOSLOG` (secção 2).
+
+**Linux/WSL (qualquer dos dois):**
 
 ```bash
-sudo dd if=nixaios-hw-051.iso of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=nixaios-hw-051-logfat.img of=/dev/sdX bs=4M status=progress conv=fsync
 sync
 ```
 
@@ -19,8 +32,9 @@ sync
 
 ## 2. Partição de logs (FAT32, legível no Windows)
 
-Use um **segundo** pendrive (recomendado) ou uma partição livre, formatada
-FAT32 com o label exacto:
+Com o `.img` a partição **já existe no mesmo pendrive** (4 GiB, label
+`NIXAIOSLOG`) — não é preciso segundo pendrive. Com o `.iso` simples,
+formatar um segundo pendrive em FAT32 com o label exacto:
 
 **Windows (segundo pendrive):** formatar em FAT32 e pôr o nome `NIXAIOSLOG`
 (diskpart: `format fs=fat32 label=NIXAIOSLOG quick`).
@@ -96,9 +110,10 @@ logs ficam só em RAM e perdem-se no poweroff.
 
 ## 5. Recolher para análise
 
-Depois do teste, montar a partição no Windows e copiar **tudo** para
-`docs/evidence/hw/<data>/` no repo (ou zip). Não commitar segredos: o
-`journal-follow.log` pode conter hostnames/IPs.
+Com o `.img`, a `NIXAIOSLOG` está no **mesmo pendrive** do boot: ligar ao
+Windows e copiar **tudo** para `docs/evidence/hw/<data>/` no repo (ou zip).
+Não commitar segredos: o `journal-follow.log` pode conter hostnames/IPs e o
+`wifi.conf`/`firstboot.conf` têm a PSK em texto.
 
 ```bash
 mkdir -p docs/evidence/hw/$(date -u +%Y%m%d)

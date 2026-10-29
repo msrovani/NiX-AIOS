@@ -60,7 +60,7 @@ let
         case "$lab" in
           EFI*|BOOT*|ESP*) continue ;;
         esac
-        sz=$(${pkgs.coreutils}/bin/blockdev --getsize64 "$dev" 2>/dev/null || echo 0)
+        sz=$(${pkgs.util-linux}/bin/blockdev --getsize64 "$dev" 2>/dev/null || echo 0)
         if [ "$sz" -gt 104857600 ]; then
           try_mount "$dev" && break
         fi
@@ -150,6 +150,8 @@ in
         # Nao falhar o boot inteiro — firstboot avisa no tty
         SuccessExitStatus = [ 0 1 ];
       };
+      # mount/mountpoint (util-linux), fsck.vfat (dosfstools), awk/sed.
+      path = with pkgs; [ coreutils util-linux dosfstools gawk gnused ];
     };
 
     # Seed offline: NIXAIOSLOG/models/*.gguf -> /var/lib/nosd/models antes do
@@ -164,7 +166,6 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
         SuccessExitStatus = [ 0 1 ];
-        path = with pkgs; [ coreutils gawk util-linux dosfstools ];
         ExecStart = pkgs.writeShellScript "nixaios-model-seed" ''
           # O mount pode ainda nao ter acontecido; ensureMount e idempotente.
           if ! mountpoint -q "${mnt}" 2>/dev/null; then
@@ -174,6 +175,7 @@ in
           exec ${pkgs.bash}/bin/bash ${./transmute/seed-models.sh}
         '';
       };
+      path = with pkgs; [ coreutils gawk gnused util-linux dosfstools ];
     };
 
     # Wi-Fi: credenciais no pendrive (o console de texto deste metal nao e
@@ -188,12 +190,13 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
         SuccessExitStatus = [ 0 1 ];
-        path = with pkgs; [ coreutils util-linux networkmanager ];
         ExecStart = pkgs.writeShellScript "nixaios-wifi-seed" ''
           export MNT="${mnt}"
           exec ${pkgs.bash}/bin/bash ${./transmute/seed-wifi.sh}
         '';
       };
+      # nmcli + rfkill + coreutils.
+      path = with pkgs; [ coreutils util-linux networkmanager ];
     };
 
     systemd.services.nixaios-log-export = {
@@ -205,8 +208,6 @@ in
         Type = "simple";
         Restart = "on-failure";
         RestartSec = "10s";
-        # tools usadas no script (cp/sleep/dmesg/lspci/lsusb)
-        path = with pkgs; [ coreutils util-linux pciutils usbutils ];
         ExecStart = pkgs.writeShellScript "nixaios-log-export" ''
           set -euo pipefail
           MNT="${mnt}"
@@ -256,6 +257,8 @@ in
             >> "$MNT/journal-follow.log"
         '';
       };
+      # cp/sleep/dmesg/lspci/lsusb + mount/mountpoint/awk/sed.
+      path = with pkgs; [ coreutils util-linux pciutils usbutils gawk gnused ];
     };
 
     environment.variables.NIXAIOS_LOG_DIR = mnt;

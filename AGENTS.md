@@ -113,11 +113,12 @@ Resumo executavel; detalhe em
 
 ## Comandos
 
-HW (pendrive + logs persistentes): `nix build .#iso-hw` -> gravar em DD ->
-particao FAT32 `NIXAIOSLOG` (`models/*.gguf` + `wifi.conf`) -> first boot
-interactivo no tty1 (Q1-Q5) antes do GUI. O seed copia o GGUF para
-`/var/lib/nosd/models` antes do nosd; llama.cpp esta incluido na iso-hw (a
-ISO de release nao o tem). Ver [`docs/HW_TEST.md`](docs/HW_TEST.md).
+HW (um só pendrive): `nix build .#iso-hw` -> `scripts/pack-hw-usb.sh <iso> <img>`
+(ISO + FAT32 `NIXAIOSLOG` no mesmo `.img`) -> gravar em DD -> `models/` +
+`wifi.conf` -> first boot interactivo no tty1 (Q1-Q5) antes do GUI. O seed
+copia o GGUF para `/var/lib/nosd/models` antes do nosd; llama.cpp esta
+incluido na iso-hw (a ISO de release nao o tem). Ver
+[`docs/HW_TEST.md`](docs/HW_TEST.md).
 
 ```bash
 cd packages/nosd
