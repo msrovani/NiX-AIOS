@@ -458,3 +458,11 @@ recusado, propose fields, grant+fase 1 (test), aguarda confirm, expirado
 recusado, fase 2 switch, last-generation gravada. Evidencia:
 `docs/evidence/NIX_RING_TWO_PHASE_0.6.0-alpha.13.md` (OBSERVED 1x; VERIFIED
 = 3x + CI externo pendente).
+
+**VM re-proof das tranches (2026-10-29):** `nixaios-vm` VERDE (172 s, OBSERVED
+1x) com as tranches G0-G5: regressoes G1 a passar com identidade activa --
+ancora assinada sobrevive ao restart (3 campos), pins.dat, hb.seq, landlock
+Verified; ring desarmado por omissao mantem a assertion negativa. Evidencia:
+`docs/evidence/G1_VM_REPROOF_0.6.0-alpha.13.md` (drv fixado). Soma: nixaios-ring
+OBSERVED. VM externo (Q-03 = GitHub) pendente de combinar repeticião,
+VERIFIED = 3x.
