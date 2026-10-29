@@ -258,6 +258,12 @@ primeira execucao externa, 3 VMs num host, sem TTL de peers, netem limitado, HB
 em claro e metal. Evidencia: `docs/RELEASE_0.6.0-alpha.11.md`,
 `docs/evidence/M5.1_3VM_FAULTS_0.6.0-alpha.10.md`.
 
+**iso-hw para metal (2026-10-28):** `.#iso-hw` liga `nixaiosLogFat`
+(FAT32 `NIXAIOSLOG`): journal-boot/follow, copia firstboot/hotswap/cage,
+dmesg e hw-info (lspci/lsusb). Imagem `nixaios-hw-051.iso` sha256
+`28f3446c...`, guard S1.2 OK. Falta o teste em hardware (AWAITING_HW) e
+recolher `docs/evidence/hw/`. Ver `docs/HW_TEST.md`.
+
 **Boot→JARBAS (playbook M0–M5, 2026-10-26):** [`BOOT_TO_JARBAS.md`](BOOT_TO_JARBAS.md) + gate + [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) + [`FLEET_LAB.md`](FLEET_LAB.md) + [`memory/SESSION_BOOT_JARBAS.md`](memory/SESSION_BOOT_JARBAS.md). M3: `route.explain` trinity/`Decision`/S1 LOO + voice stages + **`ui.card` HITL thin**. Gate `MQEMU` = QEMU OBSERVED ≠ metal. **M4/M5** = **AWAITING_HW**.
 
 ---

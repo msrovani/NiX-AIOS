@@ -144,6 +144,8 @@ in
         Type = "simple";
         Restart = "on-failure";
         RestartSec = "10s";
+        # tools usadas no script (cp/sleep/dmesg/lspci/lsusb)
+        path = with pkgs; [ coreutils util-linux pciutils usbutils ];
         ExecStart = pkgs.writeShellScript "nixaios-log-export" ''
           set -euo pipefail
           MNT="${mnt}"
@@ -156,6 +158,15 @@ in
             exit 0
           fi
           STAMP=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo boot)
+          # retrato de HW para analise pos-teste
+          {
+            echo "=== nixaios hw $STAMP ==="
+            uname -a || true
+            cat /proc/cmdline || true
+            ${pkgs.pciutils}/bin/lspci -nn || true
+            ${pkgs.usbutils}/bin/lsusb || true
+          } > "$MNT/hw-info.log" 2>&1 || true
+          ${pkgs.util-linux}/bin/dmesg > "$MNT/dmesg-boot.log" 2>&1 || true
           {
             echo "=== nixaios journal dump $STAMP ==="
             ${pkgs.systemd}/bin/journalctl -b -u nosd -u jarbas-cage -u jarbas-hub -u jarbas-show-vt -u nosd-hotswap-aios -u nixaios-log-mount -u nixaios-log-export --no-pager || true
@@ -164,6 +175,18 @@ in
               [ -f "$MNT/$f" ] && echo "===== $f =====" && tail -n 80 "$MNT/$f" || true
             done
           } > "$MNT/journal-boot.log"
+          # firstboot/hotswap/cage escrevem em /tmp e /var/lib/nosd: copia
+          # periodica para o FAT (senao perdem-se no reboot).
+          (
+            while true; do
+              for f in /tmp/nos-firstboot.log /var/lib/nosd/firstboot.log \
+                       /var/lib/nosd/hotswap.log /var/lib/nosd/jarbas-cage.log; do
+                [ -f "$f" ] && cp -f "$f" "$MNT/$(basename "$f")" 2>/dev/null || true
+              done
+              sync
+              sleep 20
+            done
+          ) &
           sync
           exec ${pkgs.systemd}/bin/journalctl -f -u nosd -u jarbas-cage -u jarbas-hub -u nosd-hotswap-aios -o short-iso \
             >> "$MNT/journal-follow.log"

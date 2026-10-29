@@ -110,6 +110,12 @@ Versionamento [SemVer](https://semver.org/).
   ambiente) em `docs/memory/SESSION_FLEET_M6_M9.md`.
 
 
+### Added (hw)
+
+- **`iso-hw`**: imagem de teste em hardware com logs persistentes numa FAT32
+  `NIXAIOSLOG` (journal, firstboot/hotswap/cage, dmesg, lspci/lsusb). Ver
+  `docs/HW_TEST.md`.
+
 ## [Unreleased] — frota (M6/M7)
 ### Changed (M8.1d)
 

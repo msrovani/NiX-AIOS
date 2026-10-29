@@ -89,6 +89,9 @@ Resumo executavel; detalhe em
 
 ## Comandos
 
+HW (pendrive + logs persistentes): `nix build .#iso-hw` -> gravar em DD ->
+particao FAT32 `NIXAIOSLOG`; ver [`docs/HW_TEST.md`](docs/HW_TEST.md).
+
 ```bash
 cd packages/nosd
 cargo fmt --all --check

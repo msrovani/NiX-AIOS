@@ -104,6 +104,9 @@
           # Demo (NUNCA release): mesh pre-configurada + ssh para assercoes.
           iso-demo =
             self.nixosConfigurations.nixaios-iso-demo.config.system.build.isoImage;
+          # HW (nao release): logs persistentes em FAT32 LABEL=NIXAIOSLOG.
+          iso-hw =
+            self.nixosConfigurations.nixaios-iso-hw.config.system.build.isoImage;
         });
 
       nixosModules.neural-os = import ./modules/neural-os.nix;
@@ -665,6 +668,28 @@
             '';
           };
         });
+
+      nixosConfigurations.nixaios-iso-hw = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          ({ pkgs, ... }: {
+            nixpkgs.config.allowUnfree = true;
+            nixpkgs.overlays = [
+              (final: prev: {
+                nosd = self.packages.x86_64-linux.nosd;
+              })
+            ];
+          })
+          self.nixosModules.default
+          ./images/iso.nix
+          ./images/hw.nix
+          ({ pkgs, ... }: {
+            services.nosd.package = pkgs.nosd;
+            environment.systemPackages = [ pkgs.nosd ];
+          })
+        ];
+      };
 
       nixosConfigurations.nixaios-iso-demo = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
