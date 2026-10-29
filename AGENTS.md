@@ -256,7 +256,10 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   no `self.heal` (recusa, sem revert). D1: `nvidia-smi` por allowlist
   absoluta + `docs/SPAWN_INVENTORY.md`; `path` do unit com `systemd`/`coreutils`.
   Host **OBSERVED** (`smoke-nosmcp.sh` + `smoke-vampire.sh` PASS; 363 testes).
-  Residual: nix build/QEMU, MCP resources/prompts, prompt-eval não medido.
+  **Linux**: `nix build .#nosd` PASS (363 testes na derivação), ISO
+  `NIXAIOS051` construída (sha256 `4c9c55a6…`), QEMU `--stage MQEMU` fails=0
+  (`nosd_start_ok`, cage ACTIVE, firstboot DONE). Residual: metal AWAITING_HW,
+  MCP resources/prompts, prompt-eval não medido.
   Ver `docs/evidence/V8_OMH_ECO_0.6.0-alpha.15.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem

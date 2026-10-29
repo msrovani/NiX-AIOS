@@ -54,6 +54,68 @@ Correcção: `nvidia_smi_candidates_with` filtra por `Path::is_absolute()`, logo
 cada plataforma só vê os seus candidatos; teste exige `is_absolute()` e recusa
 o nome nu. Lição no AGENTS.md (35).
 
+### `nix build .#nosd` (WSL2, Linux) — **PASS**
+
+```
+/nix/store/4pgg9rws3zxhzj5pcfwh33gk8fc3w3y8-nosd-0.6.0-alpha.15
+bin/: nosd  nosctl  nosmcp  nos-jarbas
+```
+
+Os 363 testes correm dentro da derivação (Linux), incluindo os de
+`nos-core::proc`. A crate nova `nos-mcp` e o bin `nosmcp` entram no fecho.
+
+### ISO `0.6.0-alpha.15` (WSL2) — **PASS**
+
+```
+/nix/store/yn5d0mlv37y561afj3rym7sib58q2bzf-nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso
+sha256 4c9c55a66f9c8a5f4763d610b18329d624800b04af14098733481e0f49fc664f
+PVD NIXAIOS051 · guard S1.2 OK (sem AgentJev/S1 seed)
+→ /mnt/c/Users/msrov/Downloads/nixaios-minimal-051.iso
+```
+
+O fecho inclui o `nosd-0.6.0-alpha.15` com `systemd`/`coreutils` no `path` e as
+opções novas (`scoreWeights`, `kwhPriceEur`, `nvidiaSmi`, …).
+
+### QEMU (serial, WSL2) — em curso
+
+- **1.ª tentativa (240 s, TCG)**: o gate leu o log cedo (4 KB, ainda em
+  `Probing EDD`) e deu `nosd start unclear`. Mas a execução **completou** o
+  boot dentro dos 240 s — captura do tty no fim:
+
+  ```
+  nosd health OK (try=1)
+  HITL grant obtido (kind=transmute, single-use)
+  transmute RPC OK · models_dir=/var/lib/nosd/models
+  jarbas-cage ACTIVE (t+1)
+  JARBAS Slint HUD no Alt+F7 / tty7
+  === nos-firstboot DONE (GUI up) ===
+  [nixos@nixaios:~]$
+  ```
+
+  Ou seja: `nosd` sobe, HITL `transmute` funciona, `jarbas-cage` fica activo e
+  há shell na serial. O gate falhou por **ler o log antes do fim**, não por o
+  boot falhar — e o PASS anterior (menu `NixOS`) era falso.
+- **2.ª execução (900 s, 4 vCPU)**: log limpo, 29 677 bytes / 397 linhas.
+
+  ```
+  stage=MQEMU ring=Ring3_Linux_qemu layer=DELEGATE claim_status=OBSERVED result=PASS
+    detail=qemu_serial_kernel_boot_markers
+  stage=MQEMU ring=Ring3_Linux_qemu layer=ADAPT   claim_status=OBSERVED result=PASS
+    detail=nosd_start_ok_in_qemu_log
+  gate_summary fails=0 stage=MQEMU strict=0
+  ```
+
+  No log: `firstboot DONE`, `nosd health OK (try=1)`, `HITL grant
+  (kind=transmute)`, `transmute RPC OK`, `jarbas-cage ACTIVE (t+1)`, HUD Slint
+  no tty7. **Claim: `Ring3_Linux/qemu` OBSERVED ≠ metal VERIFIED.**
+- Correcção honesta: repetir com 900 s / 4 vCPU e só aceitar MQEMU quando o log
+  tiver `Linux version`/`Reached target` e `Started … Neural-OS Daemon`.
+- **Gate endurecido** (`scripts/gate-boot-to-jarbas.sh`): o MQEMU exigia
+  `grep -qiE 'NixOS|…'`, e `NixOS` aparece no **menu ISOLINUX** — PASS falso
+  possível com zero boot. Agora exige marcador de kernel/systemd
+  (`Linux version|Reached target|systemd\[1\]|Welcome to NixOS`) e falha com
+  `qemu_log_no_kernel_boot_markers`.
+
 ## 3. Decisões de honestidade
 
 - **`reported_rate` só em contagens**, não em dinheiro: o custo local↔nuvem é

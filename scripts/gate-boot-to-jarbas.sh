@@ -271,10 +271,12 @@ fi
 # --- MQEMU — lab ISO (≠ metal VERIFIED) ---
 if want MQEMU || want QEMU; then
   if [[ -n "${NIXAIOS_QEMU_LOG:-}" && -f "${NIXAIOS_QEMU_LOG}" ]]; then
-    if grep -qiE 'NixOS|Linux version|Welcome|systemd|Reached target' "$NIXAIOS_QEMU_LOG"; then
-      gate_pass MQEMU Ring3_Linux_qemu DELEGATE OBSERVED "qemu_serial_boot_markers log=$NIXAIOS_QEMU_LOG"
+    # O texto "NixOS" do menu ISOLINUX NÃO é prova de boot: exigir um marcador
+    # do kernel/systemd (lição: `grep NixOS` casava o menu e dava PASS falso).
+    if grep -qiE 'Linux version|Reached target|systemd\[1\]|Welcome to NixOS' "$NIXAIOS_QEMU_LOG"; then
+      gate_pass MQEMU Ring3_Linux_qemu DELEGATE OBSERVED "qemu_serial_kernel_boot_markers log=$NIXAIOS_QEMU_LOG"
     else
-      gate_fail MQEMU Ring3_Linux_qemu DELEGATE UNKNOWN "qemu_log_no_boot_markers"
+      gate_fail MQEMU Ring3_Linux_qemu DELEGATE UNKNOWN "qemu_log_no_kernel_boot_markers (menu/bootloader text não conta)"
     fi
     # Honesty: boot markers ≠ nosd healthy
     if grep -qiE 'Failed to start .*Neural-OS Daemon|Failed to start .*nosd' "$NIXAIOS_QEMU_LOG"; then

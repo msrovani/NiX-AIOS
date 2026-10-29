@@ -387,5 +387,6 @@ artefacto em `docs/evidence/`.
 | V8.6 | **feito (handler)** — `LoopGuard` no `self.heal`; factory por ligar |
 
 Evidência: [`evidence/V8_OMH_ECO_0.6.0-alpha.15.md`](evidence/V8_OMH_ECO_0.6.0-alpha.15.md).
-Falta o passo 6 (Nix/QEMU/metal) para qualquer claim de release.
+Passo 6 **fechado em QEMU** (`nix build .#nosd`, ISO `NIXAIOS051` sha256
+`4c9c55a6…`, `gate --stage MQEMU` fails=0). Metal continua **AWAITING_HW**.
 
