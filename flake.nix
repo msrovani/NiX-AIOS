@@ -230,6 +230,19 @@
             touch $out
           '';
 
+          # Persistencia das respostas do firstboot no pendrive.
+          stick-conf = pkgs.runCommand "test-stick-conf" {
+            nativeBuildInputs = with pkgs; [
+              bash
+              coreutils
+              gnugrep
+            ];
+            HELPERS = ./modules/transmute/stick-conf.sh;
+          } ''
+            bash ${./scripts/test-stick-conf.sh}
+            touch $out
+          '';
+
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
             nodes.machine = { lib, ... }: {

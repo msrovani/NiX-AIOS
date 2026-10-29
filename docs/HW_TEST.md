@@ -2,7 +2,7 @@
 
 **Imagem:** `.#iso-hw` (não é a ISO de release; inclui o HUD/orb híbrido).
 **Ficheiro gerado:** `C:\Users\msrov\Downloads\nixaios-hw-051.iso`
-**SHA-256:** `d2c6208225e58f35a818b02463af282fdea747b161fce5281b8841e5d1771859`
+**SHA-256:** `1e90651a06899628bfa85b26fa55983f101ffb9d7143183f64f27ca100a3806c`
 **Volid:** `NIXAIOS051` · `makeUsbBootable = true`
 
 ## 1. Gravar no pendrive
@@ -48,15 +48,27 @@ sudo mkfs.vfat -n NIXAIOSLOG /dev/sdY1
 > O `nixaios-wifi-seed` liga antes do firstboot; se falhar, o motivo fica em
 > `wifi-diag.log`. Gravar o `wifi.conf` em UTF-8 **sem BOM** (Notepad/VS
 > Code); comentários só em linhas próprias (`# ...`).
+>
+> O próprio questionário grava as respostas em `NIXAIOSLOG/firstboot.conf`
+> (`DONE=1`, `LANG`, `KEYMAP`, `TZ`) e o Wi-Fi escolhido em `wifi.conf`.
+> No **2º+ boot** reusa tudo e arranca em auto — há 10 s no tty1 para
+> reconfigurar (Enter); `NOSD_FIRSTBOOT_ASK=1` no cmdline força o
+> questionário. A PSK fica em texto no FAT: não usar um pendrive partilhado.
 
 ## 3. Arrancar e testar
 
-Ligar **os dois** (ISO + logs), arrancar pelo pendrive da ISO. O firstboot é
-**automático** (não há prompt). A `iso-hw` desliga o download quando já há um
-GGUF seedado, e o Wi-Fi vem de `wifi.conf` no pendrive — o console de texto
-deste metal não é visível (kernel só com `console=ttyS0`; o questionário
-interactivo ficava bloqueado no getty serial e o orb nunca chegava). A
-`iso-hw` agora acrescenta `console=tty0` para o boot ser visível no ecrã.
+Ligar **os dois** (ISO + logs), arrancar pelo pendrive da ISO. A `iso-hw` é
+**interactiva**: o questionário Q1–Q5 aparece no tty1 (ecrã físico) antes do
+transmute e do GUI. O Q1 lista SSIDs e pede a senha; se houver `wifi.conf`
+no pendrive, o `nixaios-wifi-seed` liga antes e o Q1 mostra “Já ligado”.
+O wrapper só dispara o firstboot no serial quando `NOSD_FIRSTBOOT_AUTO=1`
+(ou `ASK=1`), para as perguntas não ficarem presas no getty serial.
+`console=tty0` mantém o boot visível no ecrã.
+
+No **2º+ boot**, se o pendrive tiver `firstboot.conf` com `DONE=1`, o
+firstboot reusa as respostas e vai direito ao GUI (10 s de Enter no tty1
+para reconfigurar). Apagar o `firstboot.conf` do pendrive também repõe o
+questionário.
 
 No hardware, verificar:
 
@@ -118,9 +130,8 @@ Origem: `unsloth/Qwen3.5-0.8B-GGUF` / `Qwen3.5-0.8B-Q4_K_M.gguf`
 (**508 MB**, Apache-2.0). O repo `Qwen/Qwen3.5-0.8B` é safetensors
 multimodal e **não** serve directamente ao llama.cpp.
 
-Fallback (sem GGUF no pendrive): o firstboot auto baixa via HF se houver
-rede (`NOSD_FIRSTBOOT_DOWNLOAD=1` na iso-hw); com GGUF seedado o download é
-saltado para o orb não esperar pela rede. Sem rede e sem GGUF fica
+Fallback (sem GGUF no pendrive): no Q5, com rede, o transmute baixa via HF
+(com GGUF seedado o ficheiro é cache hit). Sem rede e sem GGUF fica
 `cpu-echo`.
 
 **Limites**: o engine usa `/completion` (sem chat template); o Qwen3.5 em

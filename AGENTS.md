@@ -103,20 +103,21 @@ Resumo executavel; detalhe em
 27. PowerShell: `cargo … 2>&1 | Select-String` gera `NativeCommandError`
     stderr + **falso exit 1**; validar exit real com `… 2>&1 | Out-Null;
     $LASTEXITCODE` (leções de CI local, não arrastar por falso-positivo).
-28. No metal, `console=ttyS0` (único) + questionário interactivo = **ecrã
-    escuro**: o firstboot cai no getty serial e bloqueia; o orb só sobe
-    depois do transmute, logo nunca chega. Imagem HW = firstboot auto +
-    `console=tty0` + Wi-Fi por `wifi.conf` no pendrive + GGUF offline em
-    `models/` (seeds antes do nosd).
+28. Firstboot interactivo no metal tem de correr no **tty1**: o getty
+    serial (`console=ttyS0`) pode ganhar o flock e as perguntas ficam
+    invisíveis (ecrã parado, sem GUI). O wrapper só dispara firstboot em
+    ttyS*/hvc/console com `NOSD_FIRSTBOOT_AUTO=1` (ou `ASK=1`).
+    `console=tty0` mantém o boot visível; respostas persistem em
+    `firstboot.conf`/`wifi.conf` no pendrive (2º+ boot auto, 10 s para
+    reconfigurar); `models/` é o atalho para o GGUF (seed antes do nosd).
 
 ## Comandos
 
 HW (pendrive + logs persistentes): `nix build .#iso-hw` -> gravar em DD ->
 particao FAT32 `NIXAIOSLOG` (`models/*.gguf` + `wifi.conf`) -> first boot
-auto (o console de texto do metal pode nao ser visivel). O seed copia o
-GGUF para `/var/lib/nosd/models` antes do nosd; llama.cpp esta incluido na
-iso-hw (a ISO de release nao o tem). Ver
-[`docs/HW_TEST.md`](docs/HW_TEST.md).
+interactivo no tty1 (Q1-Q5) antes do GUI. O seed copia o GGUF para
+`/var/lib/nosd/models` antes do nosd; llama.cpp esta incluido na iso-hw (a
+ISO de release nao o tem). Ver [`docs/HW_TEST.md`](docs/HW_TEST.md).
 
 ```bash
 cd packages/nosd

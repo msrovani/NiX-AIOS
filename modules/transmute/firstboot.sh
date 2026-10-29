@@ -53,6 +53,36 @@
       exit 0
     fi
 
+    # ---- Respostas no pendrive (NIXAIOSLOG) ------------------------------
+    # 1o boot: pergunta e grava; 2o+ boot: reusa e vai direito ao GUI
+    # (10 s no tty1 para reconfigurar). PSK fica em texto no FAT (aviso).
+    STICK_DIR="${NIXAIOS_LOG_DIR:-/mnt/nixaios-log}"
+    STICK_CFG="$STICK_DIR/firstboot.conf"
+    STICK_OK=0
+    if [ -d "$STICK_DIR" ] && @utilLinux@/bin/mountpoint -q "$STICK_DIR" 2>/dev/null; then
+      STICK_OK=1
+    fi
+    # Helpers de persistencia (testados no check stick-conf).
+    . @stickConf@
+    if [ "$STICK_OK" = "1" ] && [ "${NOSD_FIRSTBOOT_ASK:-0}" != "1" ] \
+       && [ "$(stick_get DONE 2>/dev/null || true)" = "1" ]; then
+      case "$TTY_DEV" in
+        /dev/tty[0-9]*)
+          log "Config encontrada no pendrive — 10s para reconfigurar (Enter)…"
+          if read -r -t 10 _ < /dev/tty 2>/dev/null; then
+            AUTO=0
+          else
+            AUTO=1
+            NET_WAIT=8
+          fi
+          ;;
+        *)
+          AUTO=1
+          NET_WAIT=8
+          ;;
+      esac
+    fi
+
     $SUDO mkdir -p /var/lib/nosd /var/lib/nosd/models 2>/dev/null || true
     $SUDO chmod 1777 /var/lib/nosd 2>/dev/null || $SUDO chmod a+rwx /var/lib/nosd 2>/dev/null || true
     $SUDO touch /var/lib/nosd/firstboot.log 2>/dev/null || true
@@ -207,6 +237,9 @@
                   NET_OK=1
                   save_file wifi-ssid "$SSID"
                   save_file network.conf "connected=1"
+                  save_stick wifi.conf "SSID=$SSID
+PSK=$WPAS"
+                  log "   Wi-Fi guardado no pendrive (wifi.conf; PSK em texto)"
                 else
                   log " ? FALHA Wi-Fi. Continuar offline? [S/n]"
                   ask_def "> " cont S
@@ -226,8 +259,22 @@
     fi
 
     # ---- Q2 idioma / voz (uma vez; resume se locale.conf existe) ----
-    LANG_SEL="pt_BR.UTF-8"
-    KB_DEF=1
+    LANG_SEL="$(stick_get LANG 2>/dev/null || true)"
+    case "$LANG_SEL" in
+      pt_BR.UTF-8|pt_PT.UTF-8|en_US.UTF-8|es_ES.UTF-8) ;;
+      *) LANG_SEL="pt_BR.UTF-8" ;;
+    esac
+    case "$LANG_SEL" in
+      pt_PT*) LANG_DEF=2 ;;
+      en_*) LANG_DEF=3 ;;
+      es_*) LANG_DEF=4 ;;
+      *) LANG_DEF=1 ;;
+    esac
+    case "$LANG_SEL" in
+      pt_PT*|en_*) KB_DEF=2 ;;
+      es_*) KB_DEF=3 ;;
+      *) KB_DEF=1 ;;
+    esac
     if [ "$cur_step" -ge 2 ] && [ -f /var/lib/nosd/locale.conf ]; then
       LANG_SEL=$(grep -E '^LANG=' /var/lib/nosd/locale.conf | head -1 | cut -d= -f2- | tr -d "\"' " || echo pt_BR.UTF-8)
       log "2) Idioma/voz — resume LANG=$LANG_SEL"
@@ -239,19 +286,25 @@
       log "   2) pt_PT (Portugal)"
       log "   3) en_US"
       log "   4) es_ES"
-      ask_def "Escolha [1]: " ans 1
-      case "${ans:-1}" in
+      ask_def "Escolha [$LANG_DEF]: " ans "$LANG_DEF"
+      case "${ans:-$LANG_DEF}" in
         2) LANG_SEL="pt_PT.UTF-8"; KB_DEF=2 ;;
         3) LANG_SEL="en_US.UTF-8"; KB_DEF=2 ;;
         4) LANG_SEL="es_ES.UTF-8"; KB_DEF=3 ;;
         *) LANG_SEL="pt_BR.UTF-8"; KB_DEF=1 ;;
       esac
       save_file locale.conf "LANG=$LANG_SEL"
+      save_stick_cfg 0
       log " ? LANG=$LANG_SEL (voz associada no transmute)"
       set_step 2
     fi
 
     # ---- Q3 teclado ----
+    case "$(stick_get KEYMAP 2>/dev/null || true)" in
+      us) KB_DEF=2 ;;
+      es) KB_DEF=3 ;;
+      br) KB_DEF=1 ;;
+    esac
     if [ "$cur_step" -ge 3 ] && [ -f /var/lib/nosd/keyboard.conf ]; then
       KB=$(tr -d ' \n\r' < /var/lib/nosd/keyboard.conf)
       log "3) Teclado — resume $KB"
@@ -270,12 +323,26 @@
         *) KB=br; KB_LOAD=br-abnt2 ;;
       esac
       save_file keyboard.conf "$KB"
+      save_stick_cfg 0
       @kbd@/bin/loadkeys "$KB_LOAD" 2>/dev/null || @kbd@/bin/loadkeys "$KB" 2>/dev/null || true
       log " ? teclado=$KB"
       set_step 3
     fi
 
     # ---- Q4 fuso ----
+    TZ_STICK="$(stick_get TZ 2>/dev/null || true)"
+    case "$TZ_STICK" in
+      *[!A-Za-z0-9_+/-]*) TZ_STICK="" ;;
+    esac
+    if [ -n "$TZ_STICK" ] && [ ! -e "/etc/zoneinfo/$TZ_STICK" ]; then
+      TZ_STICK=""
+    fi
+    case "$TZ_STICK" in
+      Europe/Lisbon) TZ_DEF=2 ;;
+      UTC) TZ_DEF=3 ;;
+      America/Sao_Paulo|"") TZ_DEF=1 ;;
+      *) TZ_DEF=4 ;;
+    esac
     if [ "$cur_step" -ge 4 ] && [ -f /var/lib/nosd/timezone ]; then
       TZ=$(tr -d ' \n\r' < /var/lib/nosd/timezone)
       log "4) Fuso — resume $TZ"
@@ -286,17 +353,18 @@
       log "   2) Europe/Lisbon"
       log "   3) UTC"
       log "   4) outro (IANA)"
-      ask_def "Escolha [1]: " ans 1
-      case "${ans:-1}" in
+      ask_def "Escolha [$TZ_DEF]: " ans "$TZ_DEF"
+      case "${ans:-$TZ_DEF}" in
         2) TZ=Europe/Lisbon ;;
         3) TZ=UTC ;;
         4)
-          ask_def "IANA: " TZ America/Sao_Paulo
+          ask_def "IANA: " TZ "${TZ_STICK:-America/Sao_Paulo}"
           [ -n "${TZ:-}" ] || TZ=America/Sao_Paulo
           ;;
         *) TZ=America/Sao_Paulo ;;
       esac
       save_file timezone "$TZ"
+      save_stick_cfg 0
       $SUDO @systemd@/bin/timedatectl set-timezone "$TZ" 2>/dev/null || \
         $SUDO ln -sfn "/etc/zoneinfo/$TZ" /etc/localtime 2>/dev/null || true
       log " ? timezone=$TZ"
@@ -468,7 +536,13 @@ except Exception:
       $SUDO touch /var/lib/nosd/firstboot.done
       $SUDO chmod a+rw /var/lib/nosd/firstboot.done 2>/dev/null || true
       set_step 9
+      save_stick_cfg 1
       log "=== nos-firstboot DONE (GUI up) ==="
+      if [ "$STICK_OK" = "1" ]; then
+        log "Respostas guardadas em $STICK_DIR/firstboot.conf (2o+ boot automatico)"
+      else
+        log "Sem pendrive NIXAIOSLOG — respostas so em RAM (2o boot pergunta outra vez)"
+      fi
     else
       log "FAIL: jarbas-cage NAO active — GUI nao subiu. firstboot.done NAO gravado."
       log "--- status ---"

@@ -35,6 +35,7 @@ let
     systemd = pkgs.systemd;
     nosd = config.services.nosd.package;
     python3 = pkgs.python3;
+    stickConf = ./transmute/stick-conf.sh;
   };
   firstbootScript = pkgs.runCommand "nos-firstboot-pkg" { } ''
     mkdir -p $out/bin
@@ -117,15 +118,25 @@ let
       if [ "$mode" = "aios" ]; then need_fb=0; fi
     fi
 
+    run_fb=0
     case "$TTY_NOW" in
-      /dev/tty[0-9]*|/dev/ttyS[0-9]*|/dev/hvc[0-9]*|/dev/console)
-        if [ "$need_fb" = "1" ] && [ -z "''${NOS_FIRSTBOOT_RAN:-}" ]; then
-          export NOS_FIRSTBOOT_RAN=1
-          echo "[aios] a iniciar nos-firstboot…" > /dev/tty 2>/dev/null || true
-          ${firstbootScript}/bin/nos-firstboot || echo "[aios] firstboot exit=$?" > /dev/tty 2>/dev/null || true
+      /dev/tty[0-9]*)
+        # Consola fisica (tty1): interactivo permitido.
+        run_fb=1
+        ;;
+      /dev/ttyS[0-9]*|/dev/hvc[0-9]*|/dev/console)
+        # Serial/headless: so em modo auto (senao as perguntas ficam
+        # invisiveis no serial e bloqueiam o transmute/GUI).
+        if [ "''${NOSD_FIRSTBOOT_AUTO:-0}" = "1" ] || [ "''${NOSD_FIRSTBOOT_ASK:-0}" = "1" ]; then
+          run_fb=1
         fi
         ;;
     esac
+    if [ "$run_fb" = "1" ] && [ "$need_fb" = "1" ] && [ -z "''${NOS_FIRSTBOOT_RAN:-}" ]; then
+      export NOS_FIRSTBOOT_RAN=1
+      echo "[aios] a iniciar nos-firstboot…" > /dev/tty 2>/dev/null || true
+      ${firstbootScript}/bin/nos-firstboot || echo "[aios] firstboot exit=$?" > /dev/tty 2>/dev/null || true
+    fi
 
     export NOS_FIRSTBOOT_RAN=1
     exec ${pkgs.bashInteractive}/bin/bash -l "$@"

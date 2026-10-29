@@ -18,10 +18,14 @@
   # Com o GGUF no pendrive a inferencia funciona sem rede no 1o boot.
   services.nixaiosLogFat.seedModels = true;
 
-  # Wi-Fi sem depender do console de texto: credenciais em NIXAIOSLOG/wifi.conf.
-  # (Neste metal o kernel so tem console=ttyS0 e o questionario interactivo
-  # ficava invisivel no getty serial — o orb nunca chegava.)
+  # Wi-Fi por pendrive (atalho): NIXAIOSLOG/wifi.conf. O Q1 interactivo
+  # continua a permitir escolher SSID/senha no tty1.
   services.nixaiosLogFat.seedWifi = true;
+
+  # Metal: questionario Q1-Q5 interactivo no tty1, antes do transmute/GUI.
+  # O wrapper (transmute-stage.nix) so dispara firstboot em ttyS*/hvc quando
+  # AUTO=1, para as perguntas nao ficarem presas no getty serial.
+  services.nixaiosTransmute.firstbootAuto = lib.mkForce false;
 
   # Boot visivel no ecra: tty0 como console primario, ttyS0 secundario.
   boot.kernelParams = lib.mkAfter [ "console=tty0" ];
@@ -30,7 +34,7 @@
   environment.systemPackages = [ pkgs.llama-cpp ];
   systemd.services.nosd.path = lib.mkAfter [ pkgs.llama-cpp ];
 
-  # Permite o download no firstboot auto (senao --no-download).
+  # Fallback do modo auto (headless): permite download em vez de --no-download.
   environment.variables.NOSD_FIRSTBOOT_DOWNLOAD = "1";
 
   systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
