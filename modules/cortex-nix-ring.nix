@@ -84,7 +84,7 @@ let
       # o sistema ACTIVA o novo config em runtime mas a geração de BOOT
       # continua intacta; o switch só corre na fase 2, que exige
       # `nix-confirm.request` (TTL 600 s) escrito pelo `nix.confirm` HITL.
-      if [ "${NOSD_NIX_TWO_PHASE:-1}" = "1" ] && [ ! -f "$CONFIRM" ]; then
+      if [ "''${NOSD_NIX_TWO_PHASE:-1}" = "1" ] && [ ! -f "$CONFIRM" ]; then
         log "fase 1: nixos-rebuild test (boot default intacta; switch exige nix.confirm)"
         if ! ${pkgs.coreutils}/bin/timeout 900 nixos-rebuild test 2>&1 | tee -a "$LOG_LOCAL"; then
           log "test FAIL — switch abortado"
@@ -95,7 +95,7 @@ let
         log "test OK — aguarda nix.confirm (2º pedido, TTL 600s)"
         exit 0
       fi
-      if [ "${NOSD_NIX_TWO_PHASE:-1}" = "1" ]; then
+      if [ "''${NOSD_NIX_TWO_PHASE:-1}" = "1" ]; then
         cts=$(grep '^ts=' "$CONFIRM" | head -1 | cut -d= -f2)
         now=$(date +%s)
         if ! [[ "$cts" =~ ^[0-9]+$ ]]; then
@@ -253,6 +253,10 @@ in
       [ "NOSD_AI_MANAGED_PATH=/etc/nixos/ai-managed.nix" ]
       ++ lib.optional cfg.autoSwitch "NOSD_NIX_AUTO_SWITCH=1"
       ++ lib.optional cfg.requireHitlConfirm "NOSD_NIX_REQUIRE_HITL=1"
+      # T3.3 (apanhado pelo nixaios-ring com stub): o kill switch do DAEMON
+      # (S-06) também tem de armar com armRing — sem isto, ring armado no
+      # helper morria em NIX_RING_DISABLED no próprio nosd.
+      ++ lib.optional cfg.armRing "NOSD_NIX_RING=1"
     );
 
     users.users.nosd.extraGroups = lib.mkAfter [ "networkmanager" ];

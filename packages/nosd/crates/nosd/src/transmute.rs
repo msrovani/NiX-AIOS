@@ -125,39 +125,94 @@ pub fn resolve_models_dir(data_dir: &Path) -> (PathBuf, bool, String) {
     (local_models, false, data_dir.display().to_string())
 }
 
+fn valid_repo(repo: &str) -> bool {
+    let parts: Vec<&str> = repo.split('/').collect();
+    parts.len() == 2
+        && parts.iter().all(|p| {
+            !p.is_empty()
+                && !p.starts_with('.')
+                && p.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        })
+}
+
+fn valid_local_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.to_ascii_lowercase().ends_with(".gguf")
+        && !name.contains("..")
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+}
+
+/// Modelo de arranque configuravel (first boot / HW):
+/// `NOSD_BOOT_MODEL_REPO`, `NOSD_BOOT_MODEL_FILE`, `NOSD_BOOT_MODEL_LOCAL`.
+/// `NOSD_BOOT_MODEL_ONLY=1` nao baixa o coder.
+pub fn parse_boot_model(repo: &str, file: &str, local: &str) -> Result<MoeDownloadSpec, String> {
+    let repo = repo.trim();
+    let file = file.trim();
+    let local = local.trim();
+    if !valid_repo(repo) {
+        return Err("repo invalido (esperado org/model)".into());
+    }
+    if !file.to_ascii_lowercase().ends_with(".gguf")
+        || file.contains('/')
+        || file.contains('\\')
+        || file.contains("..")
+    {
+        return Err("file invalido (esperado *.gguf sem caminho)".into());
+    }
+    if !valid_local_name(local) {
+        return Err("local invalido (esperado nome .gguf sem caminho)".into());
+    }
+    Ok(MoeDownloadSpec {
+        slot: "active".into(),
+        repo: repo.into(),
+        file: file.into(),
+        local_filename: local.into(),
+    })
+}
+
+pub fn boot_model_from_env() -> Option<MoeDownloadSpec> {
+    let repo = std::env::var("NOSD_BOOT_MODEL_REPO").ok()?;
+    let file = std::env::var("NOSD_BOOT_MODEL_FILE").ok()?;
+    let local = std::env::var("NOSD_BOOT_MODEL_LOCAL").ok()?;
+    parse_boot_model(&repo, &file, &local).ok()
+}
+
 pub fn recommended_moe_for(cap: &NodeCapacity) -> Vec<MoeDownloadSpec> {
     let vram = cap.vram_free_mb;
     let ram = cap.ram_avail_mb;
     let use_3b = vram >= 5_500 || ram >= 12_000;
 
-    let (s1_repo, s1_file, s1_local) = if use_3b {
-        (
-            "Qwen/Qwen2.5-3B-Instruct-GGUF",
-            "qwen2.5-3b-instruct-q4_k_m.gguf",
-            "active-qwen2.5-3b-q4_k_m.gguf",
-        )
-    } else {
-        (
-            "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
-            "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-            "active-qwen2.5-1.5b-q4_k_m.gguf",
-        )
-    };
-
-    vec![
+    let active = if let Some(spec) = boot_model_from_env() {
+        spec
+    } else if use_3b {
         MoeDownloadSpec {
             slot: "active".into(),
-            repo: s1_repo.into(),
-            file: s1_file.into(),
-            local_filename: s1_local.into(),
-        },
+            repo: "Qwen/Qwen2.5-3B-Instruct-GGUF".into(),
+            file: "qwen2.5-3b-instruct-q4_k_m.gguf".into(),
+            local_filename: "active-qwen2.5-3b-q4_k_m.gguf".into(),
+        }
+    } else {
         MoeDownloadSpec {
+            slot: "active".into(),
+            repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF".into(),
+            file: "qwen2.5-1.5b-instruct-q4_k_m.gguf".into(),
+            local_filename: "active-qwen2.5-1.5b-q4_k_m.gguf".into(),
+        }
+    };
+
+    let mut out = vec![active];
+    if std::env::var("NOSD_BOOT_MODEL_ONLY").ok().as_deref() != Some("1") {
+        out.push(MoeDownloadSpec {
             slot: "rust_coder".into(),
             repo: "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF".into(),
             file: "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf".into(),
             local_filename: "coder-qwen2.5-1.5b-q4_k_m.gguf".into(),
-        },
-    ]
+        });
+    }
+    out
 }
 
 fn detect_timezone() -> String {
@@ -475,6 +530,29 @@ pub fn execute_transmute(
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn boot_model_override_accepts_qwen35_gguf() {
+        let s = parse_boot_model(
+            "unsloth/Qwen3.5-0.8B-GGUF",
+            "Qwen3.5-0.8B-Q4_K_M.gguf",
+            "active-qwen3.5-0.8b-q4_k_m.gguf",
+        )
+        .unwrap();
+        assert_eq!(s.slot, "active");
+        assert_eq!(s.repo, "unsloth/Qwen3.5-0.8B-GGUF");
+        assert!(s.local_filename.ends_with(".gguf"));
+    }
+
+    #[test]
+    fn boot_model_override_rejects_traversal_and_non_gguf() {
+        assert!(parse_boot_model("sem-slash", "a.gguf", "a.gguf").is_err());
+        assert!(parse_boot_model("../evil/x", "a.gguf", "a.gguf").is_err());
+        assert!(parse_boot_model("org/model", "a.bin", "a.gguf").is_err());
+        assert!(parse_boot_model("org/model", "../a.gguf", "a.gguf").is_err());
+        assert!(parse_boot_model("org/model", "a.gguf", "../a.gguf").is_err());
+        assert!(parse_boot_model("org/model", "a.gguf", "a/b.gguf").is_err());
+    }
 
     #[test]
     fn resolve_models_dir_linux_first_without_fat_env() {

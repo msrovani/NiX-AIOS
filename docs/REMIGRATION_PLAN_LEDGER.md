@@ -419,3 +419,18 @@ alterados); Q-03 (CI externo GitHub) continua pendente; âncora continua
 co-localizada (nova assinatura fecha a FORJA, não o overwrite pelo dono do
 data-dir); T0.8 (gate do `hotswap-aios.request` com nonce) adiado para onda
 com VM test; `/tmp` inteiro no Landlock mantém-se (narrowing precisa VM).
+
+**Brain self-upgrade (2026-10-29, in-tree):** a AI observa o hw real
+(`CapacityProber` + posture) e propone o tier alcancavel mais alto com
+custo/beneficio honesto — tier 2 (Q8_0, mesma rede 0.8B), tier 3 (4B
+Q4_K_M, CPU/iGPU), tier 4 (9B, alvo dGPU; exige ring armado). Registo de
+tiers com **sha256 pinado** (LFS oid) + bytes exactos; `brain.accept` =
+grant HITL kind `brain.upgrade` (Escalate) - fetch, verificação sha
+(diverge = apagado), hot_load, OPAR; nada automatico. Card HITL pos-boot
+via `NOSD_BRAIN_PROPOSE=1` (anti-spam 24h no CRDT `brain/upgrade/last`).
+Contratos: caps nos-ipc (`brain.plan` NONE; `brain.accept` NET|FS|HITL),
+side-effect OPAR, teste `brain_plan_and_accept_caps` (7 testes novos em
+nos-hermes). Host-level: clippy/testes/workspace verde.
+Residual honesto: **sem OBSERVED** (fetch real de 812 MB/2.5 GB so em VM
+com rede/hardware; dGPU tier4 precisa metal); pós-boot auto-propose fica
+observável só no iso-hw.
