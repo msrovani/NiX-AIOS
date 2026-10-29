@@ -103,18 +103,19 @@ Resumo executavel; detalhe em
 27. PowerShell: `cargo … 2>&1 | Select-String` gera `NativeCommandError`
     stderr + **falso exit 1**; validar exit real com `… 2>&1 | Out-Null;
     $LASTEXITCODE` (leções de CI local, não arrastar por falso-positivo).
-28. `firstbootAuto=true` **nunca pergunta Wi-Fi**: espera 8 s e cai em
-    `--no-download`. No metal o orb sobe na mesma (`hotswap` pós-transmute)
-    com `cpu-echo` e parece "sem inferência". Imagem HW = interactivo
-    (`firstbootAuto=false`) + GGUF offline em `NIXAIOSLOG/models/`
-    (`nixaios-model-seed` antes do nosd).
+28. No metal, `console=ttyS0` (único) + questionário interactivo = **ecrã
+    escuro**: o firstboot cai no getty serial e bloqueia; o orb só sobe
+    depois do transmute, logo nunca chega. Imagem HW = firstboot auto +
+    `console=tty0` + Wi-Fi por `wifi.conf` no pendrive + GGUF offline em
+    `models/` (seeds antes do nosd).
 
 ## Comandos
 
 HW (pendrive + logs persistentes): `nix build .#iso-hw` -> gravar em DD ->
-particao FAT32 `NIXAIOSLOG` (com `models/*.gguf`) -> first boot interactivo
-(Q1 Wi-Fi). O seed copia o GGUF para `/var/lib/nosd/models` antes do nosd;
-llama.cpp esta incluido na iso-hw (a ISO de release nao o tem). Ver
+particao FAT32 `NIXAIOSLOG` (`models/*.gguf` + `wifi.conf`) -> first boot
+auto (o console de texto do metal pode nao ser visivel). O seed copia o
+GGUF para `/var/lib/nosd/models` antes do nosd; llama.cpp esta incluido na
+iso-hw (a ISO de release nao o tem). Ver
 [`docs/HW_TEST.md`](docs/HW_TEST.md).
 
 ```bash

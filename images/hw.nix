@@ -18,9 +18,13 @@
   # Com o GGUF no pendrive a inferencia funciona sem rede no 1o boot.
   services.nixaiosLogFat.seedModels = true;
 
-  # Metal: questionario Q1-Q5 interactivo. Em auto o Q1 nunca pergunta Wi-Fi
-  # (espera 8s e cai em --no-download), que foi o sintoma de 28/10.
-  services.nixaiosTransmute.firstbootAuto = lib.mkForce false;
+  # Wi-Fi sem depender do console de texto: credenciais em NIXAIOSLOG/wifi.conf.
+  # (Neste metal o kernel so tem console=ttyS0 e o questionario interactivo
+  # ficava invisivel no getty serial — o orb nunca chegava.)
+  services.nixaiosLogFat.seedWifi = true;
+
+  # Boot visivel no ecra: tty0 como console primario, ttyS0 secundario.
+  boot.kernelParams = lib.mkAfter [ "console=tty0" ];
 
   # A ISO de release nao inclui llama.cpp (engine=cpu-echo). A imagem HW inclui.
   environment.systemPackages = [ pkgs.llama-cpp ];

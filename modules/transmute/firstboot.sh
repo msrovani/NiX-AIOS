@@ -375,9 +375,14 @@ EOF
       log "AVISO: sem grant HITL - transmute vai recusar (S-04)"
     fi
     # Lab/headless: nao descarregar GBs sem humano (opt-in explicito).
+    # Com GGUF ja seedado no pendrive, o download de voz fica para depois
+    # (o orb nao espera pela rede).
     if [ "$AUTO" = "1" ] && [ "${NOSD_FIRSTBOOT_DOWNLOAD:-0}" != "1" ]; then
       DL_ARGS="$DL_ARGS --no-download"
       log "modo auto: transmute --no-download (NOSD_FIRSTBOOT_DOWNLOAD=1 habilita)"
+    elif [ "$AUTO" = "1" ] && ls /var/lib/nosd/models/*.gguf >/dev/null 2>&1; then
+      DL_ARGS="$DL_ARGS --no-download"
+      log "modelo seed presente: transmute --no-download (voz fica para depois)"
     fi
     if ! net_connected; then
       DL_ARGS="$DL_ARGS --no-download"

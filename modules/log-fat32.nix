@@ -103,6 +103,14 @@ in
         offline no metal, sem rede no primeiro boot.
       '';
     };
+    seedWifi = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Liga o Wi-Fi a partir de `wifi.conf` na FAT32 (SSID/PSK/HIDDEN)
+        antes do nosd/firstboot. Falha nao e fatal.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -164,6 +172,26 @@ in
           fi
           export MNT="${mnt}" DEST="/var/lib/nosd/models"
           exec ${pkgs.bash}/bin/bash ${./transmute/seed-models.sh}
+        '';
+      };
+    };
+
+    # Wi-Fi: credenciais no pendrive (o console de texto deste metal nao e
+    # visivel; o questionario interactivo ficava invisivel no getty serial).
+    systemd.services.nixaios-wifi-seed = lib.mkIf cfg.seedWifi {
+      description = "Wi-Fi credentials from NIXAIOSLOG/wifi.conf";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "local-fs.target" "nixaios-log-mount.service" "NetworkManager.service" ];
+      wants = [ "nixaios-log-mount.service" "NetworkManager.service" ];
+      before = [ "nosd.service" "getty.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        SuccessExitStatus = [ 0 1 ];
+        path = with pkgs; [ coreutils util-linux networkmanager ];
+        ExecStart = pkgs.writeShellScript "nixaios-wifi-seed" ''
+          export MNT="${mnt}"
+          exec ${pkgs.bash}/bin/bash ${./transmute/seed-wifi.sh}
         '';
       };
     };

@@ -2,7 +2,7 @@
 
 **Imagem:** `.#iso-hw` (não é a ISO de release; inclui o HUD/orb híbrido).
 **Ficheiro gerado:** `C:\Users\msrov\Downloads\nixaios-hw-051.iso`
-**SHA-256:** `734bc23f75b7f5c793801554f72a8b555bec3e4c1927773977f1087ba9cfa6d9`
+**SHA-256:** `d2c6208225e58f35a818b02463af282fdea747b161fce5281b8841e5d1771859`
 **Volid:** `NIXAIOS051` · `makeUsbBootable = true`
 
 ## 1. Gravar no pendrive
@@ -36,13 +36,27 @@ sudo mkfs.vfat -n NIXAIOSLOG /dev/sdY1
 >
 > Para inferência offline, criar `NIXAIOSLOG/models/` e lá colocar o GGUF
 > (ver secção “Modelo de arranque” abaixo).
+>
+> Para Wi-Fi, criar `NIXAIOSLOG/wifi.conf` (texto simples):
+>
+> ```
+> SSID=MinhaRede
+> PSK=segredo
+> # HIDDEN=1   (rede oculta)
+> ```
+>
+> O `nixaios-wifi-seed` liga antes do firstboot; se falhar, o motivo fica em
+> `wifi-diag.log`. Gravar o `wifi.conf` em UTF-8 **sem BOM** (Notepad/VS
+> Code); comentários só em linhas próprias (`# ...`).
 
 ## 3. Arrancar e testar
 
-Ligar **os dois** (ISO + logs), arrancar pelo pendrive da ISO. No metal o
-firstboot é **interactivo** (Q1-Q5): a `iso-hw` força `firstbootAuto=false`
-para o Q1 listar SSIDs e pedir a senha Wi-Fi. (O modo auto esperava 8 s, não
-perguntava rede e caía em `--no-download` — foi o sintoma de 28/10.)
+Ligar **os dois** (ISO + logs), arrancar pelo pendrive da ISO. O firstboot é
+**automático** (não há prompt). A `iso-hw` desliga o download quando já há um
+GGUF seedado, e o Wi-Fi vem de `wifi.conf` no pendrive — o console de texto
+deste metal não é visível (kernel só com `console=ttyS0`; o questionário
+interactivo ficava bloqueado no getty serial e o orb nunca chegava). A
+`iso-hw` agora acrescenta `console=tty0` para o boot ser visível no ecrã.
 
 No hardware, verificar:
 
@@ -104,8 +118,10 @@ Origem: `unsloth/Qwen3.5-0.8B-GGUF` / `Qwen3.5-0.8B-Q4_K_M.gguf`
 (**508 MB**, Apache-2.0). O repo `Qwen/Qwen3.5-0.8B` é safetensors
 multimodal e **não** serve directamente ao llama.cpp.
 
-Fallback (sem GGUF no pendrive): o firstboot interactivo pode baixar via HF
-(Q5 + grant HITL). Sem rede cai para `--no-download` e fica `cpu-echo`.
+Fallback (sem GGUF no pendrive): o firstboot auto baixa via HF se houver
+rede (`NOSD_FIRSTBOOT_DOWNLOAD=1` na iso-hw); com GGUF seedado o download é
+saltado para o orb não esperar pela rede. Sem rede e sem GGUF fica
+`cpu-echo`.
 
 **Limites**: o engine usa `/completion` (sem chat template); o Qwen3.5 em
 modo *thinking* pode divagar — chat polido exige `/v1/chat/completions` ou

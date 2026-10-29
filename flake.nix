@@ -217,6 +217,19 @@
             touch $out
           '';
 
+          # Wi-Fi por wifi.conf (nmcli fake; sem NM real).
+          seed-wifi = pkgs.runCommand "test-seed-wifi" {
+            nativeBuildInputs = with pkgs; [
+              bash
+              coreutils
+              gnugrep
+            ];
+            SEED = ./modules/transmute/seed-wifi.sh;
+          } ''
+            bash ${./scripts/test-seed-wifi.sh}
+            touch $out
+          '';
+
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
             nodes.machine = { lib, ... }: {
