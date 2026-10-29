@@ -117,6 +117,11 @@ pub const CRDT_SEG_VERSION: u32 = 1;
 /// Cap de registo: evita `vec![0; 4GiB]` com um comprimento corrompido.
 pub const CRDT_MAX_RECORD_BYTES: u32 = 16 * 1024 * 1024;
 
+/// T1.1: mensagem assinada da ancora (distingue de outros registos Ed25519).
+fn anchor_msg(bytes: u64, lines: u64) -> String {
+    format!("NSGANCHOR {bytes} {lines}")
+}
+
 /// M8.1c: log do CRDT com append barato e compacta??o (runtime).
 pub struct CrdtLog {
     path: std::path::PathBuf,
@@ -147,7 +152,19 @@ impl CrdtLog {
     /// `rename` evita uma janela em que a ancora antiga acusaria rollback).
     fn write_anchor_at(&self, bytes: u64, lines: u64) -> std::io::Result<()> {
         let tmp = self.anchor.with_extension("anchor.tmp");
-        std::fs::write(&tmp, format!("{bytes} {lines}"))?;
+        // T1.1: ancora assinada pela identidade do no (`<bytes> <linhas>` +
+        // `sig b64` sobre `NSGANCHOR bytes lines`). Sem assinatura, quem
+        // escreve no data-dir repõe log+ancora em conjunto e o rollback fica
+        // indistinguível de um estado antigo legítimo.
+        match self.signer.as_ref() {
+            Some(id) => {
+                use base64::Engine as _;
+                let sig = base64::engine::general_purpose::STANDARD
+                    .encode(id.sign(anchor_msg(bytes, lines).as_bytes()));
+                std::fs::write(&tmp, format!("{bytes} {lines} {sig}"))?;
+            }
+            None => std::fs::write(&tmp, format!("{bytes} {lines}"))?,
+        }
         std::fs::rename(&tmp, &self.anchor)?;
         if let Some(dir) = self.anchor.parent() {
             if let Ok(d) = std::fs::File::open(dir) {
@@ -391,6 +408,10 @@ pub struct MeshEngine {
     pinned: Arc<ident::Pinned>,
     /// M6: contador de HB local.
     hb_seq: Arc<std::sync::atomic::AtomicU64>,
+    /// T1.3: ficheiro com o último seq emitido (restart arranca de
+    /// max(epoch_ms, persistido+1); fecha a janela de Replay com relógio a
+    /// recuar entre restarts).
+    hb_seq_store: Option<std::path::PathBuf>,
     /// M8.1b/c: log append-only + compacta??o (JSONL).
     crdt_log: Option<Arc<CrdtLog>>,
 }
@@ -438,6 +459,7 @@ impl MeshEngine {
             // reiniciado como Replay para sempre. Base = epoch ms (segue
             // monotonicamente enquanto o relogio nao andar para tras).
             hb_seq: Arc::new(std::sync::atomic::AtomicU64::new(now_ms().max(1))),
+            hb_seq_store: None,
             crdt_log: None,
         }
     }
@@ -454,6 +476,52 @@ impl MeshEngine {
         let mut m = Self::with_capacity(derived, capacity);
         m.ident = Some(identity);
         m
+    }
+
+    /// T1.2: substitui os pins por um store persistido no disco (a mesma
+    /// confiança fica partilhada entre o HB UDP e o listener de jobs).
+    pub fn with_pinned_store(mut self, path: &std::path::Path) -> std::io::Result<Self> {
+        self.pinned = Arc::new(ident::Pinned::load_or_create(path)?);
+        Ok(self)
+    }
+
+    /// T1.3: ativa a persistência do seq do HB. O seq de arranque passa a
+    /// `max(epoch_ms, persistido+1)`.
+    pub fn with_hb_seq_store(mut self, path: &std::path::Path) -> std::io::Result<Self> {
+        let stored = std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| s.trim().parse::<u64>().ok())
+            .unwrap_or(0);
+        let now = now_ms().max(1);
+        self.hb_seq.store(
+            now.max(stored.saturating_add(1)),
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        self.hb_seq_store = Some(path.to_path_buf());
+        Ok(self)
+    }
+
+    /// T1.3: leitura do seq actual (testes/diagnóstico).
+    pub fn hb_seq(&self) -> u64 {
+        self.hb_seq.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// T1.3: persiste o seq emitido (a cada 16 HBs; o custo de um crash com
+    /// pins ~16 HBs atrasados e rejeitar replay ate o relogio alcancar).
+    fn persist_hb_seq(&self, seq: u64) {
+        if !seq.is_multiple_of(16) {
+            return;
+        }
+        let Some(ref path) = self.hb_seq_store else {
+            return;
+        };
+        let tmp = path.with_extension("seq.tmp");
+        if std::fs::write(&tmp, seq.to_string()).is_ok() {
+            let _ = std::fs::rename(&tmp, path);
+        }
     }
 
     /// M8.1b/c: replay do log (jsonl), compacta??o (snapshot + truncate) e
@@ -485,29 +553,74 @@ impl MeshEngine {
         // CRDT_ANCHOR_EVERY linhas; um log que so cresce nunca acusa.
         match std::fs::read_to_string(&anchor) {
             Ok(a) => {
-                let parsed = a
-                    .split_whitespace()
-                    .map(|x| x.parse::<u64>())
-                    .collect::<Result<Vec<_>, _>>();
-                let Ok(parsed) = parsed else {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!(
-                            "ancora crdt ilegivel: {} (apague-a para aceitar o estado actual)",
-                            anchor.display()
-                        ),
-                    ));
+                let parse_u64 = |s: &str| {
+                    s.parse::<u64>().map_err(|_| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!(
+                                "ancora crdt ilegivel: {} (apague-a para aceitar o estado actual)",
+                                anchor.display()
+                            ),
+                        )
+                    })
                 };
-                if parsed.len() != 2 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!(
-                            "ancora crdt incompleta: {} (apague-a para aceitar o estado actual)",
-                            anchor.display()
-                        ),
-                    ));
-                }
-                let (prev_bytes, prev_lines) = (parsed[0], parsed[1]);
+                let fields: Vec<&str> = a.split_whitespace().collect();
+                let (prev_bytes, prev_lines) = match fields.len() {
+                    // T1.1: com identidade, ancora sem assinatura e recusada —
+                    // quem a substituiu pode estar a esconder um rollback.
+                    // Escapataria honesta (igual aos outros erros de ancora):
+                    // apagar a ancora aceita o estado actual do log.
+                    2 if self.ident.is_some() => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!(
+                                "ancora crdt sem assinatura com identidade activa: {} \
+                                 (apague-a para aceitar o estado actual)",
+                                anchor.display()
+                            ),
+                        ));
+                    }
+                    2 => (parse_u64(fields[0])?, parse_u64(fields[1])?),
+                    // T1.1: ancora assinada (`<bytes> <linhas> <sig b64>`).
+                    3 => {
+                        let prev = (parse_u64(fields[0])?, parse_u64(fields[1])?);
+                        if let Some(id) = self.ident.as_ref() {
+                            use base64::Engine as _;
+                            let ok = base64::engine::general_purpose::STANDARD
+                                .decode(fields[2])
+                                .ok()
+                                .filter(|raw| {
+                                    raw.len() == 64
+                                        && crate::ident::verify(
+                                            &id.public_key(),
+                                            anchor_msg(prev.0, prev.1).as_bytes(),
+                                            raw,
+                                        )
+                                })
+                                .is_some();
+                            if !ok {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    format!(
+                                        "ancora crdt com assinatura invalida: {} (apague-a \
+                                         para aceitar o estado actual)",
+                                        anchor.display()
+                                    ),
+                                ));
+                            }
+                        }
+                        prev
+                    }
+                    _ => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!(
+                                "ancora crdt incompleta: {} (apague-a para aceitar o estado actual)",
+                                anchor.display()
+                            ),
+                        ));
+                    }
+                };
                 if file_bytes < prev_bytes || file_lines < prev_lines {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
@@ -881,6 +994,7 @@ impl MeshEngine {
         let seq = self
             .hb_seq
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.persist_hb_seq(seq);
         v.extend_from_slice(&seq.to_le_bytes());
         v.extend_from_slice(b"PK\0");
         v.extend_from_slice(b"CAP\0");
@@ -1478,6 +1592,88 @@ mod tests {
         let r = MeshEngine::new(1).with_crdt_log(&path);
         assert!(r.is_err(), "rollback devia ser detetado");
         assert!(format!("{:?}", r.err().unwrap()).contains("rollback"));
+    }
+
+    /// T1.1: com identidade, a ancora e assinada; versões forjadas (sem
+    /// assinatura) são recusadas — quem escreve no data-dir deixa de
+    /// conseguir fabricar um rollback com ancora nova. Sem identidade
+    /// (lab), o formato antigo de 2 campos mantém-se.
+    #[test]
+    fn crdt_log_anchor_signed_and_forgery_refused() {
+        use std::collections::HashSet;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("crdt.jsonl");
+        let anchor_path = path.with_extension("anchor");
+        {
+            let m = MeshEngine::with_identity(
+                1,
+                CapacityScore::default(),
+                Identity::from_seed([77u8; 32], HashSet::new(), true),
+            )
+            .with_crdt_log(&path)
+            .unwrap();
+            for i in 0..40u64 {
+                m.crdt_put(1, &format!("k{i}"), "v", i);
+            }
+        }
+        let valid = std::fs::read_to_string(&anchor_path).unwrap();
+        assert_eq!(
+            valid.split_whitespace().count(),
+            3,
+            "ancora assinada tem 3 campos: {valid}"
+        );
+        // Ancora valida reabre.
+        assert!(MeshEngine::with_identity(
+            1,
+            CapacityScore::default(),
+            Identity::from_seed([77u8; 32], HashSet::new(), true),
+        )
+        .with_crdt_log(&path)
+        .is_ok());
+        // Forjar ancora sem assinatura: recusada (fail-closed).
+        std::fs::write(&anchor_path, "999999 999999").unwrap();
+        let r = MeshEngine::with_identity(
+            1,
+            CapacityScore::default(),
+            Identity::from_seed([77u8; 32], HashSet::new(), true),
+        )
+        .with_crdt_log(&path);
+        assert!(r.is_err(), "ancora sem assinatura devia ser recusada");
+        assert!(format!("{:?}", r.err().unwrap()).contains("assinatura"));
+        // Sem identidade: formato antigo (2 campos), compat lab.
+        let dir2 = tempfile::tempdir().unwrap();
+        let path2 = dir2.path().join("crdt.jsonl");
+        {
+            let m = MeshEngine::new(1).with_crdt_log(&path2).unwrap();
+            m.crdt_put(1, "k", "v", 1);
+        }
+        let a2 = std::fs::read_to_string(path2.with_extension("anchor")).unwrap();
+        assert_eq!(a2.split_whitespace().count(), 2, "{a2}");
+    }
+
+    /// T1.3: o seq do HB arranca de max(epoch_ms, persistido+1); a janela de
+    /// "Replay para sempre" com relógio a recuar entre restarts fecha.
+    #[test]
+    fn hb_seq_store_survives_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mesh").join("hb.seq");
+        let e1 = MeshEngine::new(1).with_hb_seq_store(&path).unwrap();
+        for _ in 0..20 {
+            let _ = e1.encode_heartbeat();
+        }
+        let stored: u64 = std::fs::read_to_string(&path)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        assert!(stored > 0, "seq persistido num checkpoint de 16");
+        let e2 = MeshEngine::new(1).with_hb_seq_store(&path).unwrap();
+        assert!(
+            e2.hb_seq() > stored,
+            "restart arranca a seguir ao seq persistido ({} -> {})",
+            stored,
+            e2.hb_seq()
+        );
     }
 
     #[test]

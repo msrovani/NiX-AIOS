@@ -69,6 +69,7 @@ let
     chmod 0640 "$target" || true
     chown root:nosd "$target" || true
     log "copied $staging → $target"
+    CONFIRM="$DATA/nix-confirm.request"
     if command -v nixos-rebuild >/dev/null 2>&1; then
       if [ "$BUILD_VM_FIRST" = "1" ]; then
         log "build-vm (pre-switch)"
@@ -79,18 +80,48 @@ let
         fi
         log "build-vm OK"
       fi
+      # G3.2: duas fases. Fase 1 (sem confirm): copia + build-vm + test —
+      # o sistema ACTIVA o novo config em runtime mas a geração de BOOT
+      # continua intacta; o switch só corre na fase 2, que exige
+      # `nix-confirm.request` (TTL 600 s) escrito pelo `nix.confirm` HITL.
+      if [ "${NOSD_NIX_TWO_PHASE:-1}" = "1" ] && [ ! -f "$CONFIRM" ]; then
+        log "fase 1: nixos-rebuild test (boot default intacta; switch exige nix.confirm)"
+        if ! ${pkgs.coreutils}/bin/timeout 900 nixos-rebuild test 2>&1 | tee -a "$LOG_LOCAL"; then
+          log "test FAIL — switch abortado"
+          rm -f "$REQ"
+          exit 1
+        fi
+        rm -f "$REQ"
+        log "test OK — aguarda nix.confirm (2º pedido, TTL 600s)"
+        exit 0
+      fi
+      if [ "${NOSD_NIX_TWO_PHASE:-1}" = "1" ]; then
+        cts=$(grep '^ts=' "$CONFIRM" | head -1 | cut -d= -f2)
+        now=$(date +%s)
+        if ! [[ "$cts" =~ ^[0-9]+$ ]]; then
+          log "FAIL confirm sem ts válido"
+          rm -f "$REQ" "$CONFIRM"
+          exit 1
+        fi
+        if [ $((now - cts)) -gt 600 ]; then
+          log "FAIL confirm expirado (TTL 600s) — refaça nix.confirm"
+          rm -f "$REQ" "$CONFIRM"
+          exit 1
+        fi
+        log "fase 2: confirm válido (ts=$cts) — switch"
+      fi
       if ${pkgs.coreutils}/bin/timeout 900 nixos-rebuild switch 2>&1 | tee -a "$LOG_LOCAL"; then
         log "switch OK"
         write_generation
       else
         log "switch FAIL — try: systemctl start nosd-nix-rollback  OR  nixos-rebuild --rollback"
-        rm -f "$REQ"
+        rm -f "$REQ" "$CONFIRM"
         exit 1
       fi
     else
       log "nixos-rebuild absent — staging copied only"
     fi
-    rm -f "$REQ"
+    rm -f "$REQ" "$CONFIRM"
     log "done"
   '';
   rollbackScript = pkgs.writeShellScript "nosd-nix-rollback" ''
@@ -159,6 +190,16 @@ in
       default = true;
       description = "Run nixos-rebuild build-vm before switch; abort apply on failure (NX.1)";
     };
+    twoPhase = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        G3.2: apply em duas fases — fase 1 copia staging + build-vm +
+        `nixos-rebuild test` (boot default intacta) e para; o `switch` só
+        corre na fase 2, que exige `nix-confirm.request` (escrito por
+        `nix.confirm` HITL, TTL 600 s). Anti-brick por omissão.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -175,7 +216,10 @@ in
       after = [ "local-fs.target" "nosd.service" ];
       # R-01: nixos-rebuild/mountpoint não estão no defaultPath.
       path = [ config.system.build.nixos-rebuild pkgs.nix pkgs.util-linux pkgs.coreutils ];
-      environment = lib.optionalAttrs cfg.armRing { NOSD_NIX_RING = "1"; };
+      environment = lib.optionalAttrs cfg.armRing {
+        NOSD_NIX_RING = "1";
+        NOSD_NIX_TWO_PHASE = if cfg.twoPhase then "1" else "0";
+      };
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${applyScript}";

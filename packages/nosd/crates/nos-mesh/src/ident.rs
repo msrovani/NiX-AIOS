@@ -108,9 +108,21 @@ impl Identity {
 }
 
 /// Pinagem TOFU + anti-replay por peer.
+///
+/// T1.2: os pins podem ser **persistidos** em disco (`load_or_create`). Sem
+/// persistência, um restart re-fixava às cegas — e o primeiro contacto
+/// pós-restart fixava novamente quem estivesse a ouvir na janela TOFU
+/// (MITM de primeiro contacto). O ficheiro guarda
+/// `peer <id> <pk hex 64> <last_seq>`; linha cujo id não derive da pk é
+/// ignorada (fail-closed ao carregar).
 #[derive(Default)]
 pub struct Pinned {
     inner: Mutex<HashMap<u32, Pin>>,
+    /// T1.2: caminho do ficheiro de pins (None = in-memory, compat lab).
+    store: Option<std::path::PathBuf>,
+    /// Throttle de escrita: persistir a cada 32 mudanças de seq; mudanças de
+    /// confiança (pin novo, forget) persistem sempre.
+    writes: std::sync::atomic::AtomicUsize,
 }
 
 struct Pin {
@@ -133,6 +145,82 @@ impl Pinned {
         Self::default()
     }
 
+    /// T1.2: carrega (ou cria) o ficheiro de pins. Linhas inválidas são
+    /// ignoradas; id que não derive da pk nunca entra.
+    pub fn load_or_create(path: &Path) -> std::io::Result<Self> {
+        let mut map: HashMap<u32, Pin> = HashMap::new();
+        match std::fs::read_to_string(path) {
+            Ok(txt) => {
+                for line in txt.lines() {
+                    let f: Vec<&str> = line.split_whitespace().collect();
+                    if f.len() != 4 || f[0] != "peer" {
+                        continue;
+                    }
+                    let (Ok(id), Ok(seq)) = (f[1].parse::<u32>(), f[3].parse::<u64>()) else {
+                        continue;
+                    };
+                    let Some(pk) = hex_decode_32(f[2]) else {
+                        continue;
+                    };
+                    if short_id(&pk) != id {
+                        continue;
+                    }
+                    map.insert(id, Pin { pk, last_seq: seq });
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let p = Self {
+            inner: Mutex::new(map),
+            store: Some(path.to_path_buf()),
+            writes: std::sync::atomic::AtomicUsize::new(0),
+        };
+        p.persist();
+        Ok(p)
+    }
+
+    /// T1.2: grava os pins (tmp + rename + fsync do directório).
+    fn persist(&self) {
+        let Some(ref path) = self.store else {
+            return;
+        };
+        let body = {
+            let g = self.inner.lock();
+            let mut body = String::new();
+            for (id, pin) in g.iter() {
+                body.push_str(&format!("peer {id} {} {}\n", pk_hex(&pin.pk), pin.last_seq));
+            }
+            body
+        };
+        let tmp = path.with_extension("pins.tmp");
+        if std::fs::write(&tmp, body).is_err() {
+            return;
+        }
+        if std::fs::rename(&tmp, path).is_err() {
+            return;
+        }
+        if let Some(dir) = path.parent() {
+            if let Ok(d) = std::fs::File::open(dir) {
+                let _ = d.sync_all();
+            }
+        }
+    }
+
+    /// Persiste a cada 32 mudanças de seq (throttle de escrita por HB).
+    fn persist_throttled(&self) {
+        let n = self
+            .writes
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if !n.is_multiple_of(32) {
+            return;
+        }
+        self.persist();
+    }
+
     /// Verifica e fixa. Primeira observação = TOFU (se a allowlist aceitar).
     pub fn check(&self, id: u32, pk: &[u8], seq: u64) -> Result<(), PinError> {
         if short_id(pk) != id {
@@ -148,6 +236,8 @@ impl Pinned {
                     return Err(PinError::Replay);
                 }
                 pin.last_seq = seq;
+                drop(g);
+                self.persist_throttled();
                 Ok(())
             }
             None => {
@@ -160,6 +250,9 @@ impl Pinned {
                         last_seq: seq,
                     },
                 );
+                drop(g);
+                // Pin novo = evento de confiança (TOFU): persiste sempre.
+                self.persist();
                 Ok(())
             }
         }
@@ -179,6 +272,9 @@ impl Pinned {
                 let mut p = [0u8; 32];
                 p.copy_from_slice(pk);
                 g.insert(id, Pin { pk: p, last_seq: 0 });
+                drop(g);
+                // T1.2: pin novo de jobs também é evento de confiança.
+                self.persist();
                 Ok(())
             }
         }
@@ -189,8 +285,30 @@ impl Pinned {
     }
 
     pub fn forget(&self, id: u32) {
-        self.inner.lock().remove(&id);
+        let removed = self.inner.lock().remove(&id);
+        if removed.is_some() {
+            // T1.2: esquecer um peer (revogação manual) persiste de imediato.
+            self.persist();
+        }
     }
+}
+
+/// Hex de 32 B (pk) para o ficheiro de pins.
+fn pk_hex(pk: &[u8; 32]) -> String {
+    pk.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// Reverse de `pk_hex`; `None` se não for hex de 32 B.
+fn hex_decode_32(s: &str) -> Option<[u8; 32]> {
+    let b = s.as_bytes();
+    if b.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (i, o) in out.iter_mut().enumerate() {
+        *o = u8::from_str_radix(std::str::from_utf8(&b[i * 2..i * 2 + 2]).ok()?, 16).ok()?;
+    }
+    Some(out)
 }
 
 /// Verifica a assinatura de um bloco `msg` com a chave `pk`.
@@ -262,5 +380,38 @@ mod tests {
         assert!(!i.allow(12345));
         // vazia = TOFU (aceita qualquer id com assinatura valida)
         assert!(ident(7).allow(999));
+    }
+
+    /// T1.2: pins sobrevivem ao restart (sem re-fixar às cegas) e linha
+    /// forjada (id nao derivado da pk) nunca entra.
+    #[test]
+    fn pins_persist_across_restart_and_refuse_forged_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mesh-pins.dat");
+        let a = ident(8);
+        let (id, pk) = (a.node_id(), a.public_key());
+        {
+            let p = Pinned::load_or_create(&path).unwrap();
+            assert_eq!(p.check(id, &pk, 10), Ok(()));
+            assert_eq!(p.check(id, &pk, 11), Ok(()));
+        }
+        let p2 = Pinned::load_or_create(&path).unwrap();
+        assert_eq!(p2.peer_count(), 1, "pin sobreviveu ao restart");
+        assert_eq!(
+            p2.check(id, &pk, 11),
+            Err(PinError::Replay),
+            "seq persistido: replay continua a ser recusado"
+        );
+        // Ficheiro forjado com pk que não derive do id: linha ignorada.
+        let evil = ident(9);
+        let evil_hex = pk_hex(&evil.public_key());
+        std::fs::write(&path, format!("peer {id} {evil_hex} 999\n")).unwrap();
+        let p3 = Pinned::load_or_create(&path).unwrap();
+        assert_eq!(p3.peer_count(), 0, "linha forjada ignorada");
+        assert_eq!(
+            p3.check(id, &pk, 12),
+            Ok(()),
+            "pin genuino volta a fixar do zero (sem last_seq falsificado)"
+        );
     }
 }

@@ -2,7 +2,7 @@
 //! `nixos-rebuild switch` **nunca** corre como user nosd (ProtectSystem); sinaliza
 //! `/var/lib/nosd/nix-apply.request` para `nosd-nix-apply.service` (root).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -133,6 +133,92 @@ fn log_line(msg: &str) {
             break;
         }
     }
+}
+
+/// T3.1 (G3): campos tipados de `ai-managed.nix`. O agente propõe valores;
+/// o texto Nix nasce de um TEMPLATE fixo (código conhecido), não de string
+/// arbitrária — a deny-list continua como segunda camada e o syntax check
+/// como terceira. Valores são charset-restrito (sem `"`/`\`/metacaracteres
+/// Nix), logo a interpolação no template é segura por construção.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AiManagedFields {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hostname: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
+    #[serde(default)]
+    pub allow_unfree: bool,
+}
+
+/// hostname(1): `[a-zA-Z0-9-]{1,63}`, sem `-` nas pontas.
+fn valid_hostname(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 63
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !s.starts_with('-')
+        && !s.ends_with('-')
+}
+
+/// locale `lang[_COUNTRY][.codeset]` — só alfanumérico + `._@-`.
+fn valid_locale(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 32
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '@'))
+}
+
+/// timezone `Area/City` — alfanumérico + `_/+-`.
+fn valid_tz(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/' | '-' | '+'))
+}
+
+pub fn validate_ai_managed_fields(f: &AiManagedFields) -> Result<(), NixProposeError> {
+    if let Some(h) = &f.hostname {
+        if !valid_hostname(h) {
+            return Err(NixProposeError::Reject("invalid hostname"));
+        }
+    }
+    if let Some(l) = &f.locale {
+        if !valid_locale(l) {
+            return Err(NixProposeError::Reject("invalid locale"));
+        }
+    }
+    if let Some(tz) = &f.timezone {
+        if !valid_tz(tz) {
+            return Err(NixProposeError::Reject("invalid timezone"));
+        }
+    }
+    Ok(())
+}
+
+/// Gera o staging a partir de campos tipados (rota de menor risco do ring).
+pub fn render_ai_managed(f: &AiManagedFields) -> Result<String, NixProposeError> {
+    validate_ai_managed_fields(f)?;
+    let mut body = String::from(
+        "# ai-managed.nix - GERADO por nosd (T3.1: campos tipados, template fixo).\n\
+         # `nix.propose fields={...}` -> staging -> HITL -> helper root (target fixo).\n\
+         { config, lib, pkgs, ... }:\n{\n",
+    );
+    if let Some(h) = &f.hostname {
+        body.push_str(&format!("  networking.hostName = \"{h}\";\n"));
+    }
+    if let Some(l) = &f.locale {
+        body.push_str(&format!("  i18n.defaultLocale = \"{l}\";\n"));
+    }
+    if let Some(tz) = &f.timezone {
+        body.push_str(&format!("  time.timeZone = \"{tz}\";\n"));
+    }
+    body.push_str(&format!(
+        "  nixpkgs.config.allowUnfree = {};\n",
+        f.allow_unfree
+    ));
+    body.push_str("}\n");
+    Ok(body)
 }
 
 /// Escreve staging e valida. Se `NOSD_NIX_AUTO_SWITCH=1`, arma apply root.
@@ -277,9 +363,23 @@ pub fn request_apply(data_dir: &Path) -> Result<NixApplyResult, NixProposeError>
 }
 
 /// HITL confirm = mesmo arm que `nix.apply` (SITE_POLICY Confirm/Escalate já gated).
+/// G3.2: escreve também `nix-confirm.request` (TTL 600 s no helper root) —
+/// com two-phase activado, `nix.apply` só faz copy+build-vm+`test` (boot
+/// default intacta); o `switch` exige o segundo pedido (nonce HITL já
+/// server-authored no dispatch).
 pub fn request_confirm(data_dir: &Path) -> Result<NixApplyResult, NixProposeError> {
+    let confirm_path = data_dir.join("nix-confirm.request");
+    if !crate::landlock::path_allowed(&confirm_path, data_dir) {
+        return Err(NixProposeError::Apply("confirm path denied".into()));
+    }
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    fs::write(&confirm_path, format!("ts={ts}\n"))?;
+    log_line(&format!("confirm.request → {}", confirm_path.display()));
     let mut r = request_apply(data_dir)?;
-    r.note = format!("HITL confirm → {}", r.note);
+    r.note = format!("HITL confirm (G3.2: two-phase; TTL 600s) → {}", r.note);
     Ok(r)
 }
 
@@ -369,6 +469,46 @@ mod tests {
     fn schema_denies_disko() {
         let t = r#"{ ... }: { disko.devices = {}; }"#;
         assert!(validate_nix_text(t).is_err());
+    }
+
+    /// T3.1: campos tipados geram o template e recusam injecção.
+    #[test]
+    fn render_fields_produces_template_and_rejects_injection() {
+        let f = AiManagedFields {
+            hostname: Some("jarbas-lab".into()),
+            locale: Some("pt_PT.UTF-8".into()),
+            timezone: Some("Europe/Lisbon".into()),
+            allow_unfree: true,
+        };
+        let t = render_ai_managed(&f).unwrap();
+        assert!(t.contains("networking.hostName = \"jarbas-lab\";"));
+        assert!(t.contains("i18n.defaultLocale = \"pt_PT.UTF-8\";"));
+        assert!(t.contains("time.timeZone = \"Europe/Lisbon\";"));
+        assert!(t.contains("allowUnfree = true;"));
+        // O texto gerado passa as validações do caminho livre (brace + deny).
+        assert!(validate_nix_text(&t).is_ok(), "template deve validar");
+        // Metacaracteres Nix/aspas não chegam ao template.
+        let evil = AiManagedFields {
+            hostname: Some("x\"; boot.loader.efi.canTouchEfiVariables = true;".into()),
+            ..Default::default()
+        };
+        assert!(
+            render_ai_managed(&evil).is_err(),
+            "hostname com metacaracteres recusado"
+        );
+        let empty = AiManagedFields {
+            hostname: Some(String::new()),
+            ..Default::default()
+        };
+        assert!(render_ai_managed(&empty).is_err());
+        let bad_tz = AiManagedFields {
+            timezone: Some("Europe/../evil".into()),
+            ..Default::default()
+        };
+        assert!(
+            render_ai_managed(&bad_tz).is_err(),
+            "'.' fora de charset de tz"
+        );
     }
 
     #[test]

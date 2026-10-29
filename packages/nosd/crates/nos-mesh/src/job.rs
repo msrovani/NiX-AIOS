@@ -20,6 +20,13 @@ pub const MAGIC: &[u8] = b"NJOB";
 pub const VER: u8 = 1;
 pub const MAX_BODY: usize = 1 << 20; // 1 MiB por job (prompt + overhead)
 pub const MAX_PROMPT: usize = 8 * 1024;
+/// M9.1: limite real do módulo de skill no push (512 KiB).
+pub const MAX_SKILL_BYTES: usize = 512 * 1024;
+/// T0.1: o envelope de skill leva o módulo em base64 (~4/3 do tamanho), o que
+/// não cabe no `MAX_PROMPT` de chat — o teto de 512 KiB era inalcançável
+/// (qualquer módulo >~6 KiB morria em "prompt acima do limite" antes do
+/// limite de módulo ser sequer consultado). Limite por kind, não global.
+pub const MAX_SKILL_PAYLOAD: usize = 768 * 1024;
 pub const DEFAULT_DEADLINE_MS: u64 = 30_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +72,16 @@ pub type SkillHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
 pub const KIND_CHAT: u8 = 1;
 pub const KIND_CRDT: u8 = 2;
 pub const KIND_SKILL: u8 = 3;
+
+/// Limite do campo `prompt` por kind: chat/CRDT ficam no teto de chat;
+/// skill tem teto próprio (base64 do módulo + manifesto).
+pub fn max_prompt_for(kind: u8) -> usize {
+    if kind == KIND_SKILL {
+        MAX_SKILL_PAYLOAD
+    } else {
+        MAX_PROMPT
+    }
+}
 
 fn frame(body: &[u8], id: &Identity) -> Vec<u8> {
     let mut v = MAGIC.to_vec();
@@ -177,7 +194,7 @@ async fn handle(
 ) -> Result<Vec<u8>, String> {
     let pf = parse_frame(buf)?;
     let env: JobEnvelope = serde_json::from_slice(&pf.body).map_err(|e| format!("json: {e}"))?;
-    if env.prompt.len() > MAX_PROMPT {
+    if env.prompt.len() > max_prompt_for(env.kind) {
         return Err("prompt acima do limite".into());
     }
     if short_id(&env.key) != env.origin {
@@ -278,8 +295,9 @@ pub async fn submit_skill(
 ) -> Result<JobResult, String> {
     use base64::Engine as _;
     let hash = crate::content_hash(bytes);
-    // Limite do envelope (MAX_PROMPT) e do corpo: base64 cresce ~4/3.
-    if bytes.len() > 512 * 1024 {
+    // Limite do módulo (MAX_SKILL_BYTES) e do corpo: base64 cresce ~4/3 e o
+    // envelope de skill tem teto próprio (MAX_SKILL_PAYLOAD, T0.1).
+    if bytes.len() > MAX_SKILL_BYTES {
         return Err("modulo acima de 512 KiB para push".into());
     }
     let mut payload = serde_json::json!({
@@ -313,7 +331,7 @@ async fn submit_kind(
     budget_tokens: u32,
     kind: u8,
 ) -> Result<JobResult, String> {
-    if prompt.len() > MAX_PROMPT {
+    if prompt.len() > max_prompt_for(kind) {
         return Err("prompt acima do limite".into());
     }
     let env = JobEnvelope {
@@ -395,5 +413,65 @@ mod tests {
         assert_eq!(r.worker, server.node_id());
         assert_eq!(pins_cli.peer_count(), 1, "cliente fixou o worker");
         assert_eq!(pins_srv.peer_count(), 1, "servidor fixou o cliente");
+    }
+
+    /// T0.1: push de módulo grande tem de atravessar o link (o limite de
+    /// 8 KiB de chat não se aplica a KIND_SKILL) e o teto de 512 KiB mantém-se.
+    #[tokio::test]
+    async fn skill_push_aceita_modulo_grande_e_recusa_acima_do_cap() {
+        let server = ident(31);
+        let client = ident(32);
+        let pins_srv = Arc::new(Pinned::new());
+        let pins_cli = Arc::new(Pinned::new());
+        let exec: Executor = Arc::new(|p: &str, _b: u32| Ok(p.to_string()));
+        let crdt: CrdtHook = Arc::new(|p: &str| Ok(p.to_string()));
+
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap().to_string();
+        let s = server.clone();
+        let pins_task = pins_srv.clone();
+        tokio::spawn(async move {
+            let skill: SkillHook = Arc::new(|p: &str| {
+                let v: serde_json::Value = serde_json::from_str(p).map_err(|e| e.to_string())?;
+                let b = v["wasm_b64"].as_str().ok_or("sem wasm_b64")?;
+                if b.len() < 100_000 {
+                    return Err("modulo nao chegou inteiro".into());
+                }
+                Ok("skill grande ok".into())
+            });
+            let _ = serve_on(l, s, pins_task, exec, crdt, skill).await;
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let big = vec![0x00u8; 300 * 1024];
+        let r = submit_skill(
+            &addr,
+            &client,
+            &pins_cli,
+            "big",
+            &big,
+            10_000,
+            &serde_json::json!({}),
+        )
+        .await
+        .expect("push de 300 KiB deve atravessar o link");
+        assert!(r.ok, "{r:?}");
+        assert_eq!(r.text, "skill grande ok");
+
+        let too_big = vec![0u8; MAX_SKILL_BYTES + 1];
+        assert!(
+            submit_skill(
+                &addr,
+                &client,
+                &pins_cli,
+                "big",
+                &too_big,
+                10_000,
+                &serde_json::json!({}),
+            )
+            .await
+            .is_err(),
+            "acima de 512 KiB recusa no emissor"
+        );
     }
 }

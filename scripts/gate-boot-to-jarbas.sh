@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # Gate objectivo Boot→JARBAS (docs/BOOT_TO_JARBAS.md) — stdout = ground truth IA.
 # claim_status: OBSERVED|IMPLEMENTED|AWAITING_HW|UNKNOWN|BLOCKED (ADR-0113).
+#
+# O-01/G5.1: `--strict` transforma SKIP em estágio OBRIGATÓRIO em FAIL
+# (a cultura "SKIP deixa de ser ok, não aplicável" do IMPROVEMENT_PLAN §9).
+# Estágios obrigatórios configuráveis via NIXAIOS_GATE_REQUIRED (default = o
+# aceite 0.6.x: substrato + M3 + MQEMU). M4/M5 ficam fora por serem
+# AWAITING_HW honestos (hardware-gated, não capability skip).
 set -euo pipefail
 
-STAGE="${1:-ALL}"
-if [[ "${1:-}" == "--stage" ]]; then
-  STAGE="${2:-ALL}"
-fi
+STAGE="ALL"
+STRICT=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --stage) STAGE="${2:-ALL}"; shift 2 ;;
+    --strict) STRICT=1; shift ;;
+    *) STAGE="$1"; shift ;;
+  esac
+done
 
 TCP="${NOSD_TCP:-127.0.0.1:7700}"
 DATA="${NOSD_DATA_DIR:-/var/lib/nosd}"
@@ -22,6 +33,16 @@ else
   SOCK=""
 fi
 FAILS=0
+# G5.1: estágios obrigatórios no modo strict (SKIP aí = FAIL, não "não aplicável").
+REQUIRED_STAGES="${NIXAIOS_GATE_REQUIRED:-M0 M1 M2 M3b M3c M3d M3f MQEMU}"
+
+is_required_stage() {
+  local s
+  for s in $REQUIRED_STAGES; do
+    [[ "$s" == "$1" ]] && return 0
+  done
+  return 1
+}
 
 nosctl_bin() {
   if command -v nosctl >/dev/null 2>&1; then
@@ -53,6 +74,12 @@ rpc() {
 
 emit() {
   # stage ring layer claim result detail
+  if [[ "$STRICT" == 1 && "$5" == "SKIP" ]] && is_required_stage "$1"; then
+    FAILS=$((FAILS + 1))
+    printf 'stage=%s ring=%s layer=%s claim_status=%s result=FAIL detail=strict_skip: %s\n' \
+      "$1" "$2" "$3" "$4" "$6"
+    return
+  fi
   printf 'stage=%s ring=%s layer=%s claim_status=%s result=%s detail=%s\n' \
     "$1" "$2" "$3" "$4" "$5" "$6"
 }
@@ -263,7 +290,7 @@ if want MQEMU || want QEMU; then
 fi
 
 echo "---"
-echo "gate_summary fails=$FAILS stage=$STAGE idea=#707 playbook=docs/BOOT_TO_JARBAS.md"
+echo "gate_summary fails=$FAILS stage=$STAGE strict=$STRICT idea=#707 playbook=docs/BOOT_TO_JARBAS.md"
 if [[ "$FAILS" -gt 0 ]]; then
   exit 1
 fi

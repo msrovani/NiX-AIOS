@@ -2,9 +2,10 @@
 //! frugal (fuel 100k, heap 256 KiB, **sem capacidades** por omissão).
 //!
 //! `skill.install` aceita `wat` (texto, compilado no servidor) ou `wasm_b64`.
-//! O hash do módulo é FNV-1a64 (id de conteúdo; a integridade forte virá com
-//! BLAKE3 no M8.1). A skill activa é `skill/<nome>/active` no CRDT — trocar de
-//! versão é uma op assinada, rollback é apontar para o hash anterior.
+//! O hash do módulo é BLAKE3 (64 hex, commitment; S1) — o comentário antigo
+//! dizia FNV e ficou para trás no M8.1. A skill activa é `skill/<nome>/active`
+//! no CRDT — trocar de versão é uma op assinada, rollback é apontar para o
+//! hash anterior (com HITL server-authored no downgrade, S2b).
 
 use super::*;
 use nos_ipc::{Request, Response};
@@ -33,6 +34,13 @@ pub fn put_meta(
 ) {
     let focus = if focus.is_empty() { name } else { focus };
     let version = if version.is_empty() { "0.1.0" } else { version };
+    // T0.10: `published_at_ms` era sempre 0 (campo morto); agora é o instante
+    // de publicação observado por este nó (relógio local, honestidade: não é
+    // autoridade de ordem — a ordem continua a vir do VV do CRDT).
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
     let meta = json!({
         "name": name,
         "focus": focus,
@@ -41,7 +49,7 @@ pub fn put_meta(
         "hash": hash,
         "bytes": bytes,
         "provenance": provenance,
-        "published_at_ms": 0,
+        "published_at_ms": now_ms,
     });
     state.mesh.crdt_put(
         state.mesh.local_id(),
@@ -228,7 +236,9 @@ fn score_meta(
     } else {
         8 // sem amostra suficiente: neutro-baixo, nao premeia nem pune
     };
-    let total = prov + caps + version + size + history;
+    // T0.2: o contrato é 0-100; a soma teórica chegava a 120 (proveniência 30
+    // + caps 20 + versão 40 + tamanho 10 + histórico 20). Clamp explícito.
+    let total = (prov + caps + version + size + history).min(100);
     (
         total,
         json!({

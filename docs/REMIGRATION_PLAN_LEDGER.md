@@ -386,3 +386,36 @@ Próxima onda: só fechar item com (1) teste host ou (2) log runtime + linha nes
 - `nixaios/docs/adr-addenda/0118-remigration-nx.md`  
 - `nixaios/docs/TECNOLOGIAS_NIXAIOS.md` (N.3*)  
 - IDEA #707 (NixAIOS)
+
+**G0/G1/G2/G3/G5 tranche de optimização (2026-10-28, in-tree):** auditoria profunda
+docs↔código fechou a dívida que os testes não tinham pegado.
+**T0:** kind-limite do SKILL_PUSH (768 KiB payload vs 8 KiB chat; o cap de
+512 KiB era inalcançável — módulos >~6 KiB falhavam); score de skills
+clamped 0-100 (soma teórica 120); `hitl_confirmed` de cliente deixa de
+autorizar `audio.volume` (cap HITL da identidade decide); `published_at_ms`
+real; `NOSD_ENGINE_DIR` morto removido; `services.nosd.package` propagado a
+early/firstboot/hotswap; StartLimit no unit nosd; 1777 do data-dir só
+pré-transmute (aios-mode devolve 0750 — marcadores root deixam de ser
+forjáveis). **G1:** âncora anti-rollback assinada pela identidade
+(`NSGANCHOR bytes lines` + sig; sem assinatura com identidade = recusa
+fail-closed); pins TOFU persistidos em `<keys-dir>/pins.dat` (restart não
+re-fixa às cegas; partilhado HB+jobs; linha forjada ignorada); seq do HB
+persistido em `<keys-dir>/hb.seq` (arranque de max(epoch_ms, persistido+1));
+`static mut` do Landlock → AtomicU32. **G2:** `services.nosdEngine.supervise`
+(motor como serviço systemd com sandbox no unit + nosd por HTTP externo;
+default OFF). **G3.1:** `nix.propose fields={...}` — staging nasce de
+template fixo com valores charset-restrito (injecção recusada por
+construção). **G5.1:** `gate-boot-to-jarbas.sh --strict` — SKIP obrigatório
+= FAIL (`NIXAIOS_GATE_REQUIRED`).
+Prova no host: `cargo test --workspace` verde (52 tests nos-mesh, incl.
+`skill_push_aceita_modulo_grande_e_recusa_acima_do_cap`,
+`crdt_log_anchor_signed_and_forgery_refused`, `hb_seq_store_survives_restart`,
+`pins_persist_across_restart_and_refuse_forged_line`,
+`render_fields_produces_template_and_rejects_injection`), clippy -D warnings,
+fmt, `bash -n` do gate.
+Residual honesto: **sem OBSERVED/QEMU ainda** (esta tranche é host-level;
+VM/nixaios-vm e cage têm de re-provar o ciclo boot→cage com os módulos
+alterados); Q-03 (CI externo GitHub) continua pendente; âncora continua
+co-localizada (nova assinatura fecha a FORJA, não o overwrite pelo dono do
+data-dir); T0.8 (gate do `hotswap-aios.request` com nonce) adiado para onda
+com VM test; `/tmp` inteiro no Landlock mantém-se (narrowing precisa VM).

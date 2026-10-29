@@ -3,11 +3,15 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.nosdEarly;
+  # T0.5: usar o MESMO binário configurado em services.nosd.package —
+  # hardcodar pkgs.nosd partia early/transmute do build que os checks usam.
+  nosdPkg = config.services.nosd.package;
+
   earlyScript = pkgs.writeShellScript "nosd-early-boot" ''
     set -euo pipefail
     SOCK="''${NOSD_SOCKET:-/run/nosd/nosd.sock}"
     DATA="''${NOSD_DATA_DIR:-/var/lib/nosd}"
-    CTL="${pkgs.nosd}/bin/nosctl"
+    CTL="${nosdPkg}/bin/nosctl"
     mkdir -p "$DATA"
     export NOSD_S1_BACKEND="''${NOSD_S1_BACKEND:-keyword}"
 

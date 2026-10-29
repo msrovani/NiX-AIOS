@@ -193,9 +193,39 @@ async fn main() -> anyhow::Result<()> {
             anyhow::bail!("M6 mesh identity: {e}");
         }
     };
-    let mesh = match identity {
+    let mesh = match identity.clone() {
         Some(id) => MeshEngine::with_identity(args.node_id, Default::default(), id),
         None => MeshEngine::new(args.node_id),
+    };
+    // T1.2/T1.3: com identidade, persistir pins TOFU e seq do HB ao lado da
+    // chave do mesh — um restart não re-fixa às cegas (janela TOFU) nem
+    // recua o seq (peers recusavam o no reiniciado como Replay se o relógio
+    // recuasse). Sem identidade, o lab fica em memória (compat).
+    let mesh = if identity.is_some() {
+        let key_env =
+            std::env::var("NOSD_MESH_KEY").unwrap_or_else(|_| "/var/lib/nosd/keys/mesh.key".into());
+        let mesh_dir = std::path::Path::new(&key_env)
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| args.data_dir.join("mesh"));
+        match mesh
+            .with_pinned_store(&mesh_dir.join("pins.dat"))
+            .and_then(|m| m.with_hb_seq_store(&mesh_dir.join("hb.seq")))
+        {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!(
+                    target: "nosd",
+                    "T1.2/T1.3: persistência de pins/seq indisponível ({e}); seguindo em memória (restart re-fixará TOFU)"
+                );
+                match identity {
+                    Some(id) => MeshEngine::with_identity(args.node_id, Default::default(), id),
+                    None => MeshEngine::new(args.node_id),
+                }
+            }
+        }
+    } else {
+        mesh
     };
     // M8.1b/M8.1d: durabilidade do estado. `NOSD_CRDT_BACKEND=nsgdb` (default)
     // grava um segmento length-prefixed `nsgdb/crdt/seg.bin`; `jsonl` mantem o

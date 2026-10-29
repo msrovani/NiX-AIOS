@@ -66,6 +66,11 @@ in
     systemd.services.nosd = {
       description = "Neural-OS Daemon";
       wantedBy = [ "multi-user.target" "graphical.target" ];
+      # T0.6: anti-crash-loop é atributo do UNIT, não de serviceConfig
+      # (lição 2 do AGENTS.md — o systemd ignora StartLimit* em serviceConfig
+      # em silêncio; o cage já tinha a lição, o daemon não).
+      startLimitIntervalSec = 120;
+      startLimitBurst = 5;
       # Sobe apos local-fs (NAO esperar network-online; orb lab e opt-in cinematic)
       after = [ "local-fs.target" ];
       # R-01: serviços NixOS não herdam o PATH de login; declarar ferramentas.
@@ -111,7 +116,6 @@ in
           [ cfg.dataDir "/run/nosd" "/tmp" ]
           ++ lib.optionals (config.services.nixaiosLogFat.enable or false) [ "/mnt/nixaios-log" ];
         Environment = [
-          "NOSD_ENGINE_DIR=${cfg.package}/lib/nosd/engines"
           "CUDA_VISIBLE_DEVICES=${cfg.cudaVisibleDevices}"
           "NOSD_HERMES_TICK_SECS=${toString cfg.hermesTickSecs}"
           "NOSD_MESH_BIND=${cfg.meshBind}"

@@ -24,13 +24,35 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
 
     Some(match req.method.as_str() {
         "nix.propose" => {
-            let text = req
-                .params
-                .get("nix")
-                .or_else(|| req.params.get("text"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            match nix_managed::propose_staging(&state.data_dir, text) {
+            // T3.1 (G3): caminho preferido = `fields` tipados (template fixo,
+            // valores charset-restrito); o texto livre continua aceite para o
+            // lab (deny-list + syntax check fazem a defesa por lá).
+            let text: String = match req.params.get("fields") {
+                Some(v) => {
+                    match serde_json::from_value::<nix_managed::AiManagedFields>(v.clone())
+                        .map_err(|e| e.to_string())
+                        .and_then(|f| nix_managed::render_ai_managed(&f).map_err(|e| e.to_string()))
+                    {
+                        Ok(t) => t,
+                        Err(e) => {
+                            return Some(Response {
+                                id: req.id,
+                                ok: false,
+                                error: Some(format!("nix.propose fields: {e}")),
+                                result: json!(null),
+                            });
+                        }
+                    }
+                }
+                None => req
+                    .params
+                    .get("nix")
+                    .or_else(|| req.params.get("text"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+            };
+            match nix_managed::propose_staging(&state.data_dir, &text) {
                 Ok(r) => {
                     if r.syntax_ok {
                         let _ = state.hermes.record_opar(
@@ -193,8 +215,9 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("percent")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(50) as u32;
-            let hitl = req.params.get("hitl_confirmed").and_then(|v| v.as_bool()) == Some(true);
-            match actuators::pipewire_volume_plan(gate, state.ipc_generation(), pct, hitl) {
+            // T0.3: `hitl_confirmed` do cliente é ignorado (regra 2 do
+            // AGENTS.md); a autorização vem da identidade (cap HITL) no plan.
+            match actuators::pipewire_volume_plan(gate, state.ipc_generation(), pct) {
                 Ok(plan) => {
                     let applied = if plan.would_run {
                         actuators::pipewire_volume_apply(&plan).is_ok()

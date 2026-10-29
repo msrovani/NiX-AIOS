@@ -33,11 +33,19 @@ let
     chown nosd:nosd /run/nosd/user || true
     chown -R nosd:nosd /var/lib/nosd 2>/dev/null || chown nosd:nosd /var/lib/nosd || true
     chmod 700 /run/nosd/user || true
-    chmod 1777 /var/lib/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb 2>/dev/null || true
+    # T0.7: 1777 só pré-transmute (live ISO: firstboot/user escreve marcadores).
+    # Em aios-mode (pós-transmute) o data-dir volta ao sandbox 0750 nosd —
+    # os marcadores que disparam serviços root (ex.: hotswap-aios.request)
+    # deixam de ser forjáveis por qualquer user local.
+    if [[ -f /var/lib/nosd/aios-mode ]]; then
+      chmod 750 /var/lib/nosd 2>/dev/null || true
+      chmod 755 /var/lib/nosd/models /var/lib/nosd/nsgdb 2>/dev/null || true
+    else
+      chmod 1777 /var/lib/nosd /var/lib/nosd/models /var/lib/nosd/nsgdb 2>/dev/null || true
+    fi
     touch /var/lib/nosd/jarbas-cage.log
     chown nosd:nosd /var/lib/nosd/jarbas-cage.log || true
-    chmod a+rw /var/lib/nosd/jarbas-cage.log 2>/dev/null || true
-    # wlroots/seatd so faz page-flip na VT activa. Se o cage arranca com a
+    chmod a+rw /var/lib/nosd/jarbas-cage.log 2>/dev/null || true    # wlroots/seatd so faz page-flip na VT activa. Se o cage arranca com a
     # VT1 em foreground (hotswap/firstboot), o 1o arranque fica PRETO e so um
     # restart resolve. Tornar a VT do kiosk activa ANTES do ExecStart.
     ${pkgs.kbd}/bin/chvt "$(printf %s ${cfg.tty} | tr -dc 0-9)" 2>/dev/null || true

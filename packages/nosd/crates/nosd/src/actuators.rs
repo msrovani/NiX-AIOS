@@ -107,23 +107,26 @@ pub fn systemctl_run_stub(intent: &SystemctlIntent) -> Result<(), ActuatorError>
     }
 }
 
-/// PipeWire volume — SITE_POLICY Auto; CapGate OBSERVE+HITL para aplicar.
+/// PipeWire volume — SITE_POLICY Auto; CapGate OBSERVE para plan, HITL para
+/// aplicar. T0.3: a autorização vem da IDENTIDADE (cap HITL do perfil), nunca
+/// de um booleano do cliente (`hitl_confirmed` é ignorado — regra 2 do
+/// AGENTS.md).
 pub fn pipewire_volume_plan(
     gate: &CapGate,
     cap_gen: u64,
     percent: u32,
-    hitl_confirmed: bool,
 ) -> Result<PipeWireVolumePlan, ActuatorError> {
     gate.allow(CapBits::OBSERVE, cap_gen)
         .map_err(ActuatorError::Cap)?;
     let percent = percent.min(150);
+    let would_run = gate.allow(CapBits::HITL, cap_gen).is_ok();
     Ok(PipeWireVolumePlan {
         percent,
-        would_run: hitl_confirmed,
-        note: if hitl_confirmed {
+        would_run,
+        note: if would_run {
             "wpctl set-volume @DEFAULT_AUDIO_SINK@ N% (best-effort)".into()
         } else {
-            "plan only — confirm to apply".into()
+            "plan only — perfil sem HITL; o apply exige grant do servidor".into()
         },
     })
 }
@@ -225,10 +228,14 @@ mod tests {
 
     #[test]
     fn pipewire_plan_ok() {
-        let gate = CapGate::new(CapBits::OBSERVE.union(CapBits::HITL), 1);
-        let p = pipewire_volume_plan(&gate, 1, 80, false).unwrap();
+        // T0.3: sem booleano do cliente — a cap HITL da identidade decide.
+        let gate = CapGate::new(CapBits::OBSERVE, 1);
+        let p = pipewire_volume_plan(&gate, 1, 80).unwrap();
         assert_eq!(p.percent, 80);
-        assert!(!p.would_run);
+        assert!(!p.would_run, "LocalUser (só OBSERVE) leva plan only");
+        let gate_admin = CapGate::new(CapBits::OBSERVE.union(CapBits::HITL), 1);
+        let p2 = pipewire_volume_plan(&gate_admin, 1, 80).unwrap();
+        assert!(p2.would_run, "perfil com HITL aplica");
     }
 
     #[test]

@@ -3,25 +3,38 @@
 //! - Sem kernel Landlock / Windows: SoftAllowlist + `path_allowed` (honesty ≠ Verified).
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
 pub enum LandlockStatus {
-    Disabled,
-    AbsentPlatform,
+    Disabled = 0,
+    AbsentPlatform = 1,
     /// Prefix check only — kernel ABI not applied.
-    SoftAllowlist,
+    SoftAllowlist = 2,
     /// `landlock_restrict_self` succeeded this process.
-    Verified,
+    Verified = 3,
     /// Env pediu Landlock mas syscall falhou (kernel antigo / seccomp).
-    Failed,
+    Failed = 4,
 }
 
-static mut APPLIED: LandlockStatus = LandlockStatus::Disabled;
+/// T1.5: `static mut` → `AtomicU32` (o comentário antigo admitia
+/// "atomic-ish read"; UB potencial com leitores concorrentes acaba aqui).
+static APPLIED: AtomicU32 = AtomicU32::new(LandlockStatus::Disabled as u32);
+
+fn word_to_status(w: u32) -> LandlockStatus {
+    match w {
+        1 => LandlockStatus::AbsentPlatform,
+        2 => LandlockStatus::SoftAllowlist,
+        3 => LandlockStatus::Verified,
+        4 => LandlockStatus::Failed,
+        _ => LandlockStatus::Disabled,
+    }
+}
 
 /// Último resultado de `try_restrict_process` (boot).
 pub fn applied_status() -> LandlockStatus {
-    // SAFETY: word-sized status written once on boot path.
-    unsafe { APPLIED }
+    word_to_status(APPLIED.load(Ordering::Relaxed))
 }
 
 pub fn status_from_env() -> LandlockStatus {
@@ -31,8 +44,7 @@ pub fn status_from_env() -> LandlockStatus {
     #[cfg(target_os = "linux")]
     {
         // Prefer last apply result if any.
-        // SAFETY: single-threaded boot path / atomic-ish read of status word.
-        let s = unsafe { APPLIED };
+        let s = applied_status();
         if matches!(s, LandlockStatus::Verified | LandlockStatus::Failed) {
             return s;
         }
@@ -90,7 +102,7 @@ pub fn try_restrict_process(data_dir: &Path) -> LandlockStatus {
     {
         let _ = data_dir;
         let s = LandlockStatus::AbsentPlatform;
-        unsafe { APPLIED = s };
+        APPLIED.store(s as u32, Ordering::Relaxed);
         s
     }
     #[cfg(target_os = "linux")]
@@ -99,13 +111,13 @@ pub fn try_restrict_process(data_dir: &Path) -> LandlockStatus {
             Ok(()) => {
                 tracing::info!(target: "nosd", "landlock Verified under {}", data_dir.display());
                 let s = LandlockStatus::Verified;
-                unsafe { APPLIED = s };
+                APPLIED.store(s as u32, Ordering::Relaxed);
                 s
             }
             Err(e) => {
                 tracing::warn!(target: "nosd", "landlock Failed ({e}) — SoftAllowlist only");
                 let s = LandlockStatus::Failed;
-                unsafe { APPLIED = s };
+                APPLIED.store(s as u32, Ordering::Relaxed);
                 s
             }
         }

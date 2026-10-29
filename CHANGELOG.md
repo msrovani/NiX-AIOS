@@ -3,6 +3,91 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+### Fixed (T0 — dívida de integração fechada no código)
+
+- **SKILL_PUSH desbloqueado:** o envelope de skill (módulo em base64 ~4/3)
+  não cabia no `MAX_PROMPT` de 8 KiB — o teto de 512 KiB era inalcançável
+  (módulos >~6 KiB morriam em "prompt acima do limite" antes de o limite de
+  módulo ser consultado). `nos-mesh::job::max_prompt_for(kind)` dá teto
+  próprio a `KIND_SKILL` (768 KiB); teste e2e com módulo de 300 KiB
+  (`skill_push_aceita_modulo_grande_e_recusa_acima_do_cap`) e recusa acima
+  de `MAX_SKILL_BYTES`.
+- **Score de skills clamped a 0-100** (a soma teórica chegava a 120 com
+  proveniência signed + sem caps + versão máxima + histórico perfeito).
+- **`hitl_confirmed` do cliente deixa de autorizar `audio.volume`** (regra 2
+  do AGENTS.md): a autorização vem da identidade — cap HITL do perfil decide
+  plan-only vs apply. `pipewire_volume_plan` perde o parâmetro booleano.
+- **`published_at_ms` deixou de ser campo morto** no manifesto de skills
+  (instante de publicação observado pelo nó; honestidade: não é autoridade
+  de ordem — a ordem continua a vir do VV do CRDT). Comentário do header do
+  `skills.rs` actualizado (hash é BLAKE3 desde M8.1, não FNV).
+
+### Changed (runtime/runtime, T0.4-T0.7)
+
+- **`NOSD_ENGINE_DIR` removido** do `services.nosd` (env morto — nenhum
+  ficheiro Rust o lia; o rpath dos engines no flake não depende dele).
+- **`services.nosd.package` propaga-se** para `nosd-early` e hotswap/firstboot:
+  os scripts deixam de hardcodar `pkgs.nosd` (builds customizados deixam de
+  falar com outro binário).
+- **StartLimit no unit `nosd`** (`startLimitIntervalSec=120`,
+  `startLimitBurst=5`) — anti-crash-loop era atributo do UNIT, não de
+  serviceConfig (lição 2; o cage já tinha, o daemon não).
+- **1777 de `/var/lib/nosd` só pré-transmute**: o ExecStartPre do cage passa
+  a devolver o sandbox 0750 nosd em aios-mode — os marcadores que disparam
+  serviços root (`hotswap-aios.request`) deixam de ser forjáveis por
+  qualquer user local em host pós-transmute. Na ISO live (pré-transmute) o
+  1777 mantém-se (EACCES pós-Q5).
+
+### Added (T3.1/G3 — ring Nix por campos tipados)
+
+- **`nix.propose fields={hostname,locale,timezone,allow_unfree}`:** o staging
+  nasce de um template fixo (`nix_managed::render_ai_managed`) com valores
+  charset-restrito (sem `"`/`\`/metacaracteres Nix) — injecção no módulo
+  recusada por construção; a deny-list e o syntax check continuam como 2ª e
+  3ª camadas do caminho livre.
+- **`services.nosdNixRing.twoPhase` (default true, G3.2):** apply root passa a
+  duas fases — fase 1 = copy staging + build-vm + `nixos-rebuild test`
+  (**boot default intacta**); o `switch` só corre na fase 2, que exige
+  `nix-confirm.request` (escrito por `nix.confirm` HITL, TTL 600 s).
+  Anti-brick por omissão; rollback/header mantidos.
+
+### Added (G2/T2 — motor como serviço supervisionado)
+
+- **`services.nosdEngine.supervise = true`:** cria `nosd-engine.service`
+  (llama-server supervisionado pelo systemd, sandbox completo declarado no
+  unit: `ProtectSystem=strict`, `DevicePolicy=closed`, StartLimit no UNIT,
+  OOM isolado do cage) e liga o nosd por HTTP externo
+  (`NOSD_LLAMA_SERVER=http://127.0.0.1:<port>`, backend attach já existente).
+  Default OFF — o caminho managed/spawn (unload → cpu-echo → reload dos VM
+  tests) continua intacto.
+
+### Security (G1 — armadura de persistência e identidade)
+
+- **Âncora anti-rollback assinada pela identidade do nó** (T1.1): a ancora do
+  log CRDT passa a `<bytes> <linhas> <sig b64>` sobre
+  `NSGANCHOR bytes lines`. Com identidade, ancora sem assinatura (forjada)
+  é recusada — quem escreve no data-dir deixa de conseguir fabricar um
+  rollback com ancora nova (só lhe resta apagá-la: fail-closed, igual hoje).
+  Sem identidade (lab), o formato de 2 campos mantém-se.
+- **Pins TOFU persistidos** (T1.2): `<keys-dir>/pins.dat` (`peer <id> <pk hex>
+  <last_seq>`), partilhado entre HB UDP e listener de jobs. Um restart deixa
+  de re-fixar às cegas (primeiro contacto pós-restart fixava de novo um MITM
+  a ouvir na janela TOFU) e o anti-replay sobrevive ao restart. Linha cujo id
+  não deriva da pk é ignorada ao carregar (fail-closed).
+- **Seq do HB persistido** (T1.3): `<keys-dir>/hb.seq` — arranque de
+  `max(epoch_ms, persistido+1)`; a janela de "Replay para sempre" se o
+  relógio recuar entre restarts fecha (checkpoint a cada 16 HBs).
+- **`static mut APPLIED` do Landlock → `AtomicU32`** (T1.5): fim do
+  "atomic-ish read" UB-potencial; `LandlockStatus` passa a `#[repr(u32)]`.
+  (`NOSD_LANDLOCK=1` já activo no unit de produção desde 0.5.x.)
+
+### Fixed (G5.1 — gate)
+
+- **`gate-boot-to-jarbas.sh --strict`:** SKIP em estágio obrigatório
+  (`NIXAIOS_GATE_REQUIRED`, default substrato + M3 + MQEMU) passa a FAIL
+  com `detail=strict_skip` — a cultura "SKIP reprova no aceite" está
+  aplicada de facto. M4/M5 continuam fora por serem AWAITING_HW honestos.
+
 ### Added (UI híbrida JARBAS)
 
 - **`services.jarbasCage.uiMode = "auto"`**: escolhe Chromium só com
@@ -116,7 +201,13 @@ Versionamento [SemVer](https://semver.org/).
   `NIXAIOSLOG` (journal, firstboot/hotswap/cage, dmesg, lspci/lsusb). Ver
   `docs/HW_TEST.md`.
 
-## [Unreleased] — frota (M6/M7)
+### Added (hw)
+
+- **Modelo de arranque Qwen3.5-0.8B na `iso-hw`**: llama.cpp inclu?do,
+  GGUF Q4_K_M do unsloth (508 MB, Apache-2.0) baixado no first boot via
+  transmute/HITL; overrides `NOSD_BOOT_MODEL_{REPO,FILE,LOCAL}` e
+  `NOSD_BOOT_MODEL_ONLY`. Ver `docs/HW_TEST.md`.
+
 ### Changed (M8.1d)
 
 - **Backend nsgdb no CRDT:** log em `nsgdb/crdt/seg.bin` (`NSGC`,

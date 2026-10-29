@@ -9,7 +9,7 @@ let
   hotswapRaw = pkgs.replaceVars ./transmute/hotswap-aios.sh {
     curl = pkgs.curl;
     kbd = pkgs.kbd;
-    nosd = pkgs.nosd;
+    nosd = config.services.nosd.package;
   };
   hotswapScript = pkgs.runCommand "nosd-hotswap-aios" { } ''
     cp ${hotswapRaw} $out
@@ -33,7 +33,7 @@ let
     kbd = pkgs.kbd;
     curl = pkgs.curl;
     systemd = pkgs.systemd;
-    nosd = pkgs.nosd;
+    nosd = config.services.nosd.package;
     python3 = pkgs.python3;
   };
   firstbootScript = pkgs.runCommand "nos-firstboot-pkg" { } ''
