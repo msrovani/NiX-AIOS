@@ -86,6 +86,23 @@ Resumo executavel; detalhe em
     nao se aplicou no live: usar `users.users.root.password`.
 22. Duas sessoes no mesmo working tree: **nunca `git add -A`**; stage caminhos
     explicitos. A outra sessao pode commit/push e arrastar ficheiros teus.
+23. Ring armado = **duas chaves**: `armRing=true` tem de armar o helper root
+    **e** o daemon (`NOSD_NIX_RING=1` nos dois via `environment` do unit).
+    Armar só o helper = `NIX_RING_DISABLED` invisível no nosd — apanhado só
+    quando o VM test corre o fluxo ARMADO (`nixaios-ring`, stub rebuild).
+24. Toolbox do helper root: **comando usado no script tem de estar no path
+    do UNIT** (`grep` não faz parte de coreutils; sem `pkgs.gnugrep` o apply
+    morre 127 ANTES da fase 1). O caminho desarmado sai antes do grep — bug
+    latente só apareceu com teste armed ponta-a-ponta.
+25. Parse de JSON no test driver: `serde_json::to_string_pretty` imprime
+    `"key": "value"` (espaço após `:`) — split com `'"key":"'` quebra;
+    usar split por `'"key":'` + index de aspas, ou `json.loads` (python3).
+26. Depois de editar `.nix` com `${VAR}` dentro de `writeShellScript ''…''`:
+    rodar `nix-instantiate --parse` em cada módulo — `${VAR}` sem escape
+    (`''${VAR}`) é interpolação Nix e a Pancada só aparece no build/VM.
+27. PowerShell: `cargo … 2>&1 | Select-String` gera `NativeCommandError`
+    stderr + **falso exit 1**; validar exit real com `… 2>&1 | Out-Null;
+    $LASTEXITCODE` (leções de CI local, não arrastar por falso-positivo).
 
 ## Comandos
 
@@ -158,6 +175,28 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   Infra: `socket,listen` so aceita 1 ligacao e mcast nao passa no WSL -> relay
   UDP userspace; o screendump do virtio-gpu saiu preto com o cage active
   (HUD observado via VNC).
+- **Tranche 0.6.0-alpha.13 (in-tree, HARDENING+SIMBIOSE)**: G0 divida fechada
+  (SKILL_PUSH desbloqueado - payload de skill tem teto proprio 768 KiB vs 8
+  KiB de chat; score de skills clamp 0-100; `hitl_confirmed` fora do
+  audio.volume - cap HITL da identidade decide; `NOSD_ENGINE_DIR` morto
+  removido; `services.nosd.package` propagado a early/firstboot/hotswap;
+  StartLimit no UNIT nosd; 1777 do data-dir so pre-transmute). G1: ancora do
+  CRDT **assinada** (`NSGANCHOR bytes lines` + sig; sem-assinatura com
+  identidade = recusa), pins TOFU persistidos (`keys/pins.dat`, HB+jobs),
+  seq do HB persistido (`keys/hb.seq`, arranque max(epoch_ms, persistido+1)),
+  Landlock AtomicU32. G2: `services.nosdEngine.supervise` (motor como
+  servico systemd + nosd por HTTP externo; default OFF). G3: `nix.propose
+  fields={...}` template tipado + apply root **two-phase** (copy+build-vm+
+  `test`; switch so com `nix.confirm`, TTL 600s) + `gate --strict`. Check
+  **nixaios-ring** (helper armado com stub rebuild) pegou 3 bugs latentes
+  (gnugrep no path; split do pretty JSON; armar daemon). **Brain
+  self-upgrade**: `brain.plan`/`brain.accept` com tiers pinados (0.8B Q8_0 /
+  4B / 9B dGPU, sha256 LFS + bytes exactos), custo/beneficio honesto na card
+  HITL (`brain.upgrade`, tier4 exige ring), sha verificado no fetch (diverge
+  = apaga), gancho pos-boot `NOSD_BRAIN_PROPOSE=1` (anti-spam 24h via CRDT).
+  Host-level verde (clippy/testes/workspace). Residual: **sem OBSERVED**
+  (VM re-prova/Q-03 externo/metal); detalhe em
+  `docs/memory/SESSION_20261029_TRANCHE_BRAIN.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.

@@ -434,3 +434,13 @@ nos-hermes). Host-level: clippy/testes/workspace verde.
 Residual honesto: **sem OBSERVED** (fetch real de 812 MB/2.5 GB so em VM
 com rede/hardware; dGPU tier4 precisa metal); pós-boot auto-propose fica
 observável só no iso-hw.
+
+**nixaios-ring saga + memoria (2026-10-29):** o check `nixaios-ring` (helper
+ARMADO, stub nixos-rebuild) pegou 3 bugs latentes reais na sua primeira
+sessao: (1) gnugrep ausente no `path` do unit — apply armado morria exit 127
+antes da fase 1 (`05418d3`); (2) split do `confirm_id` quebrava no
+pretty-print do serde_json (`e4a03cc`); (3) `armRing=true` so armava o
+helper - o kill switch do DAEMON ficava em NIX_RING_DISABLED (fix no unit
+nosd via `8681e09`). Memoria completa + aprendidos em
+`docs/memory/SESSION_20261029_TRANCHE_BRAIN.md`; licoes 23-27 no AGENTS.md.
+Status:isso sem OBSERVED (atauris VM + Q-03 externo pendentes de push).
