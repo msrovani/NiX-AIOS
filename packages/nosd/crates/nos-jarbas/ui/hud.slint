@@ -51,8 +51,11 @@ export component HudWindow inherits Window {
     /// V1/V4 (plano vampiro): energia por janela e fila HITL.
     in-out property <string> energy_line: "";
     in-out property <int> hitl_pending: 0;
+    /// Histórico curto do chat (últimas trocas).
+    in-out property <string> chat_log: "";
 
     callback submit-chat(string);
+    callback voice-input();
     callback hitl-submit(int, string);
     callback hitl-cancel(int);
     callback open-orb-lab();
@@ -357,28 +360,28 @@ export component HudWindow inherits Window {
     Rectangle { x: root.width - 248px; y: 418px; width: 198px * root.orb_motion_pct / 100; height: 4px; border-radius: 2px; background: root.orb_video_on ? #80b7ff : #405363; }
     Text { x: root.width - 248px; y: 434px; width: 198px; height: 18px; text: root.tick_line; color: #7997aa; font-size: 10px; vertical-alignment: center; overflow: elide; }
 
-    // Resposta e consola de comando — callbacks e comportamento mantidos.
+    // Histórico do chat (3–4 linhas): promove a "resposta" a diálogo.
     Rectangle {
-        x: 280px; y: root.height - 151px; width: root.width - 560px; height: 42px;
+        x: 280px; y: root.height - 236px; width: root.width - 560px; height: 76px;
         border-radius: 6px;
         background: #07131f;
         opacity: 0.94;
         border-width: 1px;
         border-color: #173447;
     }
-    Rectangle { x: 280px; y: root.height - 151px; width: 3px; height: 42px; background: root.accent; }
+    Rectangle { x: 280px; y: root.height - 236px; width: 3px; height: 76px; background: root.accent; }
     Text {
-        x: 296px; y: root.height - 146px; width: root.width - 592px; height: 33px;
-        text: root.last_reply;
+        x: 296px; y: root.height - 231px; width: root.width - 592px; height: 66px;
+        text: root.chat_log;
         color: #d7e8f1;
-        font-size: 14px;
+        font-size: 12px;
         wrap: word-wrap;
-        vertical-alignment: center;
+        vertical-alignment: top;
         overflow: elide;
     }
 
     if root.hitl_window_id > 0: Rectangle {
-        x: 280px; y: root.height - 218px; width: root.width - 560px; height: 48px;
+        x: 280px; y: root.height - 300px; width: root.width - 560px; height: 48px;
         border-radius: 6px;
         background: #211b12;
         border-width: 1px;
@@ -417,6 +420,10 @@ export component HudWindow inherits Window {
                     root.submit-chat(self.text);
                     self.text = "";
                 }
+            }
+            Button {
+                text: "FALAR";
+                clicked => { root.voice-input(); }
             }
             Button {
                 text: "TRANSMITIR";

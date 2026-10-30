@@ -327,16 +327,22 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
 
     let ui_chat = ui.as_weak();
     let ep_chat = endpoint.clone();
+    let mut chat_history: Vec<String> = Vec::new();
     ui.on_submit_chat(move |prompt| {
         let prompt = prompt.to_string();
         if prompt.trim().is_empty() {
             return;
         }
         info!(target: "jarbas", "slint chat len={}", prompt.len());
+        chat_history.push(format!("> {prompt}"));
+        if chat_history.len() > 4 {
+            chat_history.remove(0);
+        }
         if let Some(ui) = ui_chat.upgrade() {
             ui.set_orb_state("thinking".into());
             ui.set_status("THINK".into());
             ui.set_last_reply("a pensar…".into());
+            ui.set_chat_log(chat_history.join("\n").into());
         }
         let _ = ep_chat.rpc_blocking(Request {
             id: 9000,
@@ -388,10 +394,33 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             params: serde_json::json!({ "state": "speaking", "presets": true }),
         });
         if let Some(ui) = ui_chat.upgrade() {
+            chat_history.push(format!("JARBAS: {text}"));
+            if chat_history.len() > 4 {
+                chat_history.remove(0);
+            }
             ui.set_orb_state("speaking".into());
             ui.set_orb_level_pct(55);
             ui.set_status("SPEAK".into());
-            ui.set_last_reply(text.into());
+            ui.set_last_reply(text.clone().into());
+            ui.set_chat_log(chat_history.join("\n").into());
+        }
+        // TTS: voz local (Piper se existir, senão espeak-ng) — não bloqueia a UI.
+        // Erros não são falados (evita ler "err unreachable" em voz alta).
+        let speakable = !(text.starts_with("err") || text.starts_with("unreachable"));
+        if speakable {
+            let ep_tts = ep_chat.clone();
+            let tts_text: String = text.chars().take(400).collect();
+            std::thread::spawn(move || {
+                let _ = ep_tts.rpc_blocking(Request {
+                    id: 9100,
+                    method: "voice.tts".into(),
+                    caps: 1,
+                    cap_gen: 1,
+                    agent: "jarbas".into(),
+                    token: None,
+                    params: serde_json::json!({ "text": tts_text, "play": true }),
+                });
+            });
         }
         let ep_idle = ep_chat.clone();
         let ui_idle = ui_chat.clone();
@@ -412,6 +441,56 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                     ui.set_orb_state("idle".into());
                     ui.set_orb_level_pct(12);
                     ui.set_status("ONLINE".into());
+                }
+            });
+        });
+    });
+
+    // Voz: FALAR -> `voice.stt` (4 s, whisper local) -> submete o transcript.
+    let ui_voice = ui.as_weak();
+    let ep_voice = endpoint.clone();
+    ui.on_voice_input(move || {
+        if let Some(ui) = ui_voice.upgrade() {
+            ui.set_status("OUVINDO".into());
+            ui.set_orb_state("listening".into());
+            ui.set_last_reply("a ouvir (4 s)…".into());
+        }
+        let ep = ep_voice.clone();
+        let ui_w = ui_voice.clone();
+        std::thread::spawn(move || {
+            let text = match ep.rpc_blocking(Request {
+                id: 9200,
+                method: "voice.stt".into(),
+                caps: 1,
+                cap_gen: 1,
+                agent: "jarbas".into(),
+                token: None,
+                params: serde_json::json!({ "record_secs": 4 }),
+            }) {
+                Ok(r) if r.ok => r
+                    .result
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                Ok(r) => {
+                    warn!(target: "jarbas", "voice.stt: {:?}", r.error);
+                    String::new()
+                }
+                Err(e) => {
+                    warn!(target: "jarbas", "voice.stt: {e}");
+                    String::new()
+                }
+            };
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_w.upgrade() {
+                    ui.set_status("ONLINE".into());
+                    ui.set_orb_state("idle".into());
+                    if text.trim().is_empty() {
+                        ui.set_last_reply("(sem transcrição — mic/hardware?)".into());
+                    } else {
+                        ui.invoke_submit_chat(text.into());
+                    }
                 }
             });
         });

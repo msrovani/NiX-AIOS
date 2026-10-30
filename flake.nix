@@ -863,9 +863,16 @@
           self.nixosModules.default
           ./images/iso.nix
           ./images/hw.nix
-          ({ pkgs, ... }: {
+          ({ pkgs, self, ... }: {
             services.nosd.package = pkgs.nosd;
             environment.systemPackages = [ pkgs.nosd ];
+            # Brain embutido (symlink content-addressed no models): o iso-hw
+            # arranca com engine=llama sem rede nem seed manual (ADR-0118
+            # addenda 0118-qwen-embedded-brain). NUNCA na ISO de release.
+            services.nosdBrain = {
+              enable = true;
+              package = self.packages.${pkgs.system}.qwen35-08b-q4km;
+            };
           })
         ];
       };
