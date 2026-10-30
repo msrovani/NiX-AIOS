@@ -291,6 +291,7 @@ EOF
             mode=$(tr -d ' \n\r' < /var/lib/nosd/aios-mode || true)
             if [ "$mode" = "aios" ]; then
               touch /var/lib/nosd/firstboot.done
+              touch /var/lib/nosd/gui-start
               touch /var/lib/nosd/hotswap-aios.request
               systemctl start --no-block nosd-hotswap-aios.service || true
             fi

@@ -49,12 +49,14 @@ let
     # wlroots/seatd só faz page-flip na VT activa. Se o cage arranca com a
     # VT1 em foreground (firstboot), o 1o arranque fica PRETO e só um restart
     # resolve. Tornar a VT do kiosk activa ANTES do ExecStart — **mas só
-    # depois do firstboot**: o `chvt` incondicional saltava do tty1 (onde o
-    # questionário Q1–Q5 espera input) para o tty7, e as perguntas ficavam
-    # invisíveis no metal. Pós-firstboot o hotswap faz `chvt 7`.
+    # quando o GUI foi pedido**: o `chvt` incondicional saltava do tty1 (onde
+    # o questionário Q1–Q5 espera input) para o tty7, e as perguntas ficavam
+    # invisíveis no metal. `gui-start` é tocado pelo hotswap (pós-Q5) e pelo
+    # persist-check (2.º boot).
+    GUI_START=/var/lib/nosd/gui-start
     FIRSTBOOT_DONE=/var/lib/nosd/firstboot.done
     AIOS_MODE=$(tr -d ' \n\r' < /var/lib/nosd/aios-mode 2>/dev/null || true)
-    if [[ -f "$FIRSTBOOT_DONE" || "$AIOS_MODE" = "aios" ]]; then
+    if [[ -f "$GUI_START" || -f "$FIRSTBOOT_DONE" || "$AIOS_MODE" = "aios" ]]; then
       ${pkgs.kbd}/bin/chvt "$(printf %s ${cfg.tty} | tr -dc 0-9)" 2>/dev/null || true
     fi
     sleep 0.3
@@ -361,6 +363,10 @@ in
       description = "JARBAS kiosk (${cfg.uiMode} / iGPU cage)";
       # Regra 5: nada de comandos nus; waitScript usa mkdir/chown/systemctl.
       path = [ pkgs.systemd pkgs.coreutils pkgs.util-linux pkgs.seatd ];
+      # Só arranca quando o GUI é pedido (hotswap pós-Q5 / persist-check).
+      # Sem isto o cage arrancava numa VT inactiva durante o firstboot e
+      # entrava em restart-loop (ecrã preto no tty7).
+      unitConfig.ConditionPathExists = "/var/lib/nosd/gui-start";
       # Anti-loop: [Unit], nao [Service] (systemd ignora em serviceConfig).
       startLimitIntervalSec = 180;
       startLimitBurst = 3;

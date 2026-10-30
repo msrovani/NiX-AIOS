@@ -79,6 +79,7 @@ let
 
     echo "nixaios-log: FAIL nao montou LABEL=$LABEL" >&2
     ${pkgs.util-linux}/bin/blkid || true
+    ${pkgs.util-linux}/bin/lsblk -f || true
     ls -la /dev/disk/by-label/ 2>/dev/null || true
     exit 1
   '';

@@ -57,7 +57,11 @@ if [ -S /run/seatd.sock ] && ! systemctl is-active --quiet seatd.service 2>/dev/
   rm -f /run/seatd.sock
 fi
 systemctl start seatd.service 2>/dev/null || true
-if ! systemctl start jarbas-cage.service; then
+# Marca o pedido do GUI ANTES de arrancar: o ExecStartPre do cage faz `chvt 7`
+# (VT activa antes do wlroots) e o ConditionPathExists deixa passar.
+touch /var/lib/nosd/gui-start
+chmod a+rw /var/lib/nosd/gui-start 2>/dev/null || true
+if ! systemctl restart jarbas-cage.service; then
   echo "hotswap: FAIL systemctl start jarbas-cage" >&2
   journalctl -u jarbas-cage -u seatd -n 40 --no-pager || true
   mv -f /var/lib/nosd/hotswap-aios.request /var/lib/nosd/hotswap-aios.failed 2>/dev/null || true
