@@ -45,10 +45,18 @@ let
     fi
     touch /var/lib/nosd/jarbas-cage.log
     chown nosd:nosd /var/lib/nosd/jarbas-cage.log || true
-    chmod a+rw /var/lib/nosd/jarbas-cage.log 2>/dev/null || true    # wlroots/seatd so faz page-flip na VT activa. Se o cage arranca com a
-    # VT1 em foreground (hotswap/firstboot), o 1o arranque fica PRETO e so um
-    # restart resolve. Tornar a VT do kiosk activa ANTES do ExecStart.
-    ${pkgs.kbd}/bin/chvt "$(printf %s ${cfg.tty} | tr -dc 0-9)" 2>/dev/null || true
+    chmod a+rw /var/lib/nosd/jarbas-cage.log 2>/dev/null || true
+    # wlroots/seatd só faz page-flip na VT activa. Se o cage arranca com a
+    # VT1 em foreground (firstboot), o 1o arranque fica PRETO e só um restart
+    # resolve. Tornar a VT do kiosk activa ANTES do ExecStart — **mas só
+    # depois do firstboot**: o `chvt` incondicional saltava do tty1 (onde o
+    # questionário Q1–Q5 espera input) para o tty7, e as perguntas ficavam
+    # invisíveis no metal. Pós-firstboot o hotswap faz `chvt 7`.
+    FIRSTBOOT_DONE=/var/lib/nosd/firstboot.done
+    AIOS_MODE=$(tr -d ' \n\r' < /var/lib/nosd/aios-mode 2>/dev/null || true)
+    if [[ -f "$FIRSTBOOT_DONE" || "$AIOS_MODE" = "aios" ]]; then
+      ${pkgs.kbd}/bin/chvt "$(printf %s ${cfg.tty} | tr -dc 0-9)" 2>/dev/null || true
+    fi
     sleep 0.3
     # Stale seatd.sock (crash) bloqueia seatd.service / seatd-launch
     if [ -S /run/seatd.sock ] && ! ${pkgs.systemd}/bin/systemctl is-active --quiet seatd.service 2>/dev/null; then
@@ -411,6 +419,10 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [ "jarbas-cage.service" ];
       wants = [ "jarbas-cage.service" ];
+      # Não roubar a VT enquanto o firstboot pergunta no tty1: só salta para a
+      # UI quando o questionário terminou (ou o sistema já está em aios-mode,
+      # caso em que `nosd-boot-persist-check` escreve o marcador).
+      unitConfig.ConditionPathExists = "/var/lib/nosd/firstboot.done";
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "+${switchVt}";
