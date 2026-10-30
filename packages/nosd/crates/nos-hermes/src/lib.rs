@@ -376,7 +376,7 @@ impl HermesEngine {
             decision.reason,
             self.s2.pending()
         );
-        let reply = if decision.lane == SystemLane::S2Deep {
+        let reply = if self.plan_route(prompt, true).backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -459,7 +459,7 @@ impl HermesEngine {
             .map_err(HermesError::Cap)?;
         let decision = route_intent(prompt);
         let slot = self.plan_slot(decision);
-        if decision.lane == SystemLane::S2Deep {
+        if self.plan_route(prompt, false).backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -621,6 +621,29 @@ impl HermesEngine {
     }
 
     /// NX.6 — OPAR persistido + EventBus `COGNITIVE_ACT`.
+    /// V10 — decisão de backend S1/S2, explicável e com o estado real.
+    ///
+    /// Puro (nos-core::routing) + inputs observados: S2 vivo, fila, presença e
+    /// se o S1 não é `cpu-echo`. É a mesma função usada pelo chat e pelo
+    /// `route.explain`.
+    pub fn plan_route(&self, prompt: &str, interactive: bool) -> nos_core::RoutePlan {
+        let d = route_intent(prompt);
+        let lane = if d.lane == SystemLane::S2Deep {
+            nos_core::Lane::S2
+        } else {
+            nos_core::Lane::S1
+        };
+        nos_core::plan_backend(&nos_core::RouteInputs {
+            lane,
+            prompt_chars: prompt.chars().count(),
+            interactive,
+            s2_available: self.hotswap_s2.is_some(),
+            s2_pending: self.s2.pending() as u32,
+            power_save: nos_core::routing::power_save_from_env(),
+            s1_available: self.hotswap.engine_name() != "cpu-echo",
+        })
+    }
+
     pub fn record_opar(
         &self,
         domain: &str,
@@ -1114,31 +1137,19 @@ mod tests {
     }
 
     #[test]
-    fn chat_submit_s2_async() {
+    fn chat_submit_s2_downgrades_without_backend() {
+        // V10: sem `hotswap_s2` (4B/PRO), a lane S2 NÃO enfileira — desce a S1
+        // com razão `s2_absent` (não se bloqueia o chat numa fila sem worker).
         let t = eng();
         let g = CapGate::new(CapBits::FULL, 1);
-        let v = t
-            .eng
-            .chat_submit(
-                &g,
-                "implemente uma arquitetura completa de migrate e prove que funciona",
-            )
-            .unwrap();
-        assert_eq!(v["lane"], "s2");
-        assert_eq!(v["ready"], false);
-        let id = v["id"].as_u64().unwrap();
-        let mut got = None;
-        for _ in 0..50 {
-            if let Some(r) = t.eng.chat_poll(id) {
-                if r.get("pending").is_none() {
-                    got = Some(r);
-                    break;
-                }
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        let r = got.expect("s2 result");
-        assert_eq!(r["ok"], true);
+        let prompt = "implemente uma arquitetura completa de migrate e prove que funciona";
+        let v = t.eng.chat_submit(&g, prompt).unwrap();
+        let plan = t.eng.plan_route(prompt, false);
+        assert_eq!(plan.reason, "s2_absent", "prompt devia classificar S2");
+        assert_ne!(plan.backend, nos_core::Backend::S2);
+        assert_eq!(v["lane"], "s1");
+        assert_eq!(v["ready"], true);
+        assert!(!v["text"].as_str().unwrap_or("").is_empty());
     }
 
     #[test]

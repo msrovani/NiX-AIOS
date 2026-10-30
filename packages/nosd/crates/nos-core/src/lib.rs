@@ -17,6 +17,7 @@ pub mod orb;
 pub mod policy;
 pub mod proc;
 pub mod reported;
+pub mod routing;
 pub mod safety_trust;
 pub mod score;
 pub mod trim;
@@ -44,6 +45,7 @@ pub use policy::{
 };
 pub use proc::{first_existing, nvidia_smi_candidates, nvidia_smi_path, NVIDIA_SMI_NIXOS};
 pub use reported::{reported_rate, ReportedRate, BASIS_NONE, BASIS_OBSERVED};
+pub use routing::{plan_backend, Backend, Lane, RouteInputs, RoutePlan};
 pub use safety_trust::{
     check_invariant, note_violation, trust_allow, violation_count, SafetyInvariant,
     SafetyViolation, TrustToken,

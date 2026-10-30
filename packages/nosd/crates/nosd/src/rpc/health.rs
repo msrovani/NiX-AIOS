@@ -148,6 +148,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             let d = state.hermes.explain_route(prompt);
+            let plan = state.hermes.plan_route(prompt, true);
             let sc = nos_cortex::score_intent(prompt);
             // ADR-0106: ScorerAbsent via helper; Decision ligada a score_intent_s1 (não hardcode).
             let s1_want = nos_core::s1_backend_from_env();
@@ -218,6 +219,15 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                         "loo": if !blob { "blob_deliberate" } else { "ready" },
                     },
                     "decision": decision,
+                    // V10: quem responde agora (S1 0.8B CPU / S2 4B GPU).
+                    "plan": {
+                        "backend": format!("{:?}", plan.backend),
+                        "reason": plan.reason,
+                        "downgraded": plan.downgraded,
+                        "s2_available": state.hermes.hotswap_s2.is_some(),
+                        "s2_pending": state.hermes.s2.pending(),
+                        "power_save": nos_core::routing::power_save_from_env(),
+                    },
                     "hitl_cards": {
                         "adr": "0058",
                         "kinds": [
