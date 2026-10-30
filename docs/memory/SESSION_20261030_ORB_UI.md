@@ -46,6 +46,10 @@
    editar `orb_lab.html`, rebuild/restart antes de diagnosticar UI.
 6. **Screenshot**: o tool exige janela visível; a captura é a prova visual
    (não guardar prints pretos do screendump do virtio-gpu).
+7. **CRLF em `flake.nix`**: `Path.write_text` no Windows grava `\r\n`; dentro
+   de `postFixup = ''…''` isso vira `$'\r': command not found` no fim da
+   fixupPhase. O build passa 10 min e falha no fixup. Converter o ficheiro
+   para LF antes de `nix build` (o Nix usa a árvore dirty, não o blob git).
 
 ## Addendum 0.7.0-alpha.2 — 6 GB tier + contexto máximo
 
@@ -63,6 +67,9 @@
   `--help` do llama.cpp 0.6.0 confirma `-fit`/`-fitc` (default do fit-ctx é
   4096; usamos 2048 para não falhar em 6 GB).
 - `iso-hw` alpha.2 leva **5 GGUFs**; os hashes alpha.1 não são reutilizáveis.
+- Build final: ISO **15 946 315 776 B** sha256 `c5d7cb80…f67f`; `.img` único
+  **20 241 711 104 B** sha256 `4662a340…9225`. O C: não tinha espaço para o
+  ISO standalone depois do `.img` (12,9 GiB livres vs 14,85 GiB).
 
 ## Residual
 

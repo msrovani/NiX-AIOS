@@ -155,6 +155,12 @@ Resumo executavel; detalhe em
     distintas + unicast (`19000↔19001`), `--node-id` 15/16, data-dirs
     separados. Com `pinned=1`/`TOFU SETTLED` a janela 06 aparece; matar a B
     esconde-a no poll seguinte.
+40. **Python `write_text` no Windows grava CRLF**: reescrever `flake.nix` assim
+    mete `\r\n` dentro de strings `''…''` (ex.: `postFixup`) e o stdenv morre
+    no fim do build com `$'\r': command not found` (fixupPhase). O blob git é
+    LF, mas o Nix usa a árvore de trabalho quando está *dirty*; converter o
+    ficheiro para LF (`perl -pi -e 's/\r\n/\n/g' flake.nix`) antes de
+    `nix build`. Não é falha do Rust nem do modelo.
 
 ## Comandos
 
@@ -296,8 +302,8 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   (`llama-server --fit on --fit-ctx`, sem `-c` fixo). Host
   OBSERVED (2 instâncias N15/N16, screenshot `docs/evidence/artifacts/
   orb_ui_mesh_2nodes.jpeg`, verify PASS). `nix build .#iso-hw` PASS: ISO
-  12 456 597 504 B, sha256 `1ef16b…b655`; `.img` único 16 752 050 176 B,
-  sha256 `fe97dfe…6f05` (ISO + FAT32 4G). Metal/QEMU AWAITING_HW. Ver
+  15 946 315 776 B, sha256 `c5d7cb80…f67f`; `.img` único 20 241 711 104 B,
+  sha256 `4662a340…9225` (ISO + FAT32 4G; 5 GGUFs). Metal/QEMU AWAITING_HW. Ver
   `docs/ORB_UI.md` e `docs/evidence/ORB_UI_0.7.0-alpha.2.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem

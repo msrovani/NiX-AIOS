@@ -131,13 +131,12 @@ sem `-c` fixo, escolhe o maior contexto que cabe (mínimo default 2048).
   19000/19001): `peers=1`, `pinned=1`, `TOFU SETTLED`; a janela 06 aparece
   `LIVE` e o drawer mostra `MST/N15` e `WRK/N16 · PIN`. Box 03 mantém 105 px
   no 720p com CPU `—` (Windows sem RAPL), GPU NVML 17.6 W/48 °C, `HOLD`.
-- **`nix build .#iso-hw`** alpha.1 (2026-10-30) PASS: ISO 12 456 597 504 B,
-  sha256 `1ef16b277fb2e291d4350fb286619e7c33b35c466816ba5d4fd979374081b655`,
-  com 0.8B Q4/Q8 + 4B Q4 + 9B Q4. `.img` único (ISO + FAT32 4G)
-  16 752 050 176 B, sha256
-  `fe97dfe42959066e589993f7a5180c725f812f3ec4a2264fc680c97fdb716f05`.
-  O rebuild **alpha.2** (5 GGUFs com Q6) fica registado na evidência; os
-  hashes alpha.1 **não** valem para alpha.2. Metal/firstboot AWAITING_HW.
+- **`nix build .#iso-hw`** alpha.2 (2026-10-30) PASS: ISO 15 946 315 776 B,
+  sha256 `c5d7cb80cad86c0bd3b290fb28d852b3f88b05d7d1bff9fdb09d394e0440f67f`,
+  com 5 GGUFs (0.8B Q4/Q8, 4B Q4/Q6, 9B Q4) confirmados na closure. `.img`
+  único (ISO + FAT32 4G) 20 241 711 104 B, sha256
+  `4662a340d1d60cd503a7890fbc66b66a8187e8f2c8c5682183ecb7b548e79225`.
+  Metal/firstboot AWAITING_HW.
 
 ## Não testado
 

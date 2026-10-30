@@ -20,7 +20,7 @@
 | Mesh 2 instâncias | **PASS** | A `:7700` N15 Master; B `:7702` N16 Worker; `peers=1`, `pinned=1`, `TOFU SETTLED`; janela 06 `LIVE`, drawer lista `MST/N15` + `WRK/N16 · PIN` |
 | Orb mesh mini-orbs + rails | **PASS (foto)** | Peer N16 aparece como mini-orb ciano (WRK) à distância, ligado por trilho bidireccional (duas pistas, travessas, segmentos e seta); local N15 MST no centro. Foto: `artifacts/orb_ui_mesh_2nodes.jpeg` |
 | HW default cinematic | **PARSE OK** | `images/hw.nix` → `uiMode = lib.mkForce "cinematic"`; `nix-instantiate --parse` OK; `nix eval` devolveu `cinematic`. Build `iso-hw`/metal AWAITING_HW |
-| iso-hw all models | **BUILD PENDING (alpha.2)** | symlinks 0.8B Q4/Q8, 4B Q4/**Q6**, 9B Q4 em `/var/lib/nosd/models`; rebuild `nix build .#iso-hw` a correr; hashes abaixo a preencher |
+| iso-hw all models | **BUILD PASS** | `nix build .#iso-hw` alpha.2 → ISO **15 946 315 776 B** (14.85 GiB), sha256 `c5d7cb80cad86c0bd3b290fb28d852b3f88b05d7d1bff9fdb09d394e0440f67f`; `nix-store -qR` do toplevel contém os **5** GGUFs (0.8B Q4/Q8, 4B Q4/Q6, 9B Q4); testes da derivação PASS. Metal/firstboot AWAITING_HW |
 | Tier 4B Q6 (6 GB) | **PASS (unit)** | `six_gb_profile_prefers_q6_over_q4`: 6 GB VRAM + 5 GiB RAM → `Qwen3.5-4B-Q6_K.gguf` (tier 3) antes do Q4; `low_ram_tier3_still_picks_q4`: 4,4 GiB → Q4; `accept(3)` escolhe o candidato alcançável, não o primeiro da lista |
 | Contexto automático | **PASS (código + help)** | `llama-server --help` (llama.cpp 0.6.0) confirma `-fit on` e `-fitc N` (default 4096); `spawn` passa `--fit on --fit-ctx` (mínimo default **2048**, `NOSD_LLAMA_CTX` explícito manda); `iso-hw` deixa de forçar 4096 |
 | HITL Wi‑Fi | **PASS** | `nosctl ui-open hitl_wifi --grant-kind wifi.connect` → modal `MEDIUM`, campos SSID/senha, `CANCELAR` → `pending=0` |
@@ -31,18 +31,23 @@
 
 ## ISO 0.7.0-alpha.2 (hw)
 
-Estado: **BUILD PENDING** — a ISO alpha.1 (`1ef16b…b655`) não inclui o 4B Q6
-nem o `--fit`; os valores abaixo só entram depois do rebuild.
-
+- Store: `/nix/store/9ys7jh7ziw1cf9jnxzi6nmsp5g69w4c5-nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso/iso/nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso`
 - Link de build: `result-iso-hw` (ignored pelo git)
-- Bytes/sha256: **a preencher** após `nix build .#iso-hw` (alpha.2)
+- Bytes: **15 946 315 776**; sha256 **`c5d7cb80cad86c0bd3b290fb28d852b3f88b05d7d1bff9fdb09d394e0440f67f`**
 - Volume ID mantém `NIXAIOS051` (não é derivado da versão); `version=0.7.0-alpha.2`.
 - Modelos no ISO (5): `Qwen3.5-0.8B-Q4_K_M.gguf`, `Qwen3.5-0.8B-Q8_0.gguf`,
   `Qwen3.5-4B-Q4_K_M.gguf`, `Qwen3.5-4B-Q6_K.gguf`, `Qwen3.5-9B-Q4_K_M.gguf`;
-  default 0.8B Q4; 4B/9B por `brain.plan/accept` (9B exige ring).
-- USB único: `C:\Users\msrov\Downloads\nixaios-0.7.0-alpha.2-hw.img` (ISO +
-  FAT32 4G `NIXAIOSLOG`) — bytes/sha256 **a preencher** após `pack-hw-usb.sh`.
-- Gravar em **DD**, nunca modo ISO.
+  default 0.8B Q4; 4B/9B por `brain.plan/accept` (9B exige ring). O 4B Q6 é o
+  tier de 6 GB e o `llama-server` usa `--fit on` (contexto máximo que couber).
+- Toplevel: `/nix/store/06gy4xwspxs73342q68b9mybjadxfdyz-nixos-system-nixaios-26.11.20261020.02c087f`
+  (`nix-store -qR` lista os 5 GGUFs).
+- Nota de build: o primeiro `nix build` falhou na fixupPhase porque o
+  `flake.nix` em CRLF metia `\r` no `postFixup` (`$'\r': command not found`);
+  convertido para LF e rebuild PASS (lição 40).
+- USB único: `C:\Users\msrov\Downloads\nixaios-0.7.0-alpha.2-hw.img` — **20 241 711 104 B** (18.85 GiB), sha256 **`4662a340d1d60cd503a7890fbc66b66a8187e8f2c8c5682183ecb7b548e79225`**.
+- Partições do `.img`: ISO híbrida (`p1` 14.9G + EFI `p2` 3M) + FAT32 `p3` 4G (start 31145984 sectors); gravar em **DD**, nunca modo ISO; pendrive ≥ 32 GB.
+- `pack-hw-usb.sh` PASS (mkfs.vfat do store Nix); o aviso de assinatura ISO9660 é do `mkfs.fat` no ficheiro FAT intermédio, não do ISO.
+- Cópia Windows do ISO standalone **não** foi feita: o C: ficou com 12,94 GiB livres e o ISO ocupa 14,85 GiB. O ISO está na store (acima); o `.img` contém o ISO completo.
 
 ## Não provado
 
