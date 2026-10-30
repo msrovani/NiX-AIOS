@@ -60,6 +60,13 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     "fleet_machines": machines.len(),
                     "hub_loaded": state.hermes.hub.loaded_count(),
                     "memory_records": state.hermes.memory.record_count().unwrap_or(0),
+                    // Prova de GPU: o binário e o que o spawn vai pedir.
+                    "gpu": {
+                        "nvidia_smi": nos_core::nvidia_smi_path()
+                            .map(|p| p.display().to_string()),
+                        "ngl": std::env::var("NOSD_LLAMA_NGL").unwrap_or_default(),
+                        "cuda_visible": std::env::var("CUDA_VISIBLE_DEVICES").unwrap_or_default(),
+                    },
                     "engine": state.hermes.hotswap.engine_name(),
                     "llama_server": nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name()),
                     "s1_backend": s1_backend_label(),
