@@ -82,9 +82,13 @@ layout correcto (p3 FAT32 4G); gravar o **`.img` em DD** e confirmar
 `gui-start` + `chvt` antes do wlroots):
 
 ```
-sha256 5e20f096e7b02f32ec2e58e78364a32ce74bd061e7210ff53933f288ca565fc0
-layout: p1 ISO 0..5630591 · p2 ESP 3M · p3 FAT32 4G @ 5632000 (label NIXAIOSLOG)
+sha256 4a86f76cbaccb686551f343454d4a969832b5d2f8f61ab6790586c0f4f5f25f8
+layout: p1 ISO 0..6638911 (3.2G) · p2 ESP 3M · p3 FAT32 4G @ 6639616 (NIXAIOSLOG)
 ```
+
+Esta imagem inclui ainda: **Qwen3.5-0.8B Q4_K_M embutido** (symlink ao store
+em `/var/lib/nosd/models`, engine `llama` no 1.º boot), `chat_log` (4 linhas),
+TTS automático da resposta (`voice.tts` play) e botão **FALAR** (`voice.stt`).
 
 Gravar em **DD** (não modo ISO). Na FAT: `firstboot.conf` (`DONE=1`, `LANG`,
 `KEYMAP`, `TZ`), `wifi.conf` (`SSID`/`PSK`) e `models/*.gguf`.
