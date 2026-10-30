@@ -104,7 +104,8 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 | `ui-list` / `ui-open` / `ui-close` / `ui-action` | `ui.*` |
 | `pending` | `ui.pending` (fila HITL: tier + TTL; **nunca** o nonce) |
 | `orb-get` / `orb-set` | `orb.*` |
-| `voice-status` / `voice-turn` | `voice.*` |
+| `voice-status` / `voice-turn` | `voice.*` | `voice.stt` aceita `{vad:true}` (escuta até silêncio) |
+| `health` | `health` | inclui `memory_records` (fragmentos nsgdb) |
 
 ### Skills / MCP
 

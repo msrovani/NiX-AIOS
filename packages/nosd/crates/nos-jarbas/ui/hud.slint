@@ -53,9 +53,15 @@ export component HudWindow inherits Window {
     in-out property <int> hitl_pending: 0;
     /// Histórico curto do chat (últimas trocas).
     in-out property <string> chat_log: "";
+    /// Memória visível (fragmentos nsgdb).
+    in-out property <string> mem_line: "";
+    /// Loop de voz contínuo (escuta → chat → TTS → escuta).
+    in-out property <bool> always_on: false;
 
     callback submit-chat(string);
     callback voice-input();
+    callback toggle-always();
+    callback volume-step(int);
     callback hitl-submit(int, string);
     callback hitl-cancel(int);
     callback open-orb-lab();
@@ -271,6 +277,16 @@ export component HudWindow inherits Window {
         horizontal-alignment: left;
         overflow: elide;
     }
+    // Memória visível (nsgdb): fragmentos que o JARBAS "sabe".
+    Text {
+        x: root.width - 245px; y: 72px; width: 215px; height: 13px;
+        text: root.mem_line;
+        color: #6f8fa3;
+        font-size: 9px;
+        vertical-alignment: center;
+        horizontal-alignment: left;
+        overflow: elide;
+    }
     Rectangle {
         x: root.width - 264px; y: 23px; width: 10px; height: 10px;
         border-radius: 5px;
@@ -425,6 +441,12 @@ export component HudWindow inherits Window {
                 text: "FALAR";
                 clicked => { root.voice-input(); }
             }
+            Button {
+                text: root.always_on ? "AUTO*" : "AUTO";
+                clicked => { root.toggle-always(); }
+            }
+            Button { text: "VOL-"; clicked => { root.volume-step(-10); } }
+            Button { text: "VOL+"; clicked => { root.volume-step(10); } }
             Button {
                 text: "TRANSMITIR";
                 clicked => {

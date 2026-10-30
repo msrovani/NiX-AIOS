@@ -37,7 +37,16 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .get("record_secs")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(4) as u32;
-                vp.record_and_transcribe(secs)
+                let vad = req
+                    .params
+                    .get("vad")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                if vad {
+                    vp.record_and_transcribe_vad(secs.max(10))
+                } else {
+                    vp.record_and_transcribe(secs)
+                }
             };
             match res {
                 Ok(text) => Response {
@@ -121,7 +130,16 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .get("record_secs")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(4) as u32;
-                vp.record_and_transcribe(secs)
+                let vad = req
+                    .params
+                    .get("vad")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                if vad {
+                    vp.record_and_transcribe_vad(secs.max(10))
+                } else {
+                    vp.record_and_transcribe(secs)
+                }
             };
 
             let transcript = match transcript {

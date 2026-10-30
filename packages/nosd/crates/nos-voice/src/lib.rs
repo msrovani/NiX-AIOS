@@ -184,6 +184,50 @@ pub fn find_whisper_cli() -> Option<PathBuf> {
     which(&["whisper-cli", "whisper-cpp", "whisper"])
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VadStep {
+    Wait,
+    Start,
+    Continue,
+    Stop,
+}
+
+/// RMS de um bloco PCM s16LE mono.
+pub fn rms_s16le(bytes: &[u8]) -> f32 {
+    let n = bytes.len() / 2;
+    if n == 0 {
+        return 0.0;
+    }
+    let mut acc = 0.0f64;
+    for i in 0..n {
+        let s = i16::from_le_bytes([bytes[2 * i], bytes[2 * i + 1]]) as f64;
+        acc += s * s;
+    }
+    (acc / n as f64).sqrt() as f32
+}
+
+/// Máquina de estados do VAD (pura): 3 blocos acima para arrancar,
+/// 6 abaixo (~600 ms) para parar.
+pub fn vad_step(
+    started: bool,
+    rms: f32,
+    threshold: f32,
+    above_run: u32,
+    below_run: u32,
+) -> VadStep {
+    if !started {
+        if rms >= threshold && above_run >= 3 {
+            VadStep::Start
+        } else {
+            VadStep::Wait
+        }
+    } else if rms < threshold && below_run >= 6 {
+        VadStep::Stop
+    } else {
+        VadStep::Continue
+    }
+}
+
 /// Configuração do backend `audio.cpp` (Audio8 TTS): binário **absoluto** +
 /// GGUF. Variáveis: `NOSD_TTS_BIN`, `NOSD_TTS_MODEL`, `NOSD_TTS_BACKEND`.
 ///
@@ -366,6 +410,75 @@ impl VoicePipeline {
             text
         );
         Ok(text)
+    }
+
+    /// VAD + transcrição: escuta até haver fala e depois ~600 ms de silêncio
+    /// (ou `max_secs`). Base do "loop contínuo" — devolve o transcript.
+    pub fn record_and_transcribe_vad(&self, max_secs: u32) -> Result<String, VoiceError> {
+        let max_secs = max_secs.clamp(2, 15);
+        let arec = which(&["arecord"]).ok_or(VoiceError::EngineAbsent("arecord"))?;
+        let mut child = Command::new(arec)
+            .args(["-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
+        let mut out = child
+            .stdout
+            .take()
+            .ok_or(VoiceError::Exec("arecord: sem stdout".into()))?;
+        use std::io::Read as _;
+
+        let mut pcm: Vec<i16> = Vec::new();
+        let mut buf = [0u8; 3200]; // 100 ms a 16 kHz mono s16
+        let mut above = 0u32;
+        let mut below = 0u32;
+        let mut started = false;
+        let mut noise: Vec<f32> = Vec::new();
+        let mut threshold = 600.0f32;
+        let max_frames = max_secs * 10;
+
+        for _ in 0..max_frames {
+            let n = out.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            let chunk = &buf[..n];
+            let rms = rms_s16le(chunk);
+            // Calibração nos primeiros 500 ms (ruído de fundo).
+            if !started && noise.len() < 5 {
+                noise.push(rms);
+                if noise.len() == 5 {
+                    let avg = noise.iter().sum::<f32>() / 5.0;
+                    threshold = (avg * 3.0).max(500.0);
+                }
+            }
+            if rms >= threshold {
+                above = above.saturating_add(1);
+                below = 0;
+            } else {
+                below = below.saturating_add(1);
+                above = 0;
+            }
+            match vad_step(started, rms, threshold, above, below) {
+                VadStep::Start => started = true,
+                VadStep::Stop => break,
+                _ => {}
+            }
+            if started {
+                for i in 0..n / 2 {
+                    pcm.push(i16::from_le_bytes([chunk[2 * i], chunk[2 * i + 1]]));
+                }
+            }
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+
+        if !started || pcm.len() < 1600 {
+            return Err(VoiceError::Exec("vad: sem fala detectada".into()));
+        }
+        let tmp = std::env::temp_dir().join("nosd-mic-vad.wav");
+        write_wav_16k_mono(&tmp, &pcm)?;
+        self.transcribe_wav_path(&tmp)
     }
 
     /// Captura N segundos do microfone default (PipeWire/ALSA) e transcreve localmente.
@@ -559,6 +672,38 @@ fn write_wav_16k_mono(path: &Path, pcm: &[i16]) -> std::io::Result<()> {
         f.write_all(&s.to_le_bytes())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod vad_tests {
+    use super::{rms_s16le, vad_step, VadStep};
+
+    #[test]
+    fn rms_silence_and_signal() {
+        assert_eq!(rms_s16le(&[]), 0.0);
+        assert_eq!(rms_s16le(&[0, 0, 0, 0]), 0.0);
+        // 0x4000 = 16384 → RMS 16384
+        assert!(rms_s16le(&[0x00, 0x40, 0x00, 0x40]) > 16000.0);
+    }
+
+    #[test]
+    fn vad_starts_after_three_loud_blocks() {
+        assert_eq!(vad_step(false, 900.0, 500.0, 2, 0), VadStep::Wait);
+        assert_eq!(vad_step(false, 900.0, 500.0, 3, 0), VadStep::Start);
+        // ruído fraco nunca arranca, independentemente do contador
+        assert_eq!(vad_step(false, 100.0, 500.0, 9, 0), VadStep::Wait);
+    }
+
+    #[test]
+    fn vad_stops_after_six_quiet_blocks() {
+        assert_eq!(vad_step(true, 100.0, 500.0, 0, 5), VadStep::Continue);
+        assert_eq!(vad_step(true, 100.0, 500.0, 0, 6), VadStep::Stop);
+    }
+
+    #[test]
+    fn vad_keeps_running_while_loud() {
+        assert_eq!(vad_step(true, 900.0, 500.0, 9, 0), VadStep::Continue);
+    }
 }
 
 #[cfg(test)]

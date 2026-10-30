@@ -200,6 +200,10 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                             if let Some(n) = r.result.get("mesh_peers").and_then(|v| v.as_u64()) {
                                 ui.set_mesh_peers(n as i32);
                             }
+                            if let Some(n) = r.result.get("memory_records").and_then(|v| v.as_u64())
+                            {
+                                ui.set_mem_line(format!("mem · {n} fragmentos").into());
+                            }
                             ui.set_health_line(format!("ok · {eng}").into());
                             if status_extra.is_empty() {
                                 ui.set_status("ONLINE".into());
@@ -325,6 +329,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
         }
     });
 
+    let always_on = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let ui_chat = ui.as_weak();
     let ep_chat = endpoint.clone();
     let mut chat_history: Vec<String> = Vec::new();
@@ -333,6 +338,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
         if prompt.trim().is_empty() {
             return;
         }
+        let always = always_on.clone();
         info!(target: "jarbas", "slint chat len={}", prompt.len());
         chat_history.push(format!("> {prompt}"));
         if chat_history.len() > 4 {
@@ -436,17 +442,59 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                 params: serde_json::json!({ "state": "idle", "presets": true }),
             });
             let ui_w = ui_idle;
+            let always_idle = always.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_w.upgrade() {
                     ui.set_orb_state("idle".into());
                     ui.set_orb_level_pct(12);
                     ui.set_status("ONLINE".into());
+                    // Loop contínuo: re-arma a escuta só depois do TTS/idle.
+                    if always_idle.load(std::sync::atomic::Ordering::Relaxed) {
+                        ui.invoke_voice_input();
+                    }
                 }
             });
         });
     });
 
-    // Voz: FALAR -> `voice.stt` (4 s, whisper local) -> submete o transcript.
+    // Voz contínua (AUTO) + volume local.
+    let always_on = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let ui_toggle = ui.as_weak();
+    let always_toggle = always_on.clone();
+    ui.on_toggle_always(move || {
+        let now = !always_toggle.load(std::sync::atomic::Ordering::Relaxed);
+        always_toggle.store(now, std::sync::atomic::Ordering::Relaxed);
+        if let Some(ui) = ui_toggle.upgrade() {
+            ui.set_always_on(now);
+            ui.set_status(if now { "AUTO" } else { "ONLINE" }.into());
+        }
+    });
+
+    let volume = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(50));
+    let ui_vol = ui.as_weak();
+    let ep_vol = endpoint.clone();
+    let vol = volume.clone();
+    ui.on_volume_step(move |step| {
+        let v = (vol.load(std::sync::atomic::Ordering::Relaxed) + step).clamp(0, 100);
+        vol.store(v, std::sync::atomic::Ordering::Relaxed);
+        if let Some(ui) = ui_vol.upgrade() {
+            ui.set_status(format!("VOL {v}").into());
+        }
+        let ep = ep_vol.clone();
+        std::thread::spawn(move || {
+            let _ = ep.rpc_blocking(Request {
+                id: 9300,
+                method: "audio.volume".into(),
+                caps: 1 << 7, // OBSERVE
+                cap_gen: 1,
+                agent: "jarbas".into(),
+                token: None,
+                params: serde_json::json!({ "pct": v }),
+            });
+        });
+    });
+
+    // Voz: FALAR -> `voice.stt` (VAD) -> submete o transcript.
     let ui_voice = ui.as_weak();
     let ep_voice = endpoint.clone();
     ui.on_voice_input(move || {
@@ -465,7 +513,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                 cap_gen: 1,
                 agent: "jarbas".into(),
                 token: None,
-                params: serde_json::json!({ "record_secs": 4 }),
+                params: serde_json::json!({ "record_secs": 12, "vad": true }),
             }) {
                 Ok(r) if r.ok => r
                     .result

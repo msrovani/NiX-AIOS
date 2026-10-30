@@ -59,6 +59,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     "fleet_verdict": fleet_verdict.map(|v| v.as_str()),
                     "fleet_machines": machines.len(),
                     "hub_loaded": state.hermes.hub.loaded_count(),
+                    "memory_records": state.hermes.memory.record_count().unwrap_or(0),
                     "engine": state.hermes.hotswap.engine_name(),
                     "llama_server": nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name()),
                     "s1_backend": s1_backend_label(),
