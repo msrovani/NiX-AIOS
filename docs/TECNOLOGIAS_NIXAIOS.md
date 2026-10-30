@@ -1,6 +1,6 @@
 # TECNOLOGIAS — NixAIOS (espelho PORT/ADAPT)
 
-**Release 0.7.0-alpha.1** (in-tree; última ISO publicada: alpha.11) — volid `NIXAIOS051`; persistência Linux-first (`/var/lib/nosd`); FAT só `NIXAIOS_USE_FAT_PERSIST=1`. Ver [`RELEASE_0.6.0-alpha.11.md`](RELEASE_0.6.0-alpha.11.md).
+**Release 0.7.0-alpha.2** (in-tree; última ISO publicada: alpha.11) — volid `NIXAIOS051`; persistência Linux-first (`/var/lib/nosd`); FAT só `NIXAIOS_USE_FAT_PERSIST=1`. Ver [`RELEASE_0.6.0-alpha.11.md`](RELEASE_0.6.0-alpha.11.md).
 
 Catálogo vivo do produto paralelo. Bare-metal continua em [`TECNOLOGIAS.md`](https://github.com/msrovani/neural-os-core/blob/main/TECNOLOGIAS.md) §1–15.
 

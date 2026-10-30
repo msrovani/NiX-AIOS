@@ -3,6 +3,25 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.7.0-alpha.2] — tier 4B Q6_K + contexto automático
+
+### Added
+
+- **Tier 4B Q6_K** (`Qwen3.5-4B-Q6_K.gguf`, 3 525 956 768 B, sha256
+  `fdedd781…8f66`): o `brain.plan` escolhe-o antes do 4B Q4 quando há RAM
+  (≥4,8 GiB); pensado para dGPU de **6 GB** (pesos ~3,3 GiB + KV/overhead).
+  O 9B Q4 continua tier 4 para GPUs ≥6,6 GB livres.
+- **Contexto automático**: `llama-server` arranca com `--fit on` (e
+  `--fit-ctx`, mínimo default 2048) em vez de `-c` fixo; o engine escolhe o
+  maior contexto/NGL que cabe na VRAM. `NOSD_LLAMA_CTX` explícito continua a
+  mandar; `iso-hw` deixa de forçar 4096.
+- `iso-hw` passa a incluir os **cinco** GGUFs pinados (0.8B Q4/Q8, 4B Q4/Q6,
+  9B Q4).
+
+### Changed
+
+- Versão `0.7.0-alpha.2`; evidência e memória actualizadas.
+
 ## [0.7.0-alpha.1] — ORB UI + HW cinematic
 
 ### Added

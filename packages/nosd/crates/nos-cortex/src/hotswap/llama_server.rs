@@ -143,7 +143,19 @@ impl LlamaServerBackend {
             // Segurança: loopback + API key + sem Web UI.
             .arg("--api-key")
             .arg(&api_key)
-            .arg("--no-webui");
+            .arg("--no-webui")
+            // 0.7-alpha2: sem `-c` fixo, o fit escolhe o maior contexto que
+            // cabe na VRAM (e ajusta NGL quando não é forçado).
+            // `NOSD_LLAMA_FIT_CTX` é só o mínimo (default 2048); um
+            // `NOSD_LLAMA_CTX` explícito continua a mandar.
+            .arg("--fit")
+            .arg("on");
+        let fit_ctx = std::env::var("NOSD_LLAMA_FIT_CTX")
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok())
+            .filter(|n| *n >= 512)
+            .unwrap_or(2048);
+        cmd.arg("--fit-ctx").arg(fit_ctx.to_string());
         if ngl > 0 {
             cmd.arg("-ngl").arg(ngl.to_string());
         }

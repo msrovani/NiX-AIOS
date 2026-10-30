@@ -12,7 +12,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.7.0-alpha.1** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.7.0-alpha.2** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -286,17 +286,19 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `Tested:`/`Not-tested:` (lição 36). **Execução** do DAG (job.submit/factory)
   fica para V10. Host OBSERVED (`dag-plan` diamante/conflito, 374 testes,
   smokes V0–V8 verdes). Ver `docs/evidence/V9_DAG_KIOSK_0.6.0-alpha.16.md`.
-- **Tranche 0.7.0-alpha.1 (in-tree, ORB UI + HW cinematic)**: HUD web
+- **Tranche 0.7.0-alpha.2 (in-tree, ORB UI + HW cinematic)**: HUD web
   voz-primeiro (mic antes da câmara), CC só STT/TTS em modo voz (texto quando a
   voz está off), HITL modal com tier/campos/hold, mesh `health.mesh_nodes` com
   mini-orbs por papel + trilhos de dados bidireccionais, `observe.energy.split`
   (CPU RAPL/GPU NVML) + termal hwmon advisory, e `iso-hw` com
-  `uiMode=cinematic` (Chromium `--kiosk`) e todos os GGUFs pinados. Host
+  `uiMode=cinematic` (Chromium `--kiosk`) e todos os GGUFs pinados. alpha.2:
+  tier **4B Q6_K** para 6 GB (escolhido antes do Q4) e contexto automático
+  (`llama-server --fit on --fit-ctx`, sem `-c` fixo). Host
   OBSERVED (2 instâncias N15/N16, screenshot `docs/evidence/artifacts/
   orb_ui_mesh_2nodes.jpeg`, verify PASS). `nix build .#iso-hw` PASS: ISO
   12 456 597 504 B, sha256 `1ef16b…b655`; `.img` único 16 752 050 176 B,
   sha256 `fe97dfe…6f05` (ISO + FAT32 4G). Metal/QEMU AWAITING_HW. Ver
-  `docs/ORB_UI.md` e `docs/evidence/ORB_UI_0.7.0-alpha.1.md`.
+  `docs/ORB_UI.md` e `docs/evidence/ORB_UI_0.7.0-alpha.2.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.
@@ -357,9 +359,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   (Chromium `--kiosk` fullscreen, fallback Slint); ISO de release/QEMU
   continuam `slint`.
 
-## Evidência 0.7.0-alpha.1
+## Evidência 0.7.0-alpha.2
 
-`docs/evidence/ORB_UI_0.7.0-alpha.1.md`, `docs/evidence/artifacts/orb_ui_mesh_2nodes.jpeg`.
+`docs/evidence/ORB_UI_0.7.0-alpha.2.md`, `docs/evidence/artifacts/orb_ui_mesh_2nodes.jpeg`.
 
 ## Evidência 0.6.0-alpha.16
 

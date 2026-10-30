@@ -1,6 +1,6 @@
 # ORB UI — JARBAS cinematic HUD
 
-Estado: **in-tree (0.7.0-alpha.1)**. Alvo: HUD do kiosk cinematic
+Estado: **in-tree (0.7.0-alpha.2)**. Alvo: HUD do kiosk cinematic
 (`NOSD_ORB_LAB=127.0.0.1:7701` → Chromium/cage). O HUD Slint nativo continua
 a ser o fallback `uiMode=slint`; esta tranche não o reescreve.
 
@@ -111,9 +111,11 @@ No kiosk: `jarbasCage.uiMode = "cinematic"` (ou `auto` com GPU validada) liga
 fullscreen, sob cage) — o orb é a primeira interface gráfica depois do
 firstboot/hotswap. A ISO de release e o QEMU continuam `uiMode = "slint"`; se o
 Chromium sair/GPU falhar, o script faz fallback para Slint. A `iso-hw`
-0.7.0-alpha.1 leva **todos os GGUFs pinados** (0.8B Q4/Q8, 4B Q4, 9B Q4) em
-`/var/lib/nosd/models`; o default é 0.8B Q4 e os maiores só activam por
-`brain.plan/accept` (HITL; o 9B exige ring).
+0.7.0-alpha.2 leva **todos os GGUFs pinados** (0.8B Q4/Q8, 4B Q4/**Q6**, 9B Q4)
+em `/var/lib/nosd/models`; o default é 0.8B Q4 e os maiores só activam por
+`brain.plan/accept` (HITL; o 9B exige ring). O **4B Q6_K** é o tier para 6 GB
+(escolhido antes do Q4) e o `llama-server` arranca com `--fit on`/`--fit-ctx`:
+sem `-c` fixo, escolhe o maior contexto que cabe (mínimo default 2048).
 
 ## Testado (host, 2026-10-30)
 
@@ -129,11 +131,13 @@ Chromium sair/GPU falhar, o script faz fallback para Slint. A `iso-hw`
   19000/19001): `peers=1`, `pinned=1`, `TOFU SETTLED`; a janela 06 aparece
   `LIVE` e o drawer mostra `MST/N15` e `WRK/N16 · PIN`. Box 03 mantém 105 px
   no 720p com CPU `—` (Windows sem RAPL), GPU NVML 17.6 W/48 °C, `HOLD`.
-- **`nix build .#iso-hw`** (2026-10-30) PASS: ISO 12 456 597 504 B, sha256
-  `1ef16b277fb2e291d4350fb286619e7c33b35c466816ba5d4fd979374081b655`, com
-  0.8B Q4/Q8 + 4B Q4 + 9B Q4. `.img` único (ISO + FAT32 4G) 16 752 050 176 B,
-  sha256 `fe97dfe42959066e589993f7a5180c725f812f3ec4a2264fc680c97fdb716f05`.
-  Metal/firstboot AWAITING_HW.
+- **`nix build .#iso-hw`** alpha.1 (2026-10-30) PASS: ISO 12 456 597 504 B,
+  sha256 `1ef16b277fb2e291d4350fb286619e7c33b35c466816ba5d4fd979374081b655`,
+  com 0.8B Q4/Q8 + 4B Q4 + 9B Q4. `.img` único (ISO + FAT32 4G)
+  16 752 050 176 B, sha256
+  `fe97dfe42959066e589993f7a5180c725f812f3ec4a2264fc680c97fdb716f05`.
+  O rebuild **alpha.2** (5 GGUFs com Q6) fica registado na evidência; os
+  hashes alpha.1 **não** valem para alpha.2. Metal/firstboot AWAITING_HW.
 
 ## Não testado
 

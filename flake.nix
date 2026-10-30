@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.7.0-alpha.1";
+            version = "0.7.0-alpha.2";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".
@@ -123,6 +123,12 @@
           qwen35-4b-q4km = pkgs.fetchurl {
             url = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf";
             hash = "sha256-AP55hv9fa0Y+YkVYIRRgSdtvkxNgOTinCADR+2nvEaQ=";
+          };
+          # 0.7-alpha2: 4B Q6_K (3 525 956 768 B) para o perfil 6 GB —
+          # mais precisão que Q4; contexto máximo via llama-server --fit.
+          qwen35-4b-q6k = pkgs.fetchurl {
+            url = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q6_K.gguf";
+            hash = "sha256-/e3XgcnOZ2q2awGMokf/eOijPJgJioIsHi1Qdedxj2Y=";
           };
           # Tier 4 pinado em brain_upgrade (9B Q4_K_M, 5 680 522 464 B):
           # incluído na iso-hw 0.7-alpha1; activação exige ring ARMADO.

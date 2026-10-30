@@ -21,6 +21,7 @@
     "L+ /var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf - - - - ${self.packages.${pkgs.system}.qwen35-08b-q4km}"
     "L+ /var/lib/nosd/models/Qwen3.5-0.8B-Q8_0.gguf - - - - ${self.packages.${pkgs.system}.qwen35-08b-q8}"
     "L+ /var/lib/nosd/models/Qwen3.5-4B-Q4_K_M.gguf - - - - ${self.packages.${pkgs.system}.qwen35-4b-q4km}"
+    "L+ /var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf - - - - ${self.packages.${pkgs.system}.qwen35-4b-q6k}"
     "L+ /var/lib/nosd/models/Qwen3.5-9B-Q4_K_M.gguf - - - - ${self.packages.${pkgs.system}.qwen35-9b-q4km}"
   ];
 
@@ -57,7 +58,8 @@
     "NOSD_BOOT_MODEL_FILE=Qwen3.5-0.8B-Q4_K_M.gguf"
     "NOSD_BOOT_MODEL_LOCAL=active-qwen3.5-0.8b-q4_k_m.gguf"
     "NOSD_BOOT_MODEL_ONLY=1"
-    # 262k de contexto aloca KV enorme e atrasa/estoura o health de 30s.
-    "NOSD_LLAMA_CTX=4096"
+    # Contexto automático: sem `NOSD_LLAMA_CTX` fixo, o llama-server --fit
+    # escolhe o maior ctx/NGL que cabe (mínimo NOSD_LLAMA_FIT_CTX).
+    "NOSD_LLAMA_FIT_CTX=2048"
   ];
 }

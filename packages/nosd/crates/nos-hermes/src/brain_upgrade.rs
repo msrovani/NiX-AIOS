@@ -60,6 +60,22 @@ pub static TIER_4B: TierCandidate = TierCandidate {
     min_vram_mb: 0,
 };
 
+/// Tier 3b/6 GB: mesma família 4B, Q6_K (3,29 GiB) — mais precisão que Q4
+/// sem chegar aos 5,68 GB do 9B. Contexto máximo fica com o `--fit` do
+/// llama-server (sem `-c` fixo).
+pub static TIER_4B_Q6: TierCandidate = TierCandidate {
+    tier: 3,
+    name: "Qwen3.5-4B Q6_K",
+    repo: "unsloth/Qwen3.5-4B-GGUF",
+    file: "Qwen3.5-4B-Q6_K.gguf",
+    size_bytes: 3_525_956_768,
+    sha256: "fdedd781c9ce676ab66b018ca247ff78e8a33c98098a822c1e2d5075e7718f66",
+    params_label: "4B",
+    scale_vs_08b: "5x parâmetros vs 0.8B; Q6_K mais preciso que Q4_K_M",
+    min_ram_mb: 4_800,
+    min_vram_mb: 0,
+};
+
 /// Tier 4: modelo 11x maior; alvo REAL é dGPU supervisionada (nosdEngine).
 /// Em CPU honesto exige RAM confortável (o head de 7,7 GB est. já OOM ≤8 GiB).
 pub static TIER_9B: TierCandidate = TierCandidate {
@@ -75,7 +91,7 @@ pub static TIER_9B: TierCandidate = TierCandidate {
     min_vram_mb: 6_600,
 };
 
-pub static ALL_TIERS: [&TierCandidate; 3] = [&TIER_Q8, &TIER_4B, &TIER_9B];
+pub static ALL_TIERS: [&TierCandidate; 4] = [&TIER_Q8, &TIER_4B_Q6, &TIER_4B, &TIER_9B];
 
 fn hf_url(c: &TierCandidate) -> String {
     format!("https://huggingface.co/{}/resolve/main/{}", c.repo, c.file)
@@ -97,6 +113,10 @@ pub fn pick_reachable_tier(cap: &NodeCapacity, ring_armed: bool) -> Option<&'sta
             || cap.ram_avail_mb >= TIER_9B.min_ram_mb + 2_000);
     if tier4_ok {
         return Some(&TIER_9B);
+    }
+    // 6 GB / mesma família: Q6_K antes do Q4 quando há RAM para o runtime.
+    if cap.ram_avail_mb >= TIER_4B_Q6.min_ram_mb {
+        return Some(&TIER_4B_Q6);
     }
     if cap.ram_avail_mb >= TIER_4B.min_ram_mb {
         return Some(&TIER_4B);
@@ -376,10 +396,20 @@ pub fn accept(
     ring_armed: bool,
     models_dir: &std::path::Path,
 ) -> Result<AcceptOutcome, AcceptError> {
-    let t = ALL_TIERS
-        .iter()
-        .find(|t| t.tier == tier_wanted)
-        .ok_or_else(|| AcceptError::NotApplicable(format!("tier {tier_wanted} desconhecido")))?;
+    let reachable = pick_reachable_tier(cap, ring_armed);
+    // Dois candidatos partilham o tier 3 (4B Q6 e 4B Q4): aceitar o tier
+    // significa aceitar o candidato que o MESMO pick considera alcançável,
+    // não o primeiro da lista.
+    let t = match reachable {
+        Some(c) if c.tier == tier_wanted => c,
+        _ => ALL_TIERS
+            .iter()
+            .copied()
+            .find(|t| t.tier == tier_wanted)
+            .ok_or_else(|| {
+                AcceptError::NotApplicable(format!("tier {tier_wanted} desconhecido"))
+            })?,
+    };
     // Gate duplo do tier 4: SEM ring, o accepted NÃO dispara o brain em
     // dGPU — recusar o fetch de 5,29 GiB é a decisão honesta.
     if t.tier == 4 && !ring_armed {
@@ -389,12 +419,10 @@ pub fn accept(
     }
     // O mesmo pick da proposta corre DE NOVO na execução (anti-waste):
     // root com grant brain.upgrade não força um tier sem headroom honesto.
-    let reachable = pick_reachable_tier(cap, ring_armed)
-        .map(|c| c.tier)
-        .unwrap_or(0);
-    if tier_wanted > reachable {
+    let reachable_tier = reachable.map(|c| c.tier).unwrap_or(0);
+    if tier_wanted > reachable_tier {
         return Err(AcceptError::NotApplicable(format!(
-            "tier {tier_wanted} excede o headroom honesto actual (candidato = tier {reachable})"
+            "tier {tier_wanted} excede o headroom honesto actual (candidato = tier {reachable_tier})"
         )));
     }
     let url = hf_url(t);
@@ -502,10 +530,31 @@ mod tests {
             "llama-server-http",
             false,
         );
-        let t = p.proposal.expect("8 GiB RAM: proposta 4B");
+        let t = p.proposal.expect("8 GiB RAM: proposta 4B Q6");
         assert_eq!(t.tier, 3);
-        assert_eq!(t.candidate.size_bytes, 2_740_937_888);
+        assert_eq!(t.candidate.size_bytes, 3_525_956_768);
+        assert_eq!(t.candidate.name, "Qwen3.5-4B Q6_K");
         assert!(t.cost.ram_est_mb > 0);
+    }
+
+    #[test]
+    fn six_gb_profile_prefers_q6_over_q4() {
+        // 6 GB VRAM, 5 GiB RAM, sem ring: Q6_K (mesma família) antes do Q4.
+        let p = plan(&cap(5_200, 6_000), "boot default", None, "eng", false);
+        let t = p.proposal.expect("6 GB: Q6");
+        assert_eq!(t.tier, 3);
+        assert_eq!(t.candidate.file, "Qwen3.5-4B-Q6_K.gguf");
+        assert_eq!(t.run_target.device, "CPU/iGPU");
+    }
+
+    #[test]
+    fn low_ram_tier3_still_picks_q4() {
+        // 4,4 GiB RAM: Q6 não tem headroom (min 4,8 GiB); o Q4 continua o
+        // candidato honesto do tier 3.
+        let p = plan(&cap(4_400, 0), "boot default", None, "eng", false);
+        let t = p.proposal.expect("4,4 GiB: Q4");
+        assert_eq!(t.tier, 3);
+        assert_eq!(t.candidate.file, "Qwen3.5-4B-Q4_K_M.gguf");
     }
 
     #[test]

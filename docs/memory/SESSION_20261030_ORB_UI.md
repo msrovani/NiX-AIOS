@@ -1,4 +1,4 @@
-# Sessão 2026-10-30 — ORB UI 0.7.0-alpha.1
+# Sessão 2026-10-30 — ORB UI 0.7.0-alpha.1 → alpha.2
 
 ## O que ficou
 
@@ -15,7 +15,7 @@
   `FAN +/−/HOLD/SEM SENSOR` (advisory, sem actuação), total J; não cresce
   (105 px no 720p, 132 px no 873).
 - `iso-hw`: `uiMode=cinematic` (Chromium `--kiosk` fullscreen) + todos os GGUFs
-  pinados (0.8B Q4/Q8, 4B Q4, 9B Q4) como symlinks content-addressed.
+  pinados (0.8B Q4/Q8, 4B Q4/**Q6**, 9B Q4) como symlinks content-addressed.
 
 ## Provas
 
@@ -26,7 +26,7 @@
 - Chromium 1283×873 e 1280×720: rails 591/591, box 03 105 px, mesh 06 live.
 - `nix-instantiate --parse images/hw.nix`/`flake.nix`; `nix eval` do
   `uiMode` devolveu `cinematic`.
-- `iso-hw` build: ver `docs/evidence/ORB_UI_0.7.0-alpha.1.md` (a preencher).
+- `iso-hw` build: ver `docs/evidence/ORB_UI_0.7.0-alpha.2.md`.
 
 ## Lições novas
 
@@ -47,11 +47,28 @@
 6. **Screenshot**: o tool exige janela visível; a captura é a prova visual
    (não guardar prints pretos do screendump do virtio-gpu).
 
+## Addendum 0.7.0-alpha.2 — 6 GB tier + contexto máximo
+
+- **A linha Qwen3.5 não tem 7B** (small: 0.8B, 2B, 4B, 9B). O 9B Q4 não cabe
+  em 6 GB: 5,68 GB só de pesos e `min_vram_mb=6600` no `brain_upgrade`.
+- Decisão: **4B Q6_K** (`3 525 956 768 B`, sha256 `fdedd781…8f66`) como tier
+  de 6 GB, escolhido **antes** do 4B Q4 quando `ram_avail_mb >= 4800`; o Q4
+  continua fallback para máquinas pequenas.
+- **Dois candidatos com o mesmo `tier=3`**: `accept(tier)` passou a resolver o
+  candidato pelo **mesmo** `pick_reachable_tier`, senão aceitava sempre o
+  primeiro da lista (Q6) mesmo sem headroom. Teste `low_ram_tier3_still_picks_q4`.
+- **Contexto**: removido `NOSD_LLAMA_CTX=4096` da `iso-hw`; `llama-server`
+  recebe `--fit on --fit-ctx <min>` (default 2048). Sem `-c` fixo, o fit
+  escolhe o maior contexto que cabe; um `NOSD_LLAMA_CTX` explícito manda.
+  `--help` do llama.cpp 0.6.0 confirma `-fit`/`-fitc` (default do fit-ctx é
+  4096; usamos 2048 para não falhar em 6 GB).
+- `iso-hw` alpha.2 leva **5 GGUFs**; os hashes alpha.1 não são reutilizáveis.
+
 ## Residual
 
 - Metal/QEMU com câmara/mic/Piper reais AWAITING_HW; RAPL/hwmon só no Linux.
 - Slint HUD nativo não foi reescrito.
-- ISO `iso-hw` com todos os modelos: build de ~10 GB pendente/registado na
-  evidência; testar firstboot + brain.plan/accept no metal.
+- ISO `iso-hw` com todos os modelos (5 GGUFs, ~13 GB): rebuild alpha.2 e
+  firstboot + brain.plan/accept no metal.
 - `mesh_node_id` no `health` pode vir `null`; os pins/roles do `health.mesh_nodes`
   são a fonte do HUD.
