@@ -241,10 +241,13 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                             }
                         }
                     }
+                    // V3: fase + último domínio OPAR (sem notas/PII).
+                    // Sempre substitui a linha — nunca acumula (bug visto no metal).
+                    let mut phase = String::new();
                     if let Ok(r) = &tick {
                         if r.ok {
                             if let Some(p) = r.result.get("phase").and_then(|v| v.as_str()) {
-                                ui.set_tick_line(p.into());
+                                phase = p.to_string();
                             }
                         }
                     }
@@ -256,17 +259,27 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                                 .get("source")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("n/a");
-                            let j = r
-                                .result
-                                .get("joules")
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0);
-                            let w = r.result.get("watts").and_then(|v| v.as_f64());
                             let scope = r
                                 .result
                                 .get("scope")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("none");
+                            // Honestidade: `absent`/`rapl_wrap` = 0 J. Nunca mostrar
+                            // um joule que não foi medido nem estimado.
+                            let measured = matches!(src, "rapl" | "nvml" | "tdp_estimate");
+                            let j = if measured {
+                                r.result
+                                    .get("joules")
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or(0.0)
+                            } else {
+                                0.0
+                            };
+                            let w = if measured {
+                                r.result.get("watts").and_then(|v| v.as_f64())
+                            } else {
+                                None
+                            };
                             let line = match w {
                                 Some(w) => format!("{src}/{scope} · {j:.2} J · {w:.1} W"),
                                 None => format!("{src}/{scope} · {j:.2} J"),
@@ -281,7 +294,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                             ui.set_hitl_pending(n as i32);
                         }
                     }
-                    // V3: último acto OPAR (domínio; sem notas/PII).
+                    let mut domain = String::new();
                     if let Ok(r) = &trace {
                         if r.ok {
                             if let Some(a) = r
@@ -291,16 +304,19 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                                 .and_then(|a| a.first())
                             {
                                 if let Some(d) = a.get("domain").and_then(|v| v.as_str()) {
-                                    let prev = ui.get_tick_line();
-                                    let base = if prev.is_empty() {
-                                        d.to_string()
-                                    } else {
-                                        format!("{prev} · {d}")
-                                    };
-                                    ui.set_tick_line(base.into());
+                                    domain = d.to_string();
                                 }
                             }
                         }
+                    }
+                    let line = match (phase.is_empty(), domain.is_empty()) {
+                        (false, false) => format!("{phase} · {domain}"),
+                        (false, true) => phase,
+                        (true, false) => domain,
+                        (true, true) => String::new(),
+                    };
+                    if !line.is_empty() {
+                        ui.set_tick_line(line.into());
                     }
                 }
             });
