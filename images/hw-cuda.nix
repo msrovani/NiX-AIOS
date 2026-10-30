@@ -26,6 +26,9 @@
     "CUDA_VISIBLE_DEVICES=0"
     "NVIDIA_VISIBLE_DEVICES=0"
     "NOSD_LLAMA_NGL=99"
+    # nvidia-smi vive no output `bin` (o `out` só tem nvidia-sleep.sh);
+    # caminho absoluto para capacity/energia (allowlist do nosd).
+    "NOSD_NVIDIA_SMI=${config.hardware.nvidia.package.bin}/bin/nvidia-smi"
   ];
   # O unit já tem DeviceAllow=char-drm (política closed implícita): sem estes
   # nós a CUDA falha com ENODEV, mesmo com o driver carregado.
@@ -36,6 +39,9 @@
     "char-nvidia-ctl rw"
   ];
 
-  # nvidia-smi no perfil: capacity/energia usam a allowlist absoluta.
-  environment.systemPackages = [ config.hardware.nvidia.package ];
+  # nvidia-smi no perfil: `out` só tem nvidia-sleep.sh; o binário está em `bin`.
+  environment.systemPackages = [
+    config.hardware.nvidia.package
+    config.hardware.nvidia.package.bin
+  ];
 }
