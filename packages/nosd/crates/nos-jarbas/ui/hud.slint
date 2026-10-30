@@ -378,26 +378,26 @@ export component HudWindow inherits Window {
 
     // Histórico do chat (3–4 linhas): promove a "resposta" a diálogo.
     Rectangle {
-        x: 280px; y: root.height - 236px; width: root.width - 560px; height: 76px;
+        x: 280px; y: root.height - 256px; width: root.width - 560px; height: 96px;
         border-radius: 6px;
         background: #07131f;
         opacity: 0.94;
         border-width: 1px;
         border-color: #173447;
     }
-    Rectangle { x: 280px; y: root.height - 236px; width: 3px; height: 76px; background: root.accent; }
+    Rectangle { x: 280px; y: root.height - 256px; width: 3px; height: 96px; background: root.accent; }
     Text {
-        x: 296px; y: root.height - 231px; width: root.width - 592px; height: 66px;
+        x: 296px; y: root.height - 251px; width: root.width - 592px; height: 86px;
         text: root.chat_log;
         color: #d7e8f1;
-        font-size: 12px;
+        font-size: 17px;
         wrap: word-wrap;
         vertical-alignment: top;
         overflow: elide;
     }
 
     if root.hitl_window_id > 0: Rectangle {
-        x: 280px; y: root.height - 300px; width: root.width - 560px; height: 48px;
+        x: 280px; y: root.height - 320px; width: root.width - 560px; height: 48px;
         border-radius: 6px;
         background: #211b12;
         border-width: 1px;

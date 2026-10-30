@@ -414,11 +414,23 @@ pub fn execute_transmute(
             }
         }
 
-        for spec in recommended_moe_for(&cap) {
-            let url = nos_cortex::hf_resolve_url(&spec.repo, &spec.file);
-            match fetch_to_dir(&url, &models_dir, &spec.local_filename) {
-                Ok(p) => downloaded.push(p.display().to_string()),
-                Err(e) => errors.push(format!("moe {}: {e}", spec.slot)),
+        // Se já há GGUF em `models` (ex.: brain embutido do iso-hw), NÃO
+        // descarregar de novo. Sem isto o iso-hw fazia double-download de
+        // `unsloth/Qwen3.5-0.8B-GGUF` no Q5 e falhava sem rede.
+        let has_gguf = scan_path(&models_dir, 64).iter().any(|m| m.kind == "gguf");
+        if has_gguf {
+            info!(
+                target: "nosd",
+                "transmute: GGUF ja presente em {}, skip download do boot model",
+                models_dir.display()
+            );
+        } else {
+            for spec in recommended_moe_for(&cap) {
+                let url = nos_cortex::hf_resolve_url(&spec.repo, &spec.file);
+                match fetch_to_dir(&url, &models_dir, &spec.local_filename) {
+                    Ok(p) => downloaded.push(p.display().to_string()),
+                    Err(e) => errors.push(format!("moe {}: {e}", spec.slot)),
+                }
             }
         }
     }

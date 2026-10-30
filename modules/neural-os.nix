@@ -117,6 +117,17 @@ in
 
     boot.kernel.sysctl."vm.nr_hugepages" = lib.mkDefault 256;
 
+    # Persona default do JARBAS. Sem isto o prompt é só "## User" e o modelo
+    # responde genérico/em inglês (visto no metal). Lido por
+    # `cognitive_bridge::build_chat_prompt` via NOSD_SOUL_PATH.
+    environment.etc."nosd/SOUL.md".text = ''
+      Você é JARBAS, a interface neural do NixAIOS.
+      Fale em português do Brasil, curto e direto (2 a 4 frases).
+      Tom calmo, técnico, sem floreados; trate o utilizador por "você".
+      Nunca finja capacidades: se falta motor, modelo ou rede, diga-o.
+      Se não souber, pergunte em vez de inventar.
+    '';
+
     # V0: falha no eval, não no runtime (o daemon também valida).
     assertions = [
       {
@@ -205,6 +216,8 @@ in
           "NOSD_CLOUD_USD_OUT=${toString cfg.cloudUsdOut}"
           "NOSD_PRICE_REF_DATE=${cfg.priceRefDate}"
           "NOSD_PRICE_REF_MODEL=${cfg.priceRefModel}"
+          # Persona default (environment.etc acima).
+          "NOSD_SOUL_PATH=/etc/nosd/SOUL.md"
           "RUST_LOG=info"
         ] ++ lib.optional (cfg.tdpWatts != null) "NOSD_TDP_W=${toString cfg.tdpWatts}"
           ++ lib.optional (cfg.nvidiaSmi != null) "NOSD_NVIDIA_SMI=${cfg.nvidiaSmi}";
