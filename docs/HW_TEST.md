@@ -99,7 +99,7 @@ No hardware, verificar:
 | `journal-follow.log` | `journalctl -f` contínuo dos mesmos units |
 | `firstboot.log`, `hotswap.log`, `jarbas-cage.log` | cópia a cada 20 s de `/tmp/nos-firstboot.log` e `/var/lib/nosd/*.log` |
 | `dmesg-boot.log` | dmesg do arranque |
-| `hw-info.log` | `uname`, `/proc/cmdline`, `lspci -nn`, `lsusb` |
+| `hw-info.log` | `uname`, `/proc/cmdline`, `lspci -nn`, `lsusb`, **GPU**: `lspci -nnk`, `lsmod nvidia/nouveau`, `/dev/nvidia*`, `nvidia-smi --query-gpu` (mem/power/driver) e o journal de `nosd-engine-s2` |
 | `wifi-diag.log` | `rfkill`, `nmcli device`, scan SSID e firmware no arranque |
 | `model-seed.log` | cópia dos GGUF do pendrive para `/var/lib/nosd/models` |
 
@@ -107,6 +107,28 @@ O export arranca depois do `nosd`; o mount tenta 45 s (USB lento). Se a FAT
 não existir, o serviço **falha alto no tty1** e re-tenta a cada 10 s
 (`Restart=on-failure`) — em vez de sair em silêncio como antes. Sem FAT os
 logs ficam só em RAM e perdem-se no poweroff.
+
+## 4b. Cartão `DIAG` no HUD (diagnóstico por foto)
+
+O canto inferior esquerdo mostra seis linhas que decidem o caso GPU/S2:
+
+| Linha | Como ler |
+|---|---|
+| `SMI · /nix/store/…/nvidia-smi` | caminho resolvido. `AUSENTE` = nem `NOSD_NVIDIA_SMI` nem o default existem |
+| `NGL 0 · CUDA 0` | `NOSD_LLAMA_NGL` (0 = S1 em CPU, 99/`—` = offload) e `CUDA_VISIBLE_DEVICES` |
+| `GPU · 512/6144M · RTX 3050 …` | **driver vivo** (usado/total em MiB). Se disser `smi ERRO: …` ou `timeout 2s`, é driver/sandbox — a mensagem é a prova |
+| `S2 · llama-server-http · fila 0` | backend PRO do `nosd` (4B). `ausente` = `NOSD_LLAMA_SERVER_S2` não anexou |
+| `PORTA 8082 · a responder` | TCP 127.0.0.1:8082 (unit `nosd-engine-s2`) |
+| `SOUL · ok` | `/etc/nosd/SOUL.md` (persona que vai no prompt) |
+
+Combinações que resolvem o mistério de uma vez:
+
+- `GPU · …M · …` **e** `PORTA 8082 · a responder` → o 4B está na GPU; se o chat
+  ainda for fraco, é o router (ver `nosctl route "…"`).
+- `smi ERRO: …` → driver não carregou / sandbox; `hw-info.log` tem o detalhe.
+- `PORTA 8082 · sem resposta` → o `nosd-engine-s2` não arrancou; o journal
+  (`journalctl -u nosd-engine-s2 -b`, também em `hw-info.log`) diz porquê.
+- `GPU · AUSENTE` → só o binário falta (caminho), não o driver.
 
 ## 5. Recolher para análise
 
