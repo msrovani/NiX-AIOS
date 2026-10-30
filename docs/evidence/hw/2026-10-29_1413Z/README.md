@@ -48,6 +48,29 @@ Correcção (`c87c7f3`):
 - `jarbas-show-vt`: `ConditionPathExists=/var/lib/nosd/firstboot.done`;
 - pós-Q5 o `hotswap` faz `chvt 7` e a HUD aparece.
 
+## Variante CUDA (RTX 3050)
+
+`nixosConfigurations.nixaios-iso-hw-cuda` + `images/hw-cuda.nix`:
+
+- `hardware.nvidia` (open=false, modesetting) + `services.xserver.videoDrivers=["nvidia"]`;
+- `llama-cpp-cuda` via `mkBefore` no `path` do `nosd`; `CUDA_VISIBLE_DEVICES=0`, `NOSD_LLAMA_NGL=99`;
+- `DeviceAllow` de `char-nvidia-{frontend,uvm,caps,ctl}` (o unit é `closed` por causa do `char-drm` — sem isto a CUDA dá ENODEV);
+- cage/JARBAS continua na **iGPU** (Intel); o dGPU é só inferência.
+
+Primeira build (sem a voz): ISO 4.4 GB, img 8.4 GB
+(`931d46dc…`) — **substituída**. Build final com `5a1e794`:
+
+```
+nixaios-hw-cuda-051.iso        4.4 GB   b6b81a89a518ce8d0d74e8b100204ce091f7a0ef2d91f83b76919f70a0437b52
+nixaios-hw-cuda-051-logfat.img 8.4 GB   9c2359b76171684967609d38ddf58b40d087b2859bceec603e2ba9da31efb685
+p1 ISO 0..9135503 · p2 ESP 3M · p3 FAT32 4G @9136128
+```
+
+Inclui: driver NVIDIA + `llama-cpp-cuda` + Qwen3.5-0.8B embutido, VAD/AUTO,
+VOL±, `mem · N`, chat com histórico e TTS na resposta.
+
+**Não verificado em metal** — só o artefacto existe.
+
 ## Tela preta depois do GUI (metal, pós-Q5)
 
 Sintoma: quiz OK, HUD aparece e depois ecrã preto.
