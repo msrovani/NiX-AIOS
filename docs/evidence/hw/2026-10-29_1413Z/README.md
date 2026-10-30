@@ -48,13 +48,41 @@ Correcção (`c87c7f3`):
 - `jarbas-show-vt`: `ConditionPathExists=/var/lib/nosd/firstboot.done`;
 - pós-Q5 o `hotswap` faz `chvt 7` e a HUD aparece.
 
+## Tela preta depois do GUI (metal, pós-Q5)
+
+Sintoma: quiz OK, HUD aparece e depois ecrã preto.
+
+Causa: com o `chvt` condicionado (fix anterior), o `jarbas-cage` passou a
+arrancar no **tty7 inactivo** durante o firstboot; o wlroots não faz page-flip
+numa VT inactiva → restart-loop (`Restart=on-failure`) e o `hotswap` só fazia
+`chvt 7` **depois** de o processo já ter arrancado.
+
+Correcção (`aae98dd`):
+- marcador `/var/lib/nosd/gui-start`: o `hotswap` toca **antes** de arrancar;
+  o `persist-check` toca no 2.º boot;
+- `jarbas-cage`: `ConditionPathExists=/var/lib/nosd/gui-start` — não arranca
+  durante o questionário;
+- `waitScript`: `chvt` se `gui-start | firstboot.done | aios-mode` → VT activa
+  **antes** do wlroots;
+- `hotswap`: `systemctl restart` (força `ExecStartPre`) em vez de `start`.
+
+## FAT sem logs (só `README.txt`)
+
+No último boot a FAT tinha **apenas** `README.txt` (580 B), sem
+`GUEST_MOUNTED.txt` — o guest não a montou. Ou o arranque foi da **ISO**
+(sem partição de logs), ou o `nixaios-log-mount` falhou. O stick actual tem o
+layout correcto (p3 FAT32 4G); gravar o **`.img` em DD** e confirmar
+`journalctl -u nixaios-log-mount -b` (agora com `lsblk -f` no diagnóstico).
+
+
 ## Artefacto corrigido
 
-`nixaios-hw-051-logfat.img` (6.7 GB) reconstruído depois dos três fixes
-(`e5bfa7c` áudio, `4083f0e` HUD, `c87c7f3` chvt):
+`nixaios-hw-051-logfat.img` (6.7 GB) reconstruído depois dos quatro fixes
+(`e5bfa7c` áudio, `4083f0e` HUD, `c87c7f3` chvt condicionado, `aae98dd`
+`gui-start` + `chvt` antes do wlroots):
 
 ```
-sha256 0aae5004bf1d8ed112d0ae79db0b28f098d0c5ff23ef7665809882858f30ce2b
+sha256 5e20f096e7b02f32ec2e58e78364a32ce74bd061e7210ff53933f288ca565fc0
 layout: p1 ISO 0..5630591 · p2 ESP 3M · p3 FAT32 4G @ 5632000 (label NIXAIOSLOG)
 ```
 
