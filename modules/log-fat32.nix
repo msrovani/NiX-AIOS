@@ -230,11 +230,24 @@ in
             cat /proc/cmdline || true
             ${pkgs.pciutils}/bin/lspci -nn || true
             ${pkgs.usbutils}/bin/lsusb || true
+            echo "--- GPU (kernel binding) ---"
+            ${pkgs.pciutils}/bin/lspci -nnk 2>&1 | grep -A3 -iE 'vga|3d|display' || true
+            echo "--- modulos nvidia/nouveau ---"
+            ${pkgs.kmod}/bin/lsmod 2>/dev/null | grep -iE 'nvidia|nouveau' || echo "(nenhum)"
+            echo "--- /dev/nvidia* ---"
+            ls -l /dev/nvidia* 2>/dev/null || echo "(nenhum)"
+            echo "--- nvidia-smi ---"
+            /run/current-system/sw/bin/nvidia-smi \
+              --query-gpu=name,memory.total,memory.used,power.draw,driver_version \
+              --format=csv 2>&1 || echo "(nvidia-smi falhou)"
+            echo "--- nosd-engine-s2 (4B/CUDA) ---"
+            ${pkgs.systemd}/bin/systemctl is-active nosd-engine-s2 2>&1 || true
+            ${pkgs.systemd}/bin/journalctl -b -u nosd-engine-s2 --no-pager 2>&1 | tail -40 || true
           } > "$MNT/hw-info.log" 2>&1 || true
           ${pkgs.util-linux}/bin/dmesg > "$MNT/dmesg-boot.log" 2>&1 || true
           {
             echo "=== nixaios journal dump $STAMP ==="
-            ${pkgs.systemd}/bin/journalctl -b -u nosd -u jarbas-cage -u jarbas-hub -u jarbas-show-vt -u nosd-hotswap-aios -u nixaios-log-mount -u nixaios-log-export --no-pager || true
+            ${pkgs.systemd}/bin/journalctl -b -u nosd -u nosd-engine-s2 -u jarbas-cage -u jarbas-hub -u jarbas-show-vt -u nosd-hotswap-aios -u nixaios-log-mount -u nixaios-log-export --no-pager || true
             echo "--- firstboot/hotswap tail ---"
             for f in firstboot.log hotswap.log jarbas-cage.log; do
               [ -f "$MNT/$f" ] && echo "===== $f =====" && tail -n 80 "$MNT/$f" || true

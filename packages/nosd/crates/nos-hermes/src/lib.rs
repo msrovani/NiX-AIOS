@@ -59,7 +59,7 @@ use serde_json::json;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
@@ -150,8 +150,15 @@ impl HermesEngine {
             .or_else(|| hub.path_of(ModelSlot::Active))
             .or(first_gguf);
         if let Some(path) = attach {
+            let slot = nos_cortex::slot_from_path(&path);
             match hotswap.try_attach_llama(path) {
-                Ok(()) => info!(target: "nosd", "engine={}", hotswap.engine_name()),
+                Ok(()) => {
+                    // O HUD mostra "modelos ativos = loaded_count"; o attach
+                    // não marcava o slot, e o metal via `hub / 0` com o
+                    // modelo carregado (mentira visual).
+                    hub.ensure_loaded(slot);
+                    info!(target: "nosd", "engine={}", hotswap.engine_name())
+                }
                 Err(e) => info!(
                     target: "nosd",
                     "engine=cpu-echo ({e}) — set NOSD_LLAMA_CLI + models/*.gguf for GGUF"
@@ -385,14 +392,22 @@ impl HermesEngine {
                     "pending": self.s2.pending(),
                 }),
             );
-            let r = self
-                .s2
-                .submit_wait(prompt.to_string())
-                .map_err(HermesError::Infer)?;
-            if !r.ok {
-                return Err(HermesError::Infer(r.text));
+            match self.s2.submit_wait(prompt.to_string()) {
+                Ok(r) if r.ok => r.text,
+                Ok(r) => {
+                    // O worker respondeu com erro (ex.: llama-server S2 morreu).
+                    warn!(
+                        target: "nosd",
+                        "s2 worker error ({}), a tentar S1",
+                        r.text.chars().take(80).collect::<String>()
+                    );
+                    self.s1_fallback(prompt)?
+                }
+                Err(e) => {
+                    warn!(target: "nosd", "s2 indisponivel ({e}), a tentar S1");
+                    self.s1_fallback(prompt)?
+                }
             }
-            r.text
         } else {
             self.hotswap
                 .infer(prompt)
@@ -621,6 +636,13 @@ impl HermesEngine {
     }
 
     /// NX.6 — OPAR persistido + EventBus `COGNITIVE_ACT`.
+    /// Downgrade honesto: S1 responde quando o S2 falha a meio.
+    fn s1_fallback(&self, prompt: &str) -> Result<String, HermesError> {
+        self.hotswap
+            .infer(prompt)
+            .map_err(|e| HermesError::Infer(format!("s2 falhou e S1 tambem: {e}")))
+    }
+
     /// V10 — decisão de backend S1/S2, explicável e com o estado real.
     ///
     /// Puro (nos-core::routing) + inputs observados: S2 vivo, fila, presença e

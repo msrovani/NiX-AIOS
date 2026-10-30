@@ -50,6 +50,20 @@ pub fn sse_data_chunk(line: &str) -> Option<SseChunk> {
                 return Some(SseChunk::Text(t.to_string()));
             }
         }
+        // Modelos "thinking": o raciocínio vem separado (`reasoning_content`).
+        // Não é resposta — mas conta para o diagnóstico (não mostramos tags).
+        if let Some(t) = v
+            .pointer("/choices/0/delta/reasoning_content")
+            .and_then(|x| x.as_str())
+            .or_else(|| {
+                v.pointer("/choices/0/message/reasoning_content")
+                    .and_then(|x| x.as_str())
+            })
+        {
+            if !t.is_empty() {
+                return Some(SseChunk::Reasoning(t.to_string()));
+            }
+        }
     }
     None
 }
@@ -57,6 +71,8 @@ pub fn sse_data_chunk(line: &str) -> Option<SseChunk> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum SseChunk {
     Text(String),
+    /// Raciocínio (não vai para o utilizador).
+    Reasoning(String),
     Done,
 }
 
@@ -178,8 +194,11 @@ impl LlamaServerBackend {
         })
     }
 
-    fn completion_url(&self) -> String {
-        format!("{}/completion", self.base)
+    /// Endpoint de chat: aplica o **template do GGUF** (papéis system/user).
+    /// Sem isto o Qwen responde em modo de continuação crua e o primeiro
+    /// output é `<think>` — o chat "não faz nada" (observado em metal).
+    fn chat_url(&self) -> String {
+        format!("{}/v1/chat/completions", self.base)
     }
 }
 
@@ -197,7 +216,9 @@ fn n_predict_from_env() -> u32 {
     std::env::var("NOSD_LLAMA_N_PREDICT")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(64)
+        // 64 era pouco: com raciocínio o modelo gastava tudo a pensar e o
+        // utilizador via só `<think>`. 192 dá resposta curta + folga.
+        .unwrap_or(192)
 }
 
 fn ngl_from_env() -> u32 {
@@ -254,12 +275,23 @@ impl InferenceBackend for LlamaServerBackend {
 
     fn infer(&self, prompt: &str) -> Result<String, SwapError> {
         self.cancel.store(false, Ordering::Relaxed);
+        // Prompt composto (persona/recall/user) -> papéis do template de chat.
+        let (system, user) = nos_core::text::split_chat_prompt(prompt);
+        let mut messages: Vec<serde_json::Value> = Vec::new();
+        if !system.is_empty() {
+            messages.push(serde_json::json!({"role": "system", "content": system}));
+        }
+        messages.push(serde_json::json!({"role": "user", "content": user}));
         let body = serde_json::json!({
-            "prompt": prompt,
-            "n_predict": self.n_predict,
+            "messages": messages,
+            "max_tokens": self.n_predict,
             "stream": true,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            // Qwen3.x: sem isto o orçamento de tokens vai todo para <think>.
+            "chat_template_kwargs": {"enable_thinking": false},
         });
-        let url = self.completion_url();
+        let url = self.chat_url();
         let agent = ureq::AgentBuilder::new()
             .timeout_read(Duration::from_secs(120))
             .build();
@@ -276,6 +308,7 @@ impl InferenceBackend for LlamaServerBackend {
         let mut reader = BufReader::new(resp.into_reader());
         let mut line = String::new();
         let mut out = String::new();
+        let mut reasoning = String::new();
         while reader.read_line(&mut line).map_err(SwapError::Io)? > 0 {
             if self.cancel.load(Ordering::Relaxed) {
                 warn!(target: "nosd", "llama-server stream cancelled");
@@ -284,15 +317,29 @@ impl InferenceBackend for LlamaServerBackend {
             if let Some(chunk) = sse_data_chunk(&line) {
                 match chunk {
                     SseChunk::Text(t) => out.push_str(&t),
+                    SseChunk::Reasoning(t) => reasoning.push_str(&t),
                     SseChunk::Done => break,
                 }
             }
             line.clear();
         }
-        if out.trim().is_empty() {
-            return Err(SwapError::Infer("llama-server empty stream"));
+        // Servidores antigos deixam as tags no content: limpar sempre.
+        let reply = nos_core::text::strip_think(&out);
+        if !reply.is_empty() {
+            return Ok(reply);
         }
-        Ok(out.trim().to_string())
+        // Só raciocínio: devolver isso é melhor que mostrar tags cruas (era o
+        // que o utilizador via: `JARBAS: <think>`), mas tem de ser registado.
+        let thought = nos_core::text::strip_think(&reasoning);
+        if !thought.is_empty() {
+            warn!(
+                target: "nosd",
+                "modelo devolveu apenas raciocínio ({} chars) — resposta incompleta",
+                thought.chars().count()
+            );
+            return Ok(thought);
+        }
+        Err(SwapError::Infer("llama-server empty stream"))
     }
 }
 
@@ -310,6 +357,21 @@ mod tests {
     fn sse_parse_openai_delta() {
         let line = r#"data: {"choices":[{"delta":{"content":"x"}}]}"#;
         assert_eq!(sse_data_chunk(line), Some(SseChunk::Text("x".into())));
+    }
+
+    #[test]
+    fn sse_parse_openai_reasoning() {
+        let line = r#"data: {"choices":[{"delta":{"reasoning_content":"a pensar"}}]}"#;
+        assert_eq!(
+            sse_data_chunk(line),
+            Some(SseChunk::Reasoning("a pensar".into()))
+        );
+    }
+
+    #[test]
+    fn n_predict_default_is_usable() {
+        std::env::remove_var("NOSD_LLAMA_N_PREDICT");
+        assert_eq!(n_predict_from_env(), 192);
     }
 
     #[test]

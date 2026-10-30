@@ -20,6 +20,7 @@ pub mod reported;
 pub mod routing;
 pub mod safety_trust;
 pub mod score;
+pub mod text;
 pub mod trim;
 pub mod ui_window;
 
@@ -51,6 +52,7 @@ pub use safety_trust::{
     SafetyViolation, TrustToken,
 };
 pub use score::{NosScore, Sev};
+pub use text::{split_chat_prompt, strip_think, USER_MARK};
 pub use trim::{strip_ansi, trim_diagnostic, MAX_DIAG_CHARS};
 pub use ui_window::{
     tier_for_grant_kind, HitlField, HitlTier, UiSource, WindowAction, WindowActionKind, WindowKind,
