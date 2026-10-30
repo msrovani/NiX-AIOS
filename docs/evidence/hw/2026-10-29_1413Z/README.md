@@ -34,3 +34,31 @@ Logs copiados da FAT `NIXAIOSLOG` (partição 3 do `.img`), sem segredos.
 O caminho log-fat32 funciona (mount + export + seed). O bloqueio é **entrada
 humana no Q2** e **falta de modelo**; a HUD já estava viva. Para uma corrida sem
 interacção: `firstboot.conf` com `DONE=1` + `wifi.conf` + `models/*.gguf` na FAT.
+
+## Causa raiz das perguntas invisíveis (Q1–Q5)
+
+O `jarbas-cage` (e `jarbas-show-vt`) faziam `chvt 7` **incondicional** no
+arranque. O questionário imprime no **tty1**; o `chvt` mudava a VT activa para
+o **tty7** (HUD), deixando o firstboot à espera de input num tty invisível —
+exactamente o log com 16 linhas parado no Q2.
+
+Correcção (`c87c7f3`):
+- `waitScript`: `chvt` só se `/var/lib/nosd/firstboot.done` existir ou
+  `aios-mode=aios`;
+- `jarbas-show-vt`: `ConditionPathExists=/var/lib/nosd/firstboot.done`;
+- pós-Q5 o `hotswap` faz `chvt 7` e a HUD aparece.
+
+## Artefacto corrigido
+
+`nixaios-hw-051-logfat.img` (6.7 GB) reconstruído depois dos três fixes
+(`e5bfa7c` áudio, `4083f0e` HUD, `c87c7f3` chvt):
+
+```
+sha256 0aae5004bf1d8ed112d0ae79db0b28f098d0c5ff23ef7665809882858f30ce2b
+layout: p1 ISO 0..5630591 · p2 ESP 3M · p3 FAT32 4G @ 5632000 (label NIXAIOSLOG)
+```
+
+Gravar em **DD** (não modo ISO). Na FAT: `firstboot.conf` (`DONE=1`, `LANG`,
+`KEYMAP`, `TZ`), `wifi.conf` (`SSID`/`PSK`) e `models/*.gguf`.
+
+
