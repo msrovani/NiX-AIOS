@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.6.0-alpha.16";
+            version = "0.7.0-alpha.1";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".
@@ -104,9 +104,10 @@
           # GGUF content-addressed (pin por SRI) = a reproducibilidade que o
           # download runtime não dava (G4.1: modelo como derivação Nix).
           # Fontes de confiança: unsloth (Apache-2.0), base_model Qwen/Qwen3.5-0.8B.
-          # Pós-boot, modelos maiores/partição melhor = PROPOSTA JARBAS
-          # (card HITL blob.fetch, grant server-authored) — ver
-          # docs/adr-addenda/0118-qwen-embedded-brain.md.
+          # 0.7-alpha1: a iso-hw embute TODOS os tiers pinados abaixo
+          # (offline). O default continua 0.8B Q4; 4B/9B só activam por
+          # brain.plan/accept (HITL, ring para o 9B). A ISO de release
+          # continua sem modelos — ver docs/adr-addenda/0118-qwen-embedded-brain.md.
           qwen35-08b-q4km = pkgs.fetchurl {
             url = "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf";
             # LFS sha256 do HF tree (unsloth/Qwen3.5-0.8B-GGUF), 532517120 B.
@@ -122,6 +123,12 @@
           qwen35-4b-q4km = pkgs.fetchurl {
             url = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf";
             hash = "sha256-AP55hv9fa0Y+YkVYIRRgSdtvkxNgOTinCADR+2nvEaQ=";
+          };
+          # Tier 4 pinado em brain_upgrade (9B Q4_K_M, 5 680 522 464 B):
+          # incluído na iso-hw 0.7-alpha1; activação exige ring ARMADO.
+          qwen35-9b-q4km = pkgs.fetchurl {
+            url = "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf";
+            hash = "sha256-A7dHJ6hgpWM44ELEQguz8Esv7Fc0F19MufqFPa9St+g=";
           };
         } // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           # Convenience: nix build .#iso (from WSL/Linux)

@@ -33,6 +33,9 @@ const KIOSK_METHODS: &[&str] = &[
     "chat",
     "voice.turn",
     "observe.energy",
+    // V10: feed de acções (OPAR) no HUD. Metadados apenas (domain+lengths),
+    // sem notas/PII; required_cap = NONE.
+    "cognitive.trace",
 ];
 
 /// Lab cinemático: GET `/` → HTML (cam+mic+padrões); GET `/transmute` → wizard;
@@ -397,7 +400,7 @@ mod tests {
                 "{m} exige {need:?}: fora do âmbito do kiosk"
             );
         }
-        for m in ["observe.energy", "ui.pending"] {
+        for m in ["observe.energy", "ui.pending", "cognitive.trace"] {
             assert!(KIOSK_METHODS.contains(&m), "{m} devia estar exposto");
         }
         for forbidden in [

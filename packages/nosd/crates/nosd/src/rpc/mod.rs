@@ -239,6 +239,8 @@ pub struct AppState {
     pub hermes_ticks: std::sync::atomic::AtomicU64,
     /// V1 (plano vampiro): medidor de energia (RAPL/NVML/TDP) por janela.
     pub energy: Mutex<nos_observe::energy::EnergyMeter>,
+    /// V10 ORB UI: CPU/GPU separados + termal/fan (independente do custo).
+    pub energy_split: Mutex<nos_observe::energy::EnergySplitMeter>,
     /// V8.2: cobertura de energia (numerador/denominador de uma `ReportedRate`).
     pub turns_total: std::sync::atomic::AtomicU64,
     pub turns_measured: std::sync::atomic::AtomicU64,

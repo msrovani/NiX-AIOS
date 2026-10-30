@@ -6,3 +6,9 @@ data/
 packages/nosd/target/
 # pasta vazia residual de consolidação path (deletar se aparecer de novo)
 /nix-aios/
+
+# Eco-Tokens: estado local (volatil), servidor MCP e regras versionados
+.eco/state.json
+.eco/state.json.bak
+.eco/state.json.tmp
+.eco/__pycache__/

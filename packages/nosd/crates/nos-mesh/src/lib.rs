@@ -25,6 +25,7 @@ pub use soul_mirror::SoulMirrorSnapshot;
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -1213,6 +1214,57 @@ impl MeshEngine {
         self.last_frag.lock().as_ref().map(|v| v.len()).unwrap_or(0)
     }
 
+    /// V10 HUD: topologia pequena para o grafo da mesh (ids, papéis,
+    /// capacidades e estado TOFU). Sem chaves privadas; só metadatos.
+    ///
+    /// Locks: `tofu_settled`/`peer_tofu_count` e `last_frag` são lidos antes
+    /// do lock de `peers` (evita deadlock por lock ordering).
+    pub fn topology(&self) -> serde_json::Value {
+        let now = now_ms();
+        let tofu_settled = self.tofu_settled();
+        let tofu_peers = self.peer_tofu_count();
+        let last_frag = self.last_frag_len();
+        let pending_fracks = self.pending_fracks.lock().len();
+        let local_role = self.local_role();
+        let local = json!({
+            "id": self.local_id,
+            "role": serde_json::to_value(local_role).unwrap_or(json!("Worker")),
+            "cpu": self.local_capacity.cpu_units,
+            "mem_mib": self.local_capacity.mem_mib,
+            "net": self.local_capacity.net_score,
+            "tofu_settled": tofu_settled,
+            "tofu_peers": tofu_peers,
+            "last_frag": last_frag,
+            "pending_fracks": pending_fracks,
+            "local": true,
+        });
+        let peers: Vec<serde_json::Value> = {
+            let peers = self.peers.lock();
+            peers
+                .values()
+                .map(|p| {
+                    json!({
+                        "id": p.id,
+                        "role": serde_json::to_value(p.role).unwrap_or(json!("Worker")),
+                        "pk_bound": p.pk_bound,
+                        "last_seen_ms": p.last_seen_ms,
+                        "age_ms": now.saturating_sub(p.last_seen_ms),
+                        "cpu": p.capacity.cpu_units,
+                        "mem_mib": p.capacity.mem_mib,
+                        "net": p.capacity.net_score,
+                        "local": false,
+                    })
+                })
+                .collect()
+        };
+        json!({
+            "local": local,
+            "peers": peers,
+            "verdict": self.fleet_verdict().map(|v| v.as_str()),
+            "machines": self.fleet_machines().len(),
+        })
+    }
+
     pub fn health_json(&self) -> String {
         format!(
             r#"[{{"local":{},"peers":{},"tofu":{},"last_frag":{},"role":"{:?}","pending_fracks":{}}}]"#,
@@ -1258,6 +1310,24 @@ fn parse_hb_capacity(buf: &[u8]) -> Option<CapacityScore> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn topology_reports_local_identity_without_peers() {
+        let m = MeshEngine::with_capacity(
+            15,
+            CapacityScore {
+                cpu_units: 8,
+                mem_mib: 4096,
+                net_score: 200,
+            },
+        );
+        let t = m.topology();
+        assert_eq!(t["local"]["id"].as_u64(), Some(15));
+        assert_eq!(t["local"]["role"].as_str(), Some("Worker"));
+        assert_eq!(t["local"]["cpu"].as_u64(), Some(8));
+        assert_eq!(t["peers"].as_array().map(|v| v.len()), Some(0));
+        assert_eq!(t["machines"].as_u64(), Some(0));
+    }
 
     #[test]
     fn hb_roundtrip_with_capacity() {

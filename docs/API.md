@@ -174,8 +174,11 @@ modo `cinematic`/`auto`):
 - `POST /rpc` — proxy IPC da UI: origem exacta de loopback, cookie,
   `X-Jarbas-UI-Request: 1`, `Content-Type: application/json`, corpo ≤ 1 MiB,
   timeout 5 s e **allow-list de métodos** (`health`, `score`,
-  `cognitive.tick`, `orb.*`, `ui.list`, `ui.action`, `chat`, `voice.turn`).
-  Campos `token`/`caps` são recusados; identidade sempre `JarbasUi`.
+  `cognitive.tick`, `cognitive.trace`, `orb.*`, `ui.list`, `ui.action`,
+  `ui.pending`, `observe.energy`, `chat`, `voice.turn`). Campos
+  `token`/`caps` são recusados; identidade sempre `JarbasUi`.
+  `health.mesh_nodes` é a topologia read-only usada pelo organograma
+  (`MeshEngine::topology`); não abre método novo.
 - `GET /transmute` — 403 (o wizard fica nos canais de operador)
 
 Não expor à WAN. Em produção, o lab deve ficar desligado (`NOSD_ORB_LAB=""`).

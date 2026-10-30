@@ -3,6 +3,43 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.7.0-alpha.1] — ORB UI + HW cinematic
+
+### Added
+
+- **HUD voz-primeiro** no `static/orb_lab.html`: microfone como controlo
+  principal, áudio pedido antes do vídeo (falha de câmara não desliga o mic) e
+  chat minimizado em **closed captions** + drawer de histórico. Em modo texto
+  (voz desabilitada) a CC mostra o texto; em modo voz só STT/TTS.
+- **Janelas HITL** a sério no HUD: tier server-authored (`ui.pending`), campos
+  dinâmicos, `high` com checkbox + hold-to-authorize (~700 ms); o nonce nunca
+  é exposto. `ui.action` continua a única mutação.
+- **Mesh organograma**: `MeshEngine::topology()` + `health.mesh_nodes`
+  (read-only) alimenta um grafo 3D pequeno (MST/WRK/MEM/CPU, pin/TOFU) e a
+  lista de nós no drawer. No orb central, cada peer é uma mini-orb distante na
+  cor do papel, ligada por **trilhos de dados bidireccionais** (duas pistas
+  envio/recepção, travessas, segmentos animados e seta) — não pontos a disparar.
+- **T/S honesto**: `~N t/s` estimado end-to-end (chars/4 ÷ tempo do turno),
+  rotulado no `title`; `—` quando não medido. O engine ainda não expõe timings.
+- **Energia CPU/GPU + termal**: `observe.energy.split` (CPU RAPL, GPU NVML)
+  com joules/watts por componente e `thermal` (hwmon fan/pwm + recomendação
+  `FAN +/FAN −/HOLD/SEM SENSOR`, advisory — o daemon não controla ventoinhas).
+  A caixa 03 do HUD mostra CPU/GPU, gráfico duplo e termal sem crescer.
+- **`iso-hw` 0.7-alpha1**: todos os GGUFs pinados (0.8B Q4/Q8, 4B Q4, 9B Q4)
+  entram na imagem como symlinks content-addressed; default 0.8B Q4, ativação
+  dos restantes por `brain.plan/accept` (HITL; 9B exige ring).
+
+### Changed
+
+- `http_lab`: `cognitive.trace` entra na allowlist do kiosk (NONE, metadados
+  OPAR sem PII), com o teste de contrato existente.
+- Painéis do HUD sem animação de `opacity` (o compositor do kiosk prendia
+  layers em opacidade parcial); entradas por `transform`.
+- **`iso-hw`**: `services.jarbasCage.uiMode = "cinematic"` por default — a
+  primeira interface gráfica no metal é o orb web em Chromium `--kiosk`
+  (fullscreen, sob cage), com fallback Slint. ISO de release/QEMU continuam
+  `slint`.
+
 ## [0.6.0-alpha.16] — in-tree (V9: DAG + kiosk)
 
 ### Added (V9.1/V9.4/V9.5)

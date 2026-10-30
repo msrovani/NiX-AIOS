@@ -12,7 +12,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.6.0-alpha.16** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.7.0-alpha.1** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -40,6 +40,8 @@ modules/                 NixOS modules (nosd, cage, transmute, nix-ring)
 images/iso.nix           ISO NIXAIOS051
 scripts/                 build/smoke/gate/metal
 docs/                    arquitetura, API, segurança, ADRs, ledger, plano
+.eco/                    MCP eco-tokens (4 tools) + RULES.md — ver docs/ECO_TOKENS.md
+opencode.json            config OpenCode (mcp.servers.eco-tokens + instructions)
 ```
 
 ## Licoes que ja custaram caro (ler antes de mexer)
@@ -142,6 +144,17 @@ Resumo executavel; detalhe em
 36. **Commit leva `Tested:` / `Not-tested:`** no corpo (doutrina oh-my-hermes).
     O `git log` é o ledger barato: sem o que **não** foi testado, "verde" vira
     folclore e a sessão seguinte não sabe onde olhar.
+37. **Animação de `opacity` em painel do kiosk prende layers**: no Chromium/cage
+    os painéis ficavam a ~20% (texto/fundo escuros) mesmo com `opacity:1`
+    computado. Entradas de HUD animam por `transform`, nunca `opacity`.
+38. **O breaker do eco-tokens pode ter hash vazio** (o Python do MCP não vê
+    `git` no PATH → SHA256("")). O reset é decisão humana (editar
+    `.eco/state.json`/`update_task_status`), **nunca** `git checkout`/`stash`.
+    O `mtime` do Windows pode ficar atrás do binário: forçar `cargo clean -p`.
+39. **Duas instâncias nosd na mesma máquina para testar mesh/HUD**: portas UDP
+    distintas + unicast (`19000↔19001`), `--node-id` 15/16, data-dirs
+    separados. Com `pinned=1`/`TOFU SETTLED` a janela 06 aparece; matar a B
+    esconde-a no poll seguinte.
 
 ## Comandos
 
@@ -273,6 +286,15 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `Tested:`/`Not-tested:` (lição 36). **Execução** do DAG (job.submit/factory)
   fica para V10. Host OBSERVED (`dag-plan` diamante/conflito, 374 testes,
   smokes V0–V8 verdes). Ver `docs/evidence/V9_DAG_KIOSK_0.6.0-alpha.16.md`.
+- **Tranche 0.7.0-alpha.1 (in-tree, ORB UI + HW cinematic)**: HUD web
+  voz-primeiro (mic antes da câmara), CC só STT/TTS em modo voz (texto quando a
+  voz está off), HITL modal com tier/campos/hold, mesh `health.mesh_nodes` com
+  mini-orbs por papel + trilhos de dados bidireccionais, `observe.energy.split`
+  (CPU RAPL/GPU NVML) + termal hwmon advisory, e `iso-hw` com
+  `uiMode=cinematic` (Chromium `--kiosk`) e todos os GGUFs pinados. Host
+  OBSERVED (2 instâncias N15/N16, screenshot `docs/evidence/artifacts/
+  orb_ui_mesh_2nodes.jpeg`, verify PASS); metal/QEMU AWAITING_HW. Ver
+  `docs/ORB_UI.md` e `docs/evidence/ORB_UI_0.7.0-alpha.1.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.
@@ -328,7 +350,14 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `HttpOnly`, perfil `AuthContext::JarbasUi`, origem exacta, allow-list de
   métodos; `GET /transmute` = 403. Ver `docs/SECURITY.md` (HTTP lab) e
   `docs/API.md`. Testado em bancada (unit + ponta-a-ponta com daemon local);
-  **ainda não observado em QEMU/metal**.
+  **ainda não observado em QEMU/metal**. Desde a tranche ORB UI
+  (`docs/ORB_UI.md`), `images/hw.nix` força `uiMode = "cinematic"` no HW real
+  (Chromium `--kiosk` fullscreen, fallback Slint); ISO de release/QEMU
+  continuam `slint`.
+
+## Evidência 0.7.0-alpha.1
+
+`docs/evidence/ORB_UI_0.7.0-alpha.1.md`, `docs/evidence/artifacts/orb_ui_mesh_2nodes.jpeg`.
 
 ## Evidência 0.6.0-alpha.16
 

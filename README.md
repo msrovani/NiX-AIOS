@@ -4,7 +4,8 @@
 
 Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 
-**Release 0.6.0-alpha.16** (in-tree; última ISO publicada: `0.6.0-alpha.11`) — V9 (DAG com isolamento de write-scope + `dag.plan`; kiosk expõe energia/fila HITL; convenção `Tested/Not-tested`); volid ISO `NIXAIOS051`.  
+**Release 0.7.0-alpha.1** (in-tree; última ISO publicada: `0.6.0-alpha.11`) — V9 (DAG com isolamento de write-scope + `dag.plan`; kiosk expõe energia/fila HITL; convenção `Tested/Not-tested`); volid ISO `NIXAIOS051`.  
+**0.7.0-alpha.1 (in-tree):** ORB UI voz-primeiro (CC STT/TTS, HITL modal, mesh com mini-orbs/trilhos, energia CPU/GPU+termal) e `iso-hw` cinematic com todos os GGUFs pinados. Metal/QEMU AWAITING_HW.  
 **Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.6.0-alpha.11](docs/RELEASE_0.6.0-alpha.11.md)
 
 ## Quick start

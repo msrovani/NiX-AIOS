@@ -202,6 +202,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                 result: json!({
                     "status": "ok",
                     "mesh": state.mesh.health_json(),
+                    "mesh_nodes": state.mesh.topology(),
                     "mesh_peers": state.mesh.peer_count(),
                     "mesh_pinned": state.mesh.pinned_peers(),
                     "mesh_node_id": state.mesh.identity_id(),
@@ -489,6 +490,9 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
         // V1 (plano vampiro): energia medida/estimada + custo local acumulado.
         "observe.energy" => {
             let delta = state.energy.lock().sample();
+            // V10 ORB UI: split independente CPU/GPU + termal/fan. O agregado
+            // acima continua a alimentar custo/turno; este medidor é do HUD.
+            let split = state.energy_split.lock().sample();
             let cost = CostModel::from_env();
             // V8.2: cobertura por turno (uma rate que carrega o denominador).
             let total = state.turns_total.load(std::sync::atomic::Ordering::Relaxed);
@@ -516,6 +520,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     "source": delta.source,
                     "scope": delta.scope,
                     "ts_ms": delta.ts_ms,
+                    "split": serde_json::to_value(&split).unwrap_or(json!(null)),
                     "coverage": coverage,
                     "cost": {
                         "local_eur_total": cost.local_eur(delta.joules_total),
