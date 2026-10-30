@@ -117,6 +117,12 @@
             url = "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q8_0.gguf";
             hash = "sha256-CtiF/9S7Ai/E8NM6Mwj6EI74YTFZ07OmfiOrygVremw=";
           };
+          # Tier 3 pinado em nos-hermes::brain_upgrade (4B Q4_K_M, 2 740 937 888 B).
+          # Para a variante CUDA (3050 6 GB); NÃO na release.
+          qwen35-4b-q4km = pkgs.fetchurl {
+            url = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf";
+            hash = "sha256-AP55hv9fa0Y+YkVYIRRgSdtvkxNgOTinCADR+2nvEaQ=";
+          };
         } // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           # Convenience: nix build .#iso (from WSL/Linux)
           iso = self.nixosConfigurations.nixaios-iso.config.system.build.isoImage;

@@ -44,4 +44,12 @@
     config.hardware.nvidia.package
     config.hardware.nvidia.package.bin
   ];
+
+  # Brain maior para a 3050: tier 3 pinado (4B Q4_K_M, 2.55 GiB) em vez do
+  # 0.8B. Cabe nos 6 GB com KV 4k; o iso-hw normal continua com 0.8B (CPU).
+  services.nosdBrain = {
+    enable = true;
+    package = lib.mkForce self.packages.${pkgs.system}.qwen35-4b-q4km;
+    name = lib.mkForce "qwen3.5-4b-q4km.gguf";
+  };
 }
