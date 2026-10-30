@@ -184,6 +184,27 @@ pub fn find_whisper_cli() -> Option<PathBuf> {
     which(&["whisper-cli", "whisper-cpp", "whisper"])
 }
 
+/// Configuração do backend `audio.cpp` (Audio8 TTS): binário **absoluto** +
+/// GGUF. Variáveis: `NOSD_TTS_BIN`, `NOSD_TTS_MODEL`, `NOSD_TTS_BACKEND`.
+///
+/// Binário relativo é ignorado (o PATH não decide — lição 35).
+fn audiocpp_config() -> Option<(PathBuf, String)> {
+    audiocpp_config_from(
+        std::env::var("NOSD_TTS_BIN").ok().as_deref(),
+        std::env::var("NOSD_TTS_MODEL").ok().as_deref(),
+    )
+}
+
+fn audiocpp_config_from(bin: Option<&str>, model: Option<&str>) -> Option<(PathBuf, String)> {
+    let bin = bin.map(str::trim).filter(|s| !s.is_empty())?;
+    let path = PathBuf::from(bin);
+    if !path.is_absolute() {
+        return None;
+    }
+    let model = model.map(str::trim).filter(|s| !s.is_empty())?;
+    Some((path, model.to_string()))
+}
+
 pub fn find_piper_cli() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("NOSD_PIPER_CLI") {
         let pb = PathBuf::from(p);
@@ -404,6 +425,38 @@ impl VoicePipeline {
         let out_wav = std::env::temp_dir().join("nosd-tts-out.wav");
         let _ = fs::remove_file(&out_wav);
 
+        // Backend de alta qualidade (`audio.cpp` / Audio8 GGUF), só quando o
+        // operador configura caminho absoluto + modelo. Sem Python, sem CUDA
+        // obrigatória (--backend cpu|vulkan|cuda). Off por omissão.
+        if let Some((bin, model)) = audiocpp_config() {
+            let backend = std::env::var("NOSD_TTS_BACKEND").unwrap_or_else(|_| "cpu".into());
+            let out = Command::new(&bin)
+                .args([
+                    "--family",
+                    "audio8_tts",
+                    "--task",
+                    "tts",
+                    "--backend",
+                    &backend,
+                    "--model",
+                    &model,
+                    "--text",
+                    text,
+                    "--out",
+                ])
+                .arg(&out_wav)
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .output()?;
+            if !out.status.success() || !out_wav.is_file() {
+                warn!(
+                    target: "nosd",
+                    "audiocpp tts fail: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+            }
+        }
+
         if let (Some(cli), Some(model)) = (find_piper_cli(), self.find_piper_model(&loc)) {
             let mut child = Command::new(&cli)
                 .args([
@@ -506,6 +559,30 @@ fn write_wav_16k_mono(path: &Path, pcm: &[i16]) -> std::io::Result<()> {
         f.write_all(&s.to_le_bytes())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tts_backend_tests {
+    use super::audiocpp_config_from;
+
+    #[test]
+    fn audiocpp_requires_absolute_bin_and_model() {
+        assert!(audiocpp_config_from(None, Some("/m/a.gguf")).is_none());
+        assert!(audiocpp_config_from(Some("  "), Some("/m/a.gguf")).is_none());
+        assert!(audiocpp_config_from(Some("audiocpp_cli"), Some("/m/a.gguf")).is_none());
+        assert!(audiocpp_config_from(Some("/b/audiocpp_cli"), None).is_none());
+        assert!(audiocpp_config_from(Some("/b/audiocpp_cli"), Some("  ")).is_none());
+    }
+
+    #[test]
+    fn audiocpp_accepts_absolute_pair() {
+        // `temp_dir()` é absoluto em Unix e Windows (ao contrário de "/b/…").
+        let bin = std::env::temp_dir().join("audiocpp_cli");
+        let bin_s = bin.to_str().expect("utf8");
+        let got = audiocpp_config_from(Some(bin_s), Some("/m/a.gguf")).expect("config");
+        assert_eq!(got.0, bin);
+        assert_eq!(got.1, "/m/a.gguf");
+    }
 }
 
 #[cfg(test)]
