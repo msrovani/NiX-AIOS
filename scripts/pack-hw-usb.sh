@@ -29,7 +29,15 @@ echo "FAT=${FAT_MB}MiB START_MB=$START_MB TOTAL=$TOTAL OUT=$OUT"
 WORK_IMG="/tmp/nixaios-hw-usb.img"
 FAT_TMP="/tmp/nixaios-hw-fat.img"
 README="/tmp/nixaios-hw-readme.txt"
-trap 'rm -f "$FAT_TMP" "$README" "$WORK_IMG"' EXIT
+trap 'rm -f "$FAT_TMP" "$README" "$WORK_IMG" "${PART:-}"' EXIT
+
+# Espaço em /tmp: ISO + img intermédia (~ISO + FAT) antes do streaming.
+NEED=$(( (TOTAL + 1073741823) / 1073741824 ))
+AVAIL_GB=$(df -Pk /tmp | awk 'NR==2 {print int($4/1048576)}')
+if [ "${AVAIL_GB:-0}" -lt "$NEED" ]; then
+  echo "ERRO: /tmp precisa de ~${NEED} GiB, tem ${AVAIL_GB} GiB" >&2
+  exit 1
+fi
 
 rm -f "$FAT_TMP" "$WORK_IMG"
 truncate -s "$FAT_BYTES" "$FAT_TMP"
@@ -66,7 +74,14 @@ printf 'start=%s,size=%s,type=c\n' "$START_SECT" "$SIZE_SECT" \
   | sfdisk --append --no-reread --force "$WORK_IMG"
 dd if="$FAT_TMP" of="$WORK_IMG" bs=1M seek="$START_MB" conv=notrunc status=none
 
-cp -f "$WORK_IMG" "$OUT"
+# O destino pode estar em 9p (/mnt/c) onde `cp` de ~10 GB morre com ENOMEM.
+# Streaming com dd + fsync grava bloco a bloco; o `.part` evita que um img
+# truncado fique com o nome final (e o `mv` no mesmo fs e barato).
+PART="$OUT.part"
+rm -f "$PART"
+dd if="$WORK_IMG" of="$PART" bs=16M conv=fsync status=progress
+sync
+mv -f "$PART" "$OUT"
 echo "OK $OUT"
 sfdisk -l "$OUT" 2>/dev/null | tail -6 || true
 ls -lh "$OUT"
