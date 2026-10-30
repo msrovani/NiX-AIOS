@@ -204,6 +204,17 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
                             {
                                 ui.set_mem_line(format!("mem · {n} fragmentos").into());
                             }
+                            // DIAG (SMI/GPU/S2/porta/SOUL) — foto do ecrã basta.
+                            if let Some(lines) = r.result.get("diag").and_then(|v| v.as_array()) {
+                                let model: Vec<slint::SharedString> = lines
+                                    .iter()
+                                    .filter_map(|l| l.as_str())
+                                    .map(slint::SharedString::from)
+                                    .collect();
+                                ui.set_diag_lines(slint::ModelRc::new(slint::VecModel::from(
+                                    model,
+                                )));
+                            }
                             ui.set_health_line(format!("ok · {eng}").into());
                             if status_extra.is_empty() {
                                 ui.set_status("ONLINE".into());

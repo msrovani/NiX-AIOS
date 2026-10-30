@@ -33,6 +33,155 @@ where
     out
 }
 
+// ── Diagnóstico no ecrã (a foto do metal é a evidência) ───────────────────
+//
+// "energia absent" e "GPU não usada" só se diagnosticavam com shell na
+// máquina. O HUD passa a mostrar as factos que decidem o caso: caminho do
+// nvidia-smi, ngl/cuda, resposta do driver (nome+VRAM **ou** o erro), o
+// backend S2 e se a porta 8082 responde, e se o SOUL existe.
+
+/// Corta para caber no cartão (232 px a 9 px ≈ 44 chars).
+fn fit(s: &str, n: usize) -> String {
+    let one = s.replace('\n', " ");
+    if one.chars().count() <= n {
+        return one;
+    }
+    let cut: String = one.chars().take(n.saturating_sub(1)).collect();
+    format!("{cut}…")
+}
+
+/// `nvidia-smi --query-gpu=…` com **timeout de 2 s** (driver preso não pode
+/// pendurar o `health`).
+fn smi_query(smi: &std::path::Path) -> Result<String, String> {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+    let mut child = Command::new(smi)
+        .args([
+            "--query-gpu=name,memory.used,memory.total",
+            "--format=csv,noheader,nounits",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        match child.try_wait().map_err(|e| e.to_string())? {
+            Some(st) => {
+                let mut out = String::new();
+                if let Some(mut o) = child.stdout.take() {
+                    let _ = o.read_to_string(&mut out);
+                }
+                let mut err = String::new();
+                if let Some(mut e) = child.stderr.take() {
+                    let _ = e.read_to_string(&mut err);
+                }
+                return if st.success() { Ok(out) } else { Err(err) };
+            }
+            None if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("timeout 2s".into());
+            }
+            None => std::thread::sleep(Duration::from_millis(50)),
+        }
+    }
+}
+
+/// `nvidia-smi --query-gpu=…` com cache de 20 s (o HUD pede health a cada ~2 s).
+fn gpu_diag_line() -> String {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    static CACHE: OnceLock<Mutex<Option<(Instant, String)>>> = OnceLock::new();
+    let cell = CACHE.get_or_init(|| Mutex::new(None));
+    if let Some((t, line)) = &*cell.lock().unwrap() {
+        if t.elapsed() < Duration::from_secs(20) {
+            return line.clone();
+        }
+    }
+    let line = match nos_core::nvidia_smi_path() {
+        None => "GPU · nvidia-smi AUSENTE".to_string(),
+        Some(smi) => match smi_query(&smi) {
+            Ok(out) => match out.lines().next().map(str::trim).filter(|l| !l.is_empty()) {
+                // csv: "<nome>, <usado>, <total>"
+                Some(l) => {
+                    let parts: Vec<&str> = l.split(',').map(str::trim).collect();
+                    match parts.as_slice() {
+                        [name, used, total, ..] => {
+                            format!("GPU · {used}/{total}M · {}", fit(name, 18))
+                        }
+                        _ => format!("GPU · {}", fit(l, 36)),
+                    }
+                }
+                None => "GPU · smi sem saída".to_string(),
+            },
+            Err(e) => {
+                let first = e.lines().next().unwrap_or("falhou").trim();
+                format!("GPU · smi ERRO: {}", fit(first, 26))
+            }
+        },
+    };
+    *cell.lock().unwrap() = Some((Instant::now(), line.clone()));
+    line
+}
+
+fn s2_port() -> u16 {
+    std::env::var("NOSD_LLAMA_SERVER_S2")
+        .ok()
+        .and_then(|u| u.rsplit(':').next().map(|p| p.trim().to_string()))
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8082)
+}
+
+fn port_open(port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(150)).is_ok()
+}
+
+/// 6 linhas curtas para o cartão DIAG do HUD.
+pub(crate) fn diag_lines(state: &AppState) -> Vec<String> {
+    let smi = match nos_core::nvidia_smi_path() {
+        Some(p) => p.display().to_string(),
+        None => "AUSENTE".into(),
+    };
+    let ngl = std::env::var("NOSD_LLAMA_NGL").unwrap_or_else(|_| "—".into());
+    let cuda = std::env::var("CUDA_VISIBLE_DEVICES").unwrap_or_else(|_| "—".into());
+    let s2 = state
+        .hermes
+        .hotswap_s2
+        .as_ref()
+        .map(|c| c.engine_name().to_string())
+        .unwrap_or_else(|| "ausente".into());
+    let port = s2_port();
+    let soul = std::env::var("NOSD_SOUL_PATH").unwrap_or_else(|_| "/etc/nosd/SOUL.md".into());
+    vec![
+        // caminho completo só interessa quando falha; basename + hash é ruído.
+        format!("SMI · {}", fit(&smi, 38)),
+        format!("NGL {ngl} · CUDA {cuda}"),
+        gpu_diag_line(),
+        format!("S2 · {s2} · fila {}", state.hermes.s2.pending()),
+        format!(
+            "PORTA {port} · {}",
+            if port_open(port) {
+                "a responder"
+            } else {
+                "sem resposta"
+            }
+        ),
+        format!(
+            "SOUL · {}",
+            if std::path::Path::new(&soul).is_file() {
+                "ok"
+            } else {
+                "FALTA"
+            }
+        ),
+    ]
+}
+
 pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Option<Response> {
     Some(match req.method.as_str() {
         "health" => {
@@ -69,6 +218,8 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     },
                     "engine": state.hermes.hotswap.engine_name(),
                     "engine_s2": state.hermes.hotswap_s2.as_ref().map(|c| c.engine_name()),
+                    // O que o HUD mostra como DIAG (foto = evidência).
+                    "diag": diag_lines(state),
                     "llama_server": nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name()),
                     "s1_backend": s1_backend_label(),
                     "landlock": format!("{:?}", crate::landlock::applied_status()),

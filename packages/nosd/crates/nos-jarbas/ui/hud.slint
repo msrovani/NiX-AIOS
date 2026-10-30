@@ -55,6 +55,8 @@ export component HudWindow inherits Window {
     in-out property <string> chat_log: "";
     /// Memória visível (fragmentos nsgdb).
     in-out property <string> mem_line: "";
+    /// DIAG: SMI · NGL/CUDA · GPU · S2 · porta · SOUL (prova por foto).
+    in-out property <[string]> diag_lines: [];
     /// Loop de voz contínuo (escuta → chat → TTS → escuta).
     in-out property <bool> always_on: false;
 
@@ -346,6 +348,30 @@ export component HudWindow inherits Window {
         font-size: 10px;
         vertical-alignment: center;
         overflow: elide;
+    }
+
+    // Painel DIAG — factos que decidem GPU/S2 (a foto do ecrã é a evidência).
+    Rectangle {
+        x: 32px; y: 474px; width: 240px; height: 226px;
+        border-radius: 8px;
+        background: #07131f;
+        opacity: 0.92;
+        border-width: 1px;
+        border-color: #173447;
+    }
+    Rectangle { x: 32px; y: 474px; width: 3px; height: 26px; background: root.accent; }
+    Text { x: 48px; y: 482px; width: 208px; height: 18px; text: "DIAG · GPU / MOTORES"; color: #c2d8e4; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+    VerticalLayout {
+        x: 44px; y: 508px; width: 218px; height: 184px;
+        spacing: 3px;
+        for line[i] in root.diag_lines : Text {
+            text: line;
+            color: #9fb8c8;
+            font-size: 9px;
+            vertical-alignment: center;
+            overflow: elide;
+            height: 26px;
+        }
     }
 
     // Painel direito — estado cognitivo, padrão e sinais do orb.
