@@ -293,7 +293,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   (CPU RAPL/GPU NVML) + termal hwmon advisory, e `iso-hw` com
   `uiMode=cinematic` (Chromium `--kiosk`) e todos os GGUFs pinados. Host
   OBSERVED (2 instâncias N15/N16, screenshot `docs/evidence/artifacts/
-  orb_ui_mesh_2nodes.jpeg`, verify PASS); metal/QEMU AWAITING_HW. Ver
+  orb_ui_mesh_2nodes.jpeg`, verify PASS). `nix build .#iso-hw` PASS: ISO
+  12 456 597 504 B, sha256 `1ef16b…b655`; `.img` único 16 752 050 176 B,
+  sha256 `fe97dfe…6f05` (ISO + FAT32 4G). Metal/QEMU AWAITING_HW. Ver
   `docs/ORB_UI.md` e `docs/evidence/ORB_UI_0.7.0-alpha.1.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem

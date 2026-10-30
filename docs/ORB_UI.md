@@ -129,6 +129,11 @@ Chromium sair/GPU falhar, o script faz fallback para Slint. A `iso-hw`
   19000/19001): `peers=1`, `pinned=1`, `TOFU SETTLED`; a janela 06 aparece
   `LIVE` e o drawer mostra `MST/N15` e `WRK/N16 · PIN`. Box 03 mantém 105 px
   no 720p com CPU `—` (Windows sem RAPL), GPU NVML 17.6 W/48 °C, `HOLD`.
+- **`nix build .#iso-hw`** (2026-10-30) PASS: ISO 12 456 597 504 B, sha256
+  `1ef16b277fb2e291d4350fb286619e7c33b35c466816ba5d4fd979374081b655`, com
+  0.8B Q4/Q8 + 4B Q4 + 9B Q4. `.img` único (ISO + FAT32 4G) 16 752 050 176 B,
+  sha256 `fe97dfe42959066e589993f7a5180c725f812f3ec4a2264fc680c97fdb716f05`.
+  Metal/firstboot AWAITING_HW.
 
 ## Não testado
 
