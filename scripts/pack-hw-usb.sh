@@ -29,7 +29,7 @@ echo "FAT=${FAT_MB}MiB START_MB=$START_MB TOTAL=$TOTAL OUT=$OUT"
 WORK_IMG="/tmp/nixaios-hw-usb.img"
 FAT_TMP="/tmp/nixaios-hw-fat.img"
 README="/tmp/nixaios-hw-readme.txt"
-trap 'rm -f "$FAT_TMP" "$README" "$WORK_IMG" "${PART:-}"' EXIT
+trap 'rm -f "$FAT_TMP" "$README" "$WORK_IMG"; [ "${DONE_IMG:-1}" = 1 ] || rm -f "${PART:-}"' EXIT
 
 # Espaço em /tmp: ISO + img intermédia (~ISO + FAT) antes do streaming.
 NEED=$(( (TOTAL + 1073741823) / 1073741824 ))
@@ -78,10 +78,19 @@ dd if="$FAT_TMP" of="$WORK_IMG" bs=1M seek="$START_MB" conv=notrunc status=none
 # Streaming com dd + fsync grava bloco a bloco; o `.part` evita que um img
 # truncado fique com o nome final (e o `mv` no mesmo fs e barato).
 PART="$OUT.part"
+DONE_IMG=0
 rm -f "$PART"
 dd if="$WORK_IMG" of="$PART" bs=16M conv=fsync status=progress
 sync
+# drvfs: um .img anterior pode ter o atributo ReadOnly; aí `rm`/`mv` falham
+# (Permission denied) mesmo com o .part completo. `attrib.exe -R` limpa-o.
+if command -v attrib.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+  attrib.exe -R "$(wslpath -w "$OUT")" >/dev/null 2>&1 || true
+fi
+chmod u+w "$OUT" 2>/dev/null || true
+rm -f "$OUT" || true
 mv -f "$PART" "$OUT"
+DONE_IMG=1
 echo "OK $OUT"
 sfdisk -l "$OUT" 2>/dev/null | tail -6 || true
 ls -lh "$OUT"
