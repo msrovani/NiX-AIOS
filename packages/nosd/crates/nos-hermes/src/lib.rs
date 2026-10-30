@@ -320,6 +320,10 @@ impl HermesEngine {
         }
         let bei_budget = self.bei.tick().map(|s| s.budget_remaining).unwrap_or(0);
         let decision = route_intent(prompt);
+        // Persona + memória: o GGUF recebia a pergunta nua (`build_chat_prompt`
+        // estava exportado mas nunca era chamado — o SOUL.md não chegava ao
+        // modelo). O prompt composto é separado em system/user no backend.
+        let model_prompt = self.build_model_prompt(prompt);
 
         // S1 AgentJev/Laya: sem blob (NOSD_S1_BLOB / slot Agent) → ScorerAbsent + LOO blob_deliberate.
         match nos_core::s1_backend_from_env() {
@@ -383,7 +387,7 @@ impl HermesEngine {
             decision.reason,
             self.s2.pending()
         );
-        let reply = if self.plan_route(prompt, true).backend == nos_core::Backend::S2 {
+        let reply = if self.plan_route(&model_prompt, true).backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -392,7 +396,7 @@ impl HermesEngine {
                     "pending": self.s2.pending(),
                 }),
             );
-            match self.s2.submit_wait(prompt.to_string()) {
+            match self.s2.submit_wait(model_prompt.clone()) {
                 Ok(r) if r.ok => r.text,
                 Ok(r) => {
                     // O worker respondeu com erro (ex.: llama-server S2 morreu).
@@ -401,16 +405,16 @@ impl HermesEngine {
                         "s2 worker error ({}), a tentar S1",
                         r.text.chars().take(80).collect::<String>()
                     );
-                    self.s1_fallback(prompt)?
+                    self.s1_fallback(&model_prompt)?
                 }
                 Err(e) => {
                     warn!(target: "nosd", "s2 indisponivel ({e}), a tentar S1");
-                    self.s1_fallback(prompt)?
+                    self.s1_fallback(&model_prompt)?
                 }
             }
         } else {
             self.hotswap
-                .infer(prompt)
+                .infer(&model_prompt)
                 .map_err(|e| HermesError::Infer(e.to_string()))?
         };
 
@@ -474,7 +478,8 @@ impl HermesEngine {
             .map_err(HermesError::Cap)?;
         let decision = route_intent(prompt);
         let slot = self.plan_slot(decision);
-        if self.plan_route(prompt, false).backend == nos_core::Backend::S2 {
+        let model_prompt = self.build_model_prompt(prompt);
+        if self.plan_route(&model_prompt, false).backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -485,7 +490,7 @@ impl HermesEngine {
             );
             let id = self
                 .s2
-                .submit(prompt.to_string())
+                .submit(model_prompt.clone())
                 .map_err(HermesError::Infer)?;
             return Ok(json!({
                 "id": id,
@@ -496,7 +501,7 @@ impl HermesEngine {
         }
         let reply = self
             .hotswap
-            .infer(prompt)
+            .infer(&model_prompt)
             .map_err(|e| HermesError::Infer(e.to_string()))?;
         if reply.trim().is_empty() {
             return Err(HermesError::Infer("empty reply".into()));
@@ -641,6 +646,11 @@ impl HermesEngine {
         self.hotswap
             .infer(prompt)
             .map_err(|e| HermesError::Infer(format!("s2 falhou e S1 tambem: {e}")))
+    }
+
+    /// Prompt que vai ao modelo: persona (SOUL.md) + memória + pergunta.
+    fn build_model_prompt(&self, user_prompt: &str) -> String {
+        build_chat_prompt(&self.memory, user_prompt, None, 3)
     }
 
     /// V10 — decisão de backend S1/S2, explicável e com o estado real.

@@ -200,6 +200,20 @@ impl LlamaServerBackend {
     fn chat_url(&self) -> String {
         format!("{}/v1/chat/completions", self.base)
     }
+
+    fn post_chat(
+        &self,
+        agent: &ureq::Agent,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> Result<ureq::Response, SwapError> {
+        let mut req = agent.post(url).set("Content-Type", "application/json");
+        if let Some(key) = &self.api_key {
+            req = req.set("Authorization", &format!("Bearer {key}"));
+        }
+        req.send_string(&body.to_string())
+            .map_err(|_| SwapError::Infer("llama-server http"))
+    }
 }
 
 impl Drop for LlamaServerBackend {
@@ -295,15 +309,24 @@ impl InferenceBackend for LlamaServerBackend {
         let agent = ureq::AgentBuilder::new()
             .timeout_read(Duration::from_secs(120))
             .build();
-        let mut req = agent.post(&url).set("Content-Type", "application/json");
-        if let Some(key) = &self.api_key {
-            req = req.set("Authorization", &format!("Bearer {key}"));
-        }
-        let resp = req
-            .send_string(&body.to_string())
-            .map_err(|_| SwapError::Infer("llama-server http"))?;
+        let mut resp = self.post_chat(&agent, &url, &body)?;
         if !(200..300).contains(&resp.status()) {
-            return Err(SwapError::Infer("llama-server bad status"));
+            // Build antigo do llama-server pode recusar campos extra (400).
+            // Repetir sem `chat_template_kwargs`/sampling em vez de morrer.
+            warn!(
+                target: "nosd",
+                "llama-server chat status {} — a repetir sem chat_template_kwargs",
+                resp.status()
+            );
+            let minimal = serde_json::json!({
+                "messages": body.get("messages").cloned().unwrap_or_default(),
+                "max_tokens": self.n_predict,
+                "stream": true,
+            });
+            resp = self.post_chat(&agent, &url, &minimal)?;
+            if !(200..300).contains(&resp.status()) {
+                return Err(SwapError::Infer("llama-server bad status"));
+            }
         }
         let mut reader = BufReader::new(resp.into_reader());
         let mut line = String::new();

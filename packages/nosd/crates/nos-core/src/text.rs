@@ -16,13 +16,9 @@ pub const USER_MARK: &str = "## User";
 pub fn strip_think(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
-    loop {
-        let open = match find_open(rest) {
-            Some(i) => i,
-            None => break,
-        };
-        out.push_str(&rest[..open.0]);
-        let after_open = &rest[open.1..];
+    while let Some((start, tag_len)) = find_open(rest) {
+        out.push_str(&rest[..start]);
+        let after_open = &rest[start + tag_len..];
         match find_close(after_open) {
             Some((i, len)) => rest = &after_open[i + len..],
             // Aberto até ao fim: descartar o raciocínio incompleto.
