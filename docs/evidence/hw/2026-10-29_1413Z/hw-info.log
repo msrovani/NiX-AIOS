@@ -1,0 +1,9 @@
+=== nixaios hw 20261029T141312Z ===
+Linux nixaios 6.18.57 #1-NixOS SMP PREEMPT_DYNAMIC @1792058300 x86_64 GNU/Linux
+BOOT_IMAGE=/boot//nix/store/maq0fxv0r4p9bac4haqy45c4vhlc33ag-linux-6.18.57/bzImage init=/nix/store/2pj81inl85m1xprwn6klplfcvrjbds5j-nixos-system-nixaios-26.11.20261020.02c087f/init nohibernate root=fstab loglevel=4 lsm=landlock,yama,bpf console=tty0 console=ttyS0,115200n8  initrd=/boot//nix/store/3fb2j0d6v1y4sm6fafzi453376qps8h2-initrd-linux-6.18.57/initrd
+00:00.0 Host bridge [0600]: Intel Corporation 440FX - 82441FX PMC [Natoma] [8086:1237] (rev 02)
+00:01.0 ISA bridge [0601]: Intel Corporation 82371SB PIIX3 ISA [Natoma/Triton II] [8086:7000]
+00:01.1 IDE interface [0101]: Intel Corporation 82371SB PIIX3 IDE [Natoma/Triton II] [8086:7010]
+00:01.3 Bridge [0680]: Intel Corporation 82371AB/EB/MB PIIX4 ACPI [8086:7113] (rev 03)
+00:02.0 VGA compatible controller [0300]: Device [1234:1111] (rev 02)
+00:03.0 Ethernet controller [0200]: Intel Corporation 82540EM Gigabit Ethernet Controller [8086:100e] (rev 03)

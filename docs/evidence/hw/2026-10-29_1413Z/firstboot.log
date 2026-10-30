@@ -1,0 +1,16 @@
+=== nos-firstboot start 2026-10-29T11:13:21-03:00 tty=/dev/tty1 log=/tmp/nos-firstboot.log ===
+modo=interactivo net_wait=30s
+
+==============================================
+  Neural AIOS — configuracao inicial (texto)
+==============================================
+ Persistencia Linux: OK  passo_salvo=0  dir=/var/lib/nosd
+
+1) Rede (cabo ou Wi-Fi) — necessario para baixar idioma/voz/modelos
+   Ja ligado: ens3 (ethernet) src=10.0.2.15
+
+2) Idioma do sistema e da voz (Piper/Whisper)
+   1) pt_BR (Brasil)   [default]
+   2) pt_PT (Portugal)
+   3) en_US
+   4) es_ES

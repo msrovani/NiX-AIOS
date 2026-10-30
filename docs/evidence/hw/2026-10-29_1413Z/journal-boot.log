@@ -1,0 +1,37 @@
+=== nixaios journal dump 20261029T141312Z ===
+out 29 11:13:06 nixaios systemd[1]: Starting Mount NIXAIOSLOG FAT (robust by-label/blkid)...
+out 29 11:13:07 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[630]: nixaios-log: trying /dev/disk/by-label/NIXAIOSLOG (/dev/sda3)
+out 29 11:13:08 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[673]: fsck.fat 4.2 (2021-01-31)
+out 29 11:13:08 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[673]: /dev/sda3: 2 files, 2/1046524 clusters
+out 29 11:13:08 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[630]: nixaios-log: OK /dev/sda3 -> /mnt/nixaios-log
+out 29 11:13:09 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[785]: total 12
+out 29 11:13:09 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[785]: drwxrwxrwx 2 root root 4096 dez 31  1969 .
+out 29 11:13:09 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[785]: drwxr-xr-x 3 root root   60 out 29 11:12 ..
+out 29 11:13:09 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[785]: -rwxrwxrwx 1 root root   47 out 29 11:13 GUEST_MOUNTED.txt
+out 29 11:13:09 nixaios rnfadshaxmyfbb4cr8372fww6br3ccaz-nixaios-ensure-log-fat[785]: -rwxrwxrwx 1 root root  580 out 29 08:10 README.txt
+out 29 11:13:09 nixaios systemd[1]: Finished Mount NIXAIOSLOG FAT (robust by-label/blkid).
+out 29 11:13:11 nixaios systemd[1]: Starting Neural-OS Daemon...
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.064717Z  INFO nosd: ipc token file /var/lib/nosd/ipc.token (token never logged)
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.067223Z  INFO nosd: nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.093570Z  INFO nosd: capacity ram_avail_mb=1143 vendor=cpu cards=["card0"] render=[] vram_free_mb=0 posture=no_gpu_hint suggest_ngl=0 (CUDA llama only; NOSD_LLAMA_NGL overrides)
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.097427Z  INFO nosd: landlock Verified under /var/lib/nosd
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.097571Z  INFO nosd: landlock status=Verified
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.101561Z  INFO nosd: engine=cpu-echo (no gguf in /var/lib/nosd/models)
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.105420Z  INFO nosd: memory open backend=Nsgdb jsonl_on_disk=false
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.110213Z  INFO nosd: orb state=connecting pattern=sphere particles=120
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.111452Z  INFO nosd: ui open id=1 kind=Info source=Hermes escalate=false
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.113159Z  INFO nosd: orb state=idle pattern=sphere particles=80
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.118786Z  INFO nosd: crdt log "/var/lib/nosd/nsgdb/crdt/seg.bin" fmt=Nsgdb replayed=0
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.120552Z  INFO nosd: NOSD_SCORE phase=ready sev=Ok hub=0 mem=1 peers=0 s1=keyword llama=absent+engine=boot ll=Verified | nosd scaffold up
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.121575Z  INFO nosd: sd_notify READY=1
+out 29 11:13:12 nixaios systemd[1]: Started Neural-OS Daemon.
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.124359Z  INFO nosd: mesh udp bind=0.0.0.0:19000 broadcast=255.255.255.255:19000
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.125923Z  INFO nosd: mesh udp ON bind=0.0.0.0:19000 broadcast=255.255.255.255:19000
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.126571Z  INFO nosd: hermes continuous tick every 2s (NOSD_HERMES_TICK_SECS)
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.126892Z  INFO nosd: listen unix /run/nosd/nosd.sock
+out 29 11:13:12 nixaios systemd[1]: Starting JARBAS hub slog (sem DRM)...
+out 29 11:13:12 nixaios systemd[1]: Started Export journal -> NIXAIOSLOG FAT32.
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.651752Z  WARN nosd: mesh HB tx err=Network is unreachable (os error 101)
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.653569Z  WARN nosd: mesh tick extra tx err=Network is unreachable (os error 101)
+out 29 11:13:12 nixaios nosd[858]: 2026-10-29T14:13:12.654705Z  INFO nosd: hermes runtime tick=1 peers=0 payload={"agency_agents":4,"bei_budget":9999,"chat_iterations_left":256,"engine":"cpu-echo","hub_loaded":0,"latent_tag":null,"orb_level":0.0,"orb_state":"idle","pending_skills":0,"persona_emotion":"Neutral","persona_heartbeat_due":false,"s2_pending":0,"sleep_phase":"REPLAY","sleep_phases":["REPLAY","DREAM","CONSOLIDATE","PRUNE","REFLECT"],"ui_windows":1}
+--- firstboot/hotswap tail ---
