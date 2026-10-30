@@ -126,6 +126,9 @@
           # HW (nao release): logs persistentes em FAT32 LABEL=NIXAIOSLOG.
           iso-hw =
             self.nixosConfigurations.nixaios-iso-hw.config.system.build.isoImage;
+          # Variante CUDA (RTX 3050): NVIDIA proprietario + llama-cpp-cuda.
+          iso-hw-cuda =
+            self.nixosConfigurations.nixaios-iso-hw-cuda.config.system.build.isoImage;
         });
 
       nixosModules.neural-os = import ./modules/neural-os.nix;
@@ -871,6 +874,35 @@
             # Brain embutido (symlink content-addressed no models): o iso-hw
             # arranca com engine=llama sem rede nem seed manual (ADR-0118
             # addenda 0118-qwen-embedded-brain). NUNCA na ISO de release.
+            services.nosdBrain = {
+              enable = true;
+              package = self.packages.${pkgs.system}.qwen35-08b-q4km;
+            };
+          })
+        ];
+      };
+
+      # Variante CUDA do iso-hw: mesmo stack + NVIDIA proprietário e
+      # llama-cpp-cuda (RTX 3050). Ver images/hw-cuda.nix.
+      nixosConfigurations.nixaios-iso-hw-cuda = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          ({ pkgs, ... }: {
+            nixpkgs.config.allowUnfree = true;
+            nixpkgs.overlays = [
+              (final: prev: {
+                nosd = self.packages.x86_64-linux.nosd;
+              })
+            ];
+          })
+          self.nixosModules.default
+          ./images/iso.nix
+          ./images/hw.nix
+          ./images/hw-cuda.nix
+          ({ pkgs, self, ... }: {
+            services.nosd.package = pkgs.nosd;
+            environment.systemPackages = [ pkgs.nosd ];
             services.nosdBrain = {
               enable = true;
               package = self.packages.${pkgs.system}.qwen35-08b-q4km;
