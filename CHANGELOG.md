@@ -22,6 +22,19 @@ Versionamento [SemVer](https://semver.org/).
 
 - Versão `0.7.0-alpha.2`; evidência e memória actualizadas.
 
+### Fixed (pós-alpha.2, in-tree)
+
+- **`DeviceAllow` NVIDIA** (metal CUDA): `char-nvidia-frontend` (só existe
+  com módulo vGPU/Xen) e `char-nvidia-ctl` (não é alias; `/dev/nvidiactl`
+  pertence ao major `nvidia`) removidos; falta era `char-nvidia rw`, que
+  cobre `/dev/nvidiaN` + `/dev/nvidiactl`. Sob política `closed` implícita
+  o systemd ignora aliases mortos em silêncio e a CUDA morria a abrir
+  `/dev/nvidia0`. Fix nos 3 units (`nosd-engine@` e `nosd-engine` em
+  `modules/nosd-engine.nix`; `nosd` e `nosd-engine-s2` em `images/hw-cuda.nix`)
+  + check estático `checks.x86_64-linux.hw-cuda-deviceallow` no flake
+  (avaliação dos DeviceAllow gerados; inclui o unit supervisionado do
+  módulo). Ver lição 41 do `AGENTS.md`. Metal CUDA: AWAITING_HW.
+
 ## [0.7.0-alpha.1] — ORB UI + HW cinematic
 
 ### Added

@@ -129,6 +129,12 @@ Combinações que resolvem o mistério de uma vez:
 - `PORTA 8082 · sem resposta` → o `nosd-engine-s2` não arrancou; o journal
   (`journalctl -u nosd-engine-s2 -b`, também em `hw-info.log`) diz porquê.
 - `GPU · AUSENTE` → só o binário falta (caminho), não o driver.
+- CUDA "não arranca"/ENODEV com driver vivo → grep no journal:
+  `journalctl -u nosd-engine-s2 -b | grep -iE 'nvidia0|Permission denied'`
+  tem de sair **vazio**. Se sair `Failed to open /dev/nvidia0: Permission
+  denied`, é `DeviceAllow` (aliases resolvem por `/proc/devices`;
+  `char-nvidia-frontend`/`char-nvidia-ctl` não existem em metal — ver
+  lição 41 do `AGENTS.md` e `docs/evidence/HWCUDA_DEVICEALLOW_20261030.md`).
 
 ## 5. Recolher para análise
 

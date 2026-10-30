@@ -155,8 +155,11 @@ in
           ReadWritePaths = [ "${toString cfg.modelsDir}" ];
           RestrictAddressFamilies = [ "AF_INET" "AF_INET6" ];
           DevicePolicy = "closed";
+          # Mesma regra dos units acima: `char-nvidia` cobre /dev/nvidiaN +
+          # /dev/nvidiactl (major 195); frontend/ctl não são aliases válidos
+          # em metal (ver checks.hw-cuda-deviceallow).
           DeviceAllow = [
-            "char-nvidia-frontend rw"
+            "char-nvidia rw"
             "char-nvidia-uvm rw"
             "char-nvidia-caps rw"
           ];

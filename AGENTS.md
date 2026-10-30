@@ -161,6 +161,21 @@ Resumo executavel; detalhe em
     LF, mas o Nix usa a árvore de trabalho quando está *dirty*; converter o
     ficheiro para LF (`perl -pi -e 's/\r\n/\n/g' flake.nix`) antes de
     `nix build`. Não é falha do Rust nem do modelo.
+41. **`DeviceAllow` resolvem aliases por `/proc/devices` (Linux-only, unit) —
+    lista NVIDIA de sítio nenhum passou em metal**: `char-nvidia` cobre
+    `/dev/nvidiaN` **e** `/dev/nvidiactl` (major 195). `char-nvidia-frontend`
+    é módulo vGPU/Xen e `char-nvidia-ctl` não é alias: sob política `closed`
+    implícita o systemd **ignora-os em silêncio** e a CUDA morre a abrir
+    `/dev/nvidia0` (Permission denied → ENODEV). Host Windows não decide
+    unit (enforcement é systemd/kernel) — gate só existe no lado Nix:
+    `checks.hw-cuda-deviceallow` no flake (eval + grep; inclui unit do
+    `nosd-engine` supervisionado). Apanhar a 2.ª/3.ª lista igual no MESMO
+    ficheiro: `grep -n 'char-nvidia-' modules/*.nix images/*.nix` antes de
+    declarar o fix feito — o 1.º round de patch pegou **3 de 4 listas**
+    (o `nosd-engine` supervisionado só ficou coberto à 2.ª passagem, quando
+    o check passou a avaliar-o). Metal: confirmar
+    `journalctl -u nosd-engine-s2 -b | grep -iE 'nvidia0|Permission denied'`
+    vazio. Ver `docs/evidence/HWCUDA_DEVICEALLOW_20261030.md`.
 
 ## Comandos
 
@@ -305,7 +320,7 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   15 946 315 776 B, sha256 `c5d7cb80…f67f`; `.img` único 20 241 711 104 B,
   sha256 `4662a340…9225` (ISO + FAT32 4G; 5 GGUFs). Metal/QEMU AWAITING_HW. Ver
   `docs/ORB_UI.md` e `docs/evidence/ORB_UI_0.7.0-alpha.2.md`.
-- **Metal CUDA 0.7.0-alpha.2 (in-tree; fix alpha.3)**: `iso-hw-cuda` com
+- **Metal CUDA 0.7.0-alpha.2 (in-tree; fixes pós-alpha.2)**: `iso-hw-cuda` com
   driver NVIDIA + `llama-cpp-cuda`; S1 0.8B Q4 em CPU e S2 4B **Q6_K** em CUDA
   na 8082 (`--fit on --fit-ctx 2048 --reasoning off`, sem `-c`/`-ngl` fixos).
   Chromium no cage: `NIXOS_OZONE_WL=1` + `--ozone-platform=wayland` (sem isto

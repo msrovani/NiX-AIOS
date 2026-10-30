@@ -283,6 +283,22 @@
               nativeBuildInputs = with pkgs; [ gnugrep ];
               NOSD_DA = builtins.toJSON cfg.systemd.services.nosd.serviceConfig.DeviceAllow;
               S2_DA = builtins.toJSON cfg.systemd.services."nosd-engine-s2".serviceConfig.DeviceAllow;
+              # Unit do próprio módulo (não activo no hw-cuda: eval mínimo
+              # com supervise=true) — a 1ª versão do fix esqueceu este unit.
+              ENGINE_DA = builtins.toJSON
+                (nixpkgs.lib.nixosSystem {
+                  system = "x86_64-linux";
+                  modules = [
+                    self.nixosModules.nosd-engine
+                    (_: {
+                      services.nosdEngine = {
+                        enable = true;
+                        supervise = true;
+                        modelPath = "/var/lib/nosd/models/fake.gguf";
+                      };
+                    })
+                  ];
+                }).config.systemd.services."nosd-engine".serviceConfig.DeviceAllow;
             } ''
               if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-nvidia rw"' <<<"$NOSD_DA"; then
                 echo "missing char-nvidia rw in nosd DeviceAllow: $NOSD_DA" >&2; exit 1
@@ -295,6 +311,12 @@
               fi
               if ${pkgs.gnugrep}/bin/grep -Eq 'char-nvidia-(frontend|ctl)' <<<"$S2_DA"; then
                 echo "dead alias in nosd-engine-s2 DeviceAllow: $S2_DA" >&2; exit 1
+              fi
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-nvidia rw"' <<<"$ENGINE_DA"; then
+                echo "missing char-nvidia rw in nosd-engine DeviceAllow: $ENGINE_DA" >&2; exit 1
+              fi
+              if ${pkgs.gnugrep}/bin/grep -Eq 'char-nvidia-(frontend|ctl)' <<<"$ENGINE_DA"; then
+                echo "dead alias in nosd-engine DeviceAllow: $ENGINE_DA" >&2; exit 1
               fi
               echo "nosd DeviceAllow (visible): $NOSD_DA" >&2
               touch $out

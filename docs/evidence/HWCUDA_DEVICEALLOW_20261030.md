@@ -15,23 +15,28 @@ resolvem por `/proc/devices` (Linux, enforcement systemd/cgroup):
 - faltava `char-nvidia rw` (cobre `/dev/nvidiaN` + `/dev/nvidiactl`).
 
 Sob política `closed` implícita pelo `DeviceAllow` (`char-drm` no unit base,
-/neural-os.nix/), o systemd **ignora os aliases desconhecidos em silêncio**
+modules/neural-os.nix), o systemd **ignora os aliases desconhecidos em silêncio**
 e a CUDA morre a abrir `/dev/nvidia0` (Permission denied → ENODEV).
 O sintoma registado em `docs/evidence/hw/2026-10-29_1413Z` era a motivação
 do fix, mas a lista antiga veio de boot QEMU — nunca provada em metal.
 
 ## Fix
 
-- `modules/nosd-engine.nix` (2 units): `DeviceAllow = [ "char-nvidia rw"
-  "char-nvidia-uvm rw" "char-nvidia-caps rw" ]` + comentário `/proc/devices`.
+- `modules/nosd-engine.nix` (units `nosd-engine@` template e `nosd-engine`
+  supervisionado): `DeviceAllow = [ "char-nvidia rw" "char-nvidia-uvm rw"
+  "char-nvidia-caps rw" ]` + comentário `/proc/devices`. O 1.º round do
+  patch substituiu só a 1.ª ocorrência do ficheiro; o unit supervisionado
+  (2.ª lista) ficou para trás e foi apanhado à 2.ª passagem — de agora em
+  diante, `grep -n 'char-nvidia-'` no ficheiro antes de declarar fix feito.
 - `images/hw-cuda.nix` (units `nosd` e `nosd-engine-s2`): idem.
 - `modules/jarbas-cage.nix`: comentário no `pickDrm` — AMD (0x1002) entra no
   ramo "não-NVIDIA" por omissão (APU-only apanha o card certo; nenhuma UI/
   inferência AMD validada, inferência hoje = CUDA/NVIDIA).
-Sob política `closed` implícita pelo `DeviceAllow` (`char-drm` no unit base,
-modules/neural-os.nix), o systemd **ignora os aliases desconhecidos em</think><tool_call>edit<arg_key>newString</arg_key><arg_value>- `flake.nix`: novo check estático `checks.x86_64-linux.hw-cuda-deviceallow`
-  (eval da config hw-cuda + afirma `char-nvidia rw` presente e `frontend|ctl`
-  ausente nos dois units).
+- `flake.nix`: check estático `checks.x86_64-linux.hw-cuda-deviceallow`
+  (afirma `char-nvidia rw` presente e `frontend|ctl` ausente em **3**
+  DeviceAllow: `nosd` e `nosd-engine-s2` do hw-cuda avaliados da config
+  real + `nosd-engine` supervisionado avaliado de um sistema mínimo com
+  `services.nosdEngine.supervise=true`).
 
 ## Prova (host Linux)
 
