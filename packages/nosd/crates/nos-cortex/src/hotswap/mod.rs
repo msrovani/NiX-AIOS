@@ -101,6 +101,18 @@ impl HotSwapController {
         Ok(())
     }
 
+    /// Anexa a um `llama-server` **explícito** (base URL própria) — segundo
+    /// backend (S2/PRO) sem depender de `NOSD_LLAMA_SERVER`.
+    pub fn try_attach_llama_at(&self, model: PathBuf, base: String) -> Result<(), SwapError> {
+        let backend: Arc<dyn InferenceBackend> =
+            Arc::new(LlamaServerBackend::try_new_at(model.clone(), base)?);
+        info!(target: "nosd", "hotswap attach(s2) {}", backend.name());
+        *self.active.lock() = backend;
+        *self.kind.lock() = EngineKind::LlamaGguf;
+        *self.current_path.lock() = Some(model);
+        Ok(())
+    }
+
     /// Hot-load: unload + attach llama. EXL2/vLLM = use `swap_to` → EngineAbsent.
     pub fn hot_load_llama(&self, model: PathBuf) -> Result<(), SwapError> {
         info!(target: "nosd", "hotswap hot_load {}", model.display());

@@ -25,7 +25,12 @@
   systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
     "CUDA_VISIBLE_DEVICES=0"
     "NVIDIA_VISIBLE_DEVICES=0"
-    "NOSD_LLAMA_NGL=99"
+    # S1: 0.8B em CPU (forçado). S2 vai ao serviço 8082 (4B CUDA).
+    "NOSD_LLAMA_NGL=0"
+    "NOSD_LLAMA_CTX=4096"
+    "NOSD_LLAMA_MODEL=/var/lib/nosd/models/qwen3.5-0.8b-q4km.gguf"
+    "NOSD_LLAMA_SERVER_S2=http://127.0.0.1:8082"
+    "NOSD_LLAMA_MODEL_S2=/var/lib/nosd/models/qwen3.5-4b-q4km.gguf"
     # nvidia-smi vive no output `bin` (o `out` só tem nvidia-sleep.sh);
     # caminho absoluto para capacity/energia (allowlist do nosd).
     "NOSD_NVIDIA_SMI=${config.hardware.nvidia.package.bin}/bin/nvidia-smi"
@@ -45,11 +50,48 @@
     config.hardware.nvidia.package.bin
   ];
 
-  # Brain maior para a 3050: tier 3 pinado (4B Q4_K_M, 2.55 GiB) em vez do
-  # 0.8B. Cabe nos 6 GB com KV 4k; o iso-hw normal continua com 0.8B (CPU).
+  # Dois modelos na MESMA imagem:
+  #  - 0.8B (S1) → `services.nosdBrain` (symlink do módulo comum);
+  #  - 4B (S2/PRO) → symlink próprio, servido pela unit nosd-engine-s2 em CUDA.
+  systemd.tmpfiles.rules = [
+    "L+ /var/lib/nosd/models/qwen3.5-4b-q4km.gguf - - - - ${self.packages.${pkgs.system}.qwen35-4b-q4km}"
+  ];
   services.nosdBrain = {
     enable = true;
-    package = lib.mkForce self.packages.${pkgs.system}.qwen35-4b-q4km;
-    name = lib.mkForce "qwen3.5-4b-q4km.gguf";
+    package = lib.mkForce self.packages.${pkgs.system}.qwen35-08b-q4km;
+    name = lib.mkForce "qwen3.5-0.8b-q4km.gguf";
+  };
+
+  # S2/PRO: 4B no dGPU, porta 8082 (loopback). S1 fica no nosd (CPU).
+  systemd.services.nosd-engine-s2 = {
+    description = "llama-server S2/PRO (Qwen 4B, CUDA)";
+    after = [ "local-fs.target" ];
+    wantedBy = [ "multi-user.target" ];
+    path = [ pkgs.coreutils ];
+    startLimitIntervalSec = 120;
+    startLimitBurst = 5;
+    serviceConfig = {
+      Type = "simple";
+      User = "nosd";
+      Group = "nosd";
+      Restart = "on-failure";
+      RestartSec = "5s";
+      NoNewPrivileges = true;
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      ReadWritePaths = [ "/var/lib/nosd" ];
+      DevicePolicy = "closed";
+      DeviceAllow = [
+        "char-nvidia-frontend rw"
+        "char-nvidia-uvm rw"
+        "char-nvidia-caps rw"
+        "char-nvidia-ctl rw"
+      ];
+      SupplementaryGroups = [ "video" "render" ];
+      OOMScoreAdjust = 200;
+      MemoryMax = "8G";
+      Environment = [ "CUDA_VISIBLE_DEVICES=0" ];
+      ExecStart = "${self.packages.${pkgs.system}.llama-cpp-cuda}/bin/llama-server --host 127.0.0.1 --port 8082 -m /var/lib/nosd/models/qwen3.5-4b-q4km.gguf -ngl 99 -c 4096 --no-webui";
+    };
   };
 }

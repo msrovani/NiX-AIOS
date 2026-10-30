@@ -68,6 +68,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                         "cuda_visible": std::env::var("CUDA_VISIBLE_DEVICES").unwrap_or_default(),
                     },
                     "engine": state.hermes.hotswap.engine_name(),
+                    "engine_s2": state.hermes.hotswap_s2.as_ref().map(|c| c.engine_name()),
                     "llama_server": nos_cortex::llama_server_posture(state.hermes.hotswap.engine_name()),
                     "s1_backend": s1_backend_label(),
                     "landlock": format!("{:?}", crate::landlock::applied_status()),

@@ -82,6 +82,8 @@ pub const OPAR_TRACE_CAP: usize = 64;
 pub struct HermesEngine {
     pub hub: ModelHub,
     pub hotswap: HotSwapController,
+    /// Segundo backend (S2/PRO) — 4B em CUDA. `None` → S2 cai no S1.
+    pub hotswap_s2: Option<HotSwapController>,
     pub s2: S2Queue,
     pub memory: NosMemory,
     pub bei: BeiRuntime,
@@ -140,7 +142,13 @@ impl HermesEngine {
         }
 
         let hotswap = HotSwapController::new_cpu();
-        let attach = hub.path_of(ModelSlot::Active).or(first_gguf);
+        // S1: modelo explícito (forçar 0.8B em CPU) > slot Active > primeiro GGUF.
+        let attach = std::env::var("NOSD_LLAMA_MODEL")
+            .ok()
+            .map(std::path::PathBuf::from)
+            .filter(|p| p.is_file())
+            .or_else(|| hub.path_of(ModelSlot::Active))
+            .or(first_gguf);
         if let Some(path) = attach {
             match hotswap.try_attach_llama(path) {
                 Ok(()) => info!(target: "nosd", "engine={}", hotswap.engine_name()),
@@ -157,9 +165,37 @@ impl HermesEngine {
             );
         }
 
-        let hs_s2 = hotswap.clone();
+        // S2/PRO: segundo llama-server (4B em CUDA). Sem ele, S2 usa S1.
+        let hotswap_s2 = match (
+            std::env::var("NOSD_LLAMA_SERVER_S2"),
+            std::env::var("NOSD_LLAMA_MODEL_S2"),
+        ) {
+            (Ok(base), Ok(model)) if !base.trim().is_empty() && !model.trim().is_empty() => {
+                let c = HotSwapController::new_cpu();
+                match c.try_attach_llama_at(
+                    std::path::PathBuf::from(model.trim()),
+                    base.trim().to_string(),
+                ) {
+                    Ok(()) => {
+                        info!(
+                            target: "nosd",
+                            "engine_s2={} base={}",
+                            c.engine_name(),
+                            base.trim()
+                        );
+                        Some(c)
+                    }
+                    Err(e) => {
+                        info!(target: "nosd", "engine_s2 absent ({e}) — S2 usa S1");
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+        let s2_ctrl = hotswap_s2.clone().unwrap_or_else(|| hotswap.clone());
         let s2 = S2Queue::start(std::sync::Arc::new(move |p| {
-            hs_s2.infer(p).map_err(|e| e.to_string())
+            s2_ctrl.infer(p).map_err(|e| e.to_string())
         }));
         let memory =
             NosMemory::open(&cfg.mem_dir).map_err(|e| HermesError::Memory(e.to_string()))?;
@@ -167,6 +203,7 @@ impl HermesEngine {
         let eng = Self {
             hub,
             hotswap,
+            hotswap_s2,
             s2,
             memory,
             bei: BeiRuntime::new(10_000),
@@ -1006,6 +1043,7 @@ mod tests {
         let eng = HermesEngine {
             hub: ModelHub::new(),
             hotswap,
+            hotswap_s2: None,
             s2,
             memory: NosMemory::open(dir.path()).unwrap(),
             bei: BeiRuntime::new(1000),
