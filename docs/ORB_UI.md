@@ -54,6 +54,11 @@ FOOTER   HITL server-authored · MIC/TXT/ESC/H · DIAG · NIXAIOS 051
 - **T/S**: a linha `T/S` mostra `~N t/s` **estimado end-to-end** (chars/4 ÷
   tempo do turno). O `title` diz explicitamente que não são timings do engine;
   sem turno medido fica `—`. Não inventar tokens/s (manifesto Cortex/Hermes).
+- **S2/GPU sempre à vista**: `TELEMETRIA` mostra `S2 / PRO` (`engine_s2` ou
+  `ausente`), `GPU` (`usado/total MiB` do `nvidia-smi`, ou o erro) e `S2 PORTA`
+  (`8082` a responder/sem resposta). O drawer `DIAG` mantém as seis linhas
+  completas. Isto existe para diagnóstico por **foto do ecrã** no metal — sem
+  shell na máquina.
 
 ## Cores do orb
 

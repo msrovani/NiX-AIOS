@@ -77,6 +77,21 @@ Se `plan.reason=s2_absent` num portátil com 3050: o serviço `nosd-engine-s2`
 não subiu (driver/VRAM) — o journal dirá porquê. Se `s2_busy_interactive`:
 fila ocupada; mandar um job é o caminho.
 
+### No ecrã (cinematic ORB)
+
+`TELEMETRIA` mostra sempre três linhas: **S2 / PRO** (`engine_s2` ou `ausente`),
+**GPU** (`usado/total MiB` do `nvidia-smi`, ou o erro) e **S2 PORTA**
+(`127.0.0.1:8082` a responder/sem resposta). O drawer `DIAG` tem as seis linhas
+completas (SMI, NGL/CUDA, GPU, S2, porta, SOUL). Uma foto do cockpit resolve o
+diagnóstico sem shell.
+
+### Raciocínio desligado na origem
+
+O `llama-server` arranca com `--reasoning off` (spawn do S1 e unit do S2): o
+Qwen3.x responde directo em vez de gastar `n_predict` em `<think>`. Isto é a
+correcção de raiz; `strip_think` em `nos-core::text` fica como rede de
+segurança para servidores antigos. `NOSD_LLAMA_REASONING=on|auto` re-liga.
+
 ## 6. Próximos passos (não agora)
 
 1. **Admissão VRAM com cache** (TTL 30 s) para desligar S2 se outro processo
