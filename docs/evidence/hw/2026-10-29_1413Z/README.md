@@ -71,6 +71,25 @@ VOL±, `mem · N`, chat com histórico e TTS na resposta.
 
 **Não verificado em metal** — só o artefacto existe.
 
+## Metal 2026-10-30 (pós-CUDA): o que se viu e o que foi corrigido
+
+- `engine=llama-server-http`, `hub/1`, `mem · 163 fragmentos` → modelo embutido
+  a responder; **`absent/none · 0.00 J`** → `nvidia-smi` não resolveu (driver
+  não carregado ou binário fora do perfil) — ver §CUDA.
+- `JARBAS: , and you` → **sem persona**: `SOUL.md` não existia; o prompt era só
+  `## User`. Corrigido (`9adc6c4`): `/etc/nosd/SOUL.md` (pt-BR, curto) +
+  `NOSD_SOUL_PATH`.
+- Erro de "falta de modelo" no Q5: `transmute` **descarregava sempre** o boot
+  model (`unsloth/Qwen3.5-0.8B-GGUF` → `Qwen3.5-0.8B-Q4_K_M.gguf` →
+  `active-qwen3.5-0.8b-q4_k_m.gguf`, via
+  `https://huggingface.co/<repo>/resolve/main/<file>`), mesmo com o Qwen
+  embutido. Corrigido: se já existe GGUF em `models`, skip.
+- Fonte do chat 12→17 px, caixa 76→96 px.
+- **FAT sem logs**: a `NIXAIOSLOG` tinha só `README.txt` (580 B) — esse boot
+  não a montou (arranque da ISO, não do `.img`, ou mount falhou). Sem logs não
+  há confirmação do ficheiro descarregado.
+
+
 ## Tela preta depois do GUI (metal, pós-Q5)
 
 Sintoma: quiz OK, HUD aparece e depois ecrã preto.

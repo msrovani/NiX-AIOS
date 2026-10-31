@@ -120,6 +120,10 @@ let
     export XDG_SESSION_TYPE=wayland
     export XDG_CURRENT_DESKTOP=cage
     export NOSD_SOCKET=/run/nosd/nosd.sock
+    # O wrapper do Chromium só adiciona `--ozone-platform-hint=auto` quando
+    # NIXOS_OZONE_WL está setado; sem isso o browser tenta X11 (não há Xwayland
+    # no cage) e morre. O flag explícito abaixo também cobre wrappers antigos.
+    export NIXOS_OZONE_WL=1
     # Fontconfig: HOME=/var/empty -> "No writable cache directories" a cada arranque.
     export XDG_CACHE_HOME=/var/lib/nosd/cache
     export RUST_LOG="''${RUST_LOG:-info}"
@@ -221,20 +225,31 @@ let
     fi
     printf '%s\n' "$BOOTSTRAP" > "$BOOTSTRAP_FILE"
     echo "jarbas-cinematic: launching Chromium JARBAS HUD"
-    if run_cage ${pkgs.chromium}/bin/chromium \
-      --kiosk \
-      --noerrdialogs \
-      --disable-infobars \
-      --disable-session-crashed-bubble \
-      --no-first-run \
-      --check-for-update-interval=31536000 \
-      --autoplay-policy=no-user-gesture-required \
-      --use-fake-ui-for-media-stream \
-      --enable-features=WebRTCPipeWireCapturer \
-      --enable-gpu \
-      --ignore-gpu-blocklist \
-      --user-data-dir="$XDG_RUNTIME_DIR/chromium-jarbas" \
-      "''${LAB}#bootstrap=$BOOTSTRAP"; then
+    run_chromium() {
+      run_cage ${pkgs.chromium}/bin/chromium \
+        --kiosk \
+        --noerrdialogs \
+        --disable-infobars \
+        --disable-session-crashed-bubble \
+        --no-first-run \
+        --check-for-update-interval=31536000 \
+        --autoplay-policy=no-user-gesture-required \
+        --use-fake-ui-for-media-stream \
+        --enable-features=WebRTCPipeWireCapturer \
+        --enable-gpu \
+        --ignore-gpu-blocklist \
+        --ozone-platform=wayland \
+        --user-data-dir="$XDG_RUNTIME_DIR/chromium-jarbas" \
+        "$@" \
+        "''${LAB}#bootstrap=$BOOTSTRAP"
+    }
+    if run_chromium; then
+      rm -f "$BOOTSTRAP_FILE"
+      exit 0
+    fi
+    # GPU/EGL falhou (nouveau/iGPU antiga): segunda tentativa em software.
+    echo "jarbas-chromium: renderer saiu; retry software (--disable-gpu)" >&2
+    if run_chromium --disable-gpu; then
       rm -f "$BOOTSTRAP_FILE"
       exit 0
     fi
@@ -294,6 +309,11 @@ in
   config = lib.mkIf cfg.enable {
     services.seatd.enable = true;
     services.xserver.enable = lib.mkDefault false;
+
+    # Chromium no kiosk corre como `nosd` (não-root). Sem o sandbox SUID o
+    # browser recusa arrancar e o wrapper cai para Slint (metal 2026-10-30).
+    security.chromiumSuidSandbox.enable =
+      lib.mkIf (builtins.elem cfg.uiMode [ "cinematic" "auto" ]) true;
 
     # O lab é usado por Chromium no modo explícito ou auto (seleção runtime).
     systemd.services.nosd.serviceConfig.Environment = lib.mkAfter (
