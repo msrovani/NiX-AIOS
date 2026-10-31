@@ -688,6 +688,9 @@ button{cursor:pointer}
         <div class="kv"><span>PEERS</span><b id="kvPeers">—</b></div>
         <div class="kv"><span>MEMÓRIA</span><b id="kvMemory">—</b></div>
         <div class="kv" data-optional><span>S2 PENDING</span><b id="kvS2">—</b></div>
+        <div class="kv"><span>S2 / PRO</span><b id="kvS2Engine">—</b></div>
+        <div class="kv"><span>GPU</span><b id="kvGpu">—</b></div>
+        <div class="kv"><span>S2 PORTA</span><b id="kvPort">—</b></div>
         <div class="kv" data-optional><span>LANDLOCK</span><b id="kvLandlock">—</b></div>
         <div class="kv" data-optional><span>SCORE</span><b id="kvScore" title="">—</b></div>
       </section>
@@ -1230,6 +1233,19 @@ button{cursor:pointer}
     else renderMesh(null);
     // DIAG fica no drawer, não polui o cockpit.
     ui.diag = Array.isArray(h.diag) ? h.diag : [];
+    // …mas as três facts que decidem GPU/S2 ficam SEMPRE à vista (foto).
+    const diagLine = (prefix) => ui.diag.find((l) => String(l).startsWith(prefix)) || "";
+    setKv("kvS2Engine", h.engine_s2 ? h.engine_s2 : "ausente",
+      h.engine_s2 ? "ok" : "warn",
+      "segundo llama-server (4B/PRO); ausente = NOSD_LLAMA_SERVER_S2 não anexou");
+    const gpu = diagLine("GPU · ");
+    setKv("kvGpu", gpu ? gpu.replace(/^GPU · /, "") : "—",
+      /ERRO|AUSENTE|timeout/i.test(gpu) ? "warn" : (gpu ? "ok" : ""),
+      gpu || "nvidia-smi --query-gpu=name,memory.used,memory.total");
+    const port = diagLine("PORTA ");
+    setKv("kvPort", port ? port.replace(/^PORTA /, "") : "—",
+      /sem resposta/i.test(port) ? "warn" : (port ? "ok" : ""),
+      "TCP 127.0.0.1:8082 (unit nosd-engine-s2)");
   }
 
   function renderTick(t) {

@@ -156,6 +156,13 @@ impl LlamaServerBackend {
             .filter(|n| *n >= 512)
             .unwrap_or(2048);
         cmd.arg("--fit-ctx").arg(fit_ctx.to_string());
+        // `--reasoning off` (build 11429): o Qwen3.x responde directo em vez de
+        // gastar o orçamento em <think>. Sem isto o chat devolve raciocínio.
+        // `NOSD_LLAMA_REASONING=on|auto` re-liga (default off nesta bancada).
+        let reasoning = std::env::var("NOSD_LLAMA_REASONING").unwrap_or_else(|_| "off".into());
+        if matches!(reasoning.as_str(), "on" | "off" | "auto") {
+            cmd.arg("--reasoning").arg(reasoning);
+        }
         if ngl > 0 {
             cmd.arg("-ngl").arg(ngl.to_string());
         }
