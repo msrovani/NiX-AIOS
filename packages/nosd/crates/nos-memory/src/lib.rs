@@ -153,17 +153,76 @@ impl NosMemory {
     }
 }
 
+/// Dobra PT/EN para ASCII minúsculo. A persona fala português: sem isto,
+/// `memoria` não encontra `memória` e `wifi` não encontra `Wi-Fi`. Sem
+/// dependência extra (o crate é stdlib + serde).
+fn fold(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.to_lowercase().chars() {
+        if ch.is_whitespace() {
+            out.push(' ');
+            continue;
+        }
+        if !ch.is_alphanumeric() {
+            continue; // hífen, pontuação, apóstrofo: “Wi-Fi” == “wifi”
+        }
+        out.push(match ch {
+            'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            other => other,
+        });
+    }
+    out.trim().to_string()
+}
+
+/// Palavras vazias (PT-BR + EN): não distinguem memórias nenhumas e faziam
+/// qualquer registo com `de`/`que`/`the` parecer relevante.
+const STOPWORDS: &[&str] = &[
+    "de", "da", "do", "das", "dos", "que", "para", "com", "uma", "um", "uns", "umas", "os", "as",
+    "no", "na", "nos", "nas", "em", "por", "se", "ao", "aos", "como", "mais", "mas", "ou",
+    "quando", "onde", "qual", "quais", "quem", "muito", "pode", "voce", "meu", "minha", "sobre",
+    "isso", "isto", "aquilo", "the", "and", "for", "with", "that", "this", "what", "how", "are",
+    "you", "from", "not", "have", "was", "were",
+];
+
+/// Termos normalizados da query: split em não-alfanumérico, dobra de acentos,
+/// sem stopwords nem duplicados. `eval` (evitar/executar) continua, `ação`
+/// passa a `acao`.
+fn query_terms(query: &str) -> Vec<String> {
+    // Split por espaços (não por pontuação) para “evict-marker-1” ficar um
+    // termo só; a dobra remove o hífen/pontuação dentro do termo.
+    let mut terms: Vec<String> = query
+        .split_whitespace()
+        .map(fold)
+        .filter(|t| t.len() > 1)
+        .filter(|t| !STOPWORDS.contains(&t.as_str()))
+        .collect();
+    terms.sort();
+    terms.dedup();
+    terms
+}
+
 fn score_hits(query: &str, k: usize, records: Vec<MemoryRecord>) -> Vec<Hit> {
-    let terms: Vec<&str> = query.split_whitespace().filter(|t| t.len() > 1).collect();
+    let terms = query_terms(query);
+    // Query vazia = listagem dos primeiros registos (compat). Query só com
+    // stopwords = nada a procurar (não devolve o arquivo inteiro com score 0).
+    let had_words = query.split_whitespace().any(|t| t.len() > 1);
+    if terms.is_empty() && had_words {
+        return Vec::new();
+    }
     let mut hits = Vec::new();
     for rec in records {
-        let lower = rec.text.to_ascii_lowercase();
+        let folded = fold(&rec.text);
         let mut matched = Vec::new();
         let mut score = 0.0f32;
         for t in &terms {
-            let tl = t.to_ascii_lowercase();
-            if lower.contains(&tl) {
-                matched.push((*t).to_string());
+            if folded.contains(t.as_str()) {
+                matched.push(t.clone());
                 score += 1.0;
             }
         }
@@ -246,6 +305,48 @@ mod tests {
         assert!(hits[0].matched_terms.iter().any(|t| t == "mesh"));
         assert_eq!(m.backend(), MemoryBackendKind::Nsgdb);
         assert!(!m.backend().uses_jsonl_on_disk());
+    }
+
+    #[test]
+    fn recall_is_accent_and_punctuation_insensitive() {
+        let d = tempdir().unwrap();
+        let m = NosMemory::open_with_backend(d.path(), MemoryBackendKind::Nsgdb).unwrap();
+        m.remember(MemoryRecord {
+            key: "lab".into(),
+            text: "Memória do laboratório: Wi-Fi do mesh caiu.".into(),
+            scope: "s".into(),
+            entities: vec![],
+        })
+        .unwrap();
+        let hits = m.recall("memoria wifi", 5).unwrap();
+        assert_eq!(
+            hits.len(),
+            1,
+            "acentos/pontuação não podem esconder a memória"
+        );
+        assert!(hits[0].score >= 2.0, "{hits:?}");
+        assert_eq!(hits[0].matched_terms, vec!["memoria", "wifi"]);
+    }
+
+    #[test]
+    fn stopword_only_query_is_empty_not_everything() {
+        let d = tempdir().unwrap();
+        let m = NosMemory::open_with_backend(d.path(), MemoryBackendKind::Nsgdb).unwrap();
+        for (key, text) in [("a", "kernel 6.12 no metal"), ("b", "fila do hermes vazia")] {
+            m.remember(MemoryRecord {
+                key: key.into(),
+                text: text.into(),
+                scope: "s".into(),
+                entities: vec![],
+            })
+            .unwrap();
+        }
+        assert!(
+            m.recall("o que e de para com", 5).unwrap().is_empty(),
+            "stopwords não são sinal"
+        );
+        // Query vazia continua a ser listagem (compat do memory.recall).
+        assert_eq!(m.recall("", 5).unwrap().len(), 2);
     }
 
     #[test]

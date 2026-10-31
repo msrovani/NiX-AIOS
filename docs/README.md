@@ -20,6 +20,7 @@ Versão corrente: **0.7.0-alpha.2** (in-tree; última ISO publicada `0.6.0-alpha
 | [ROADMAP.md](ROADMAP.md) | Residuals pós-0.5.0 e honesty |
 | [IMPROVEMENT_PLAN.md](IMPROVEMENT_PLAN.md) | Plano de melhorias por ondas (0.5.4 → 0.6/0.7/0.8) |
 | [BOOT_TO_JARBAS.md](BOOT_TO_JARBAS.md) | Playbook M0–M5 boot→JARBAS Jarvis-like + rings + AI_GATE |
+| [SYMBIOSIS_REVIEW_2026-10-31.md](SYMBIOSIS_REVIEW_2026-10-31.md) | Revisão NixOS↔AIOS: mapa boot→JARBAS, modelos em runtime, memória, wasm e roadmap |
 | [METAL_CAMPAIGN.md](METAL_CAMPAIGN.md) | Campanha M4 stick NIXAIOS051 (Ring3_Linux/metal) |
 | [FLEET_LAB.md](FLEET_LAB.md) | Campanha M5 mesh 2-nó (0081 A/B) |
 | [SKILL_TRUST_AND_SELECTION.md](SKILL_TRUST_AND_SELECTION.md) | Requisitos de segurança/qualidade das skills wasm e escolha pelo Hermes |

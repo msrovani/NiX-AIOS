@@ -171,6 +171,14 @@ identidade por omissão; sem ela o ficheiro não é assinado e o `nosd` regista
 `skill quota signed=false` no arranque. Ligar a identidade é uma decisão de
 postura do mesh, não deste módulo.
 
+**Limite honesto (rollback do par)**: a âncora impede apagar/recuar a janela
+com a âncora atual, mas quem escreve no data-dir pode repor **o par** janela +
+âncora antigo e consistente — não há contador monotónico fora do data-dir
+(mesma classe do residual da âncora do CRDT). A assinatura prova autoria e
+integridade, não frescura. Na ISO de release a identidade M6 não está ligada
+por omissão (só a `iso-demo` usa `NOSD_MESH_REQUIRE_SIG=1`); aí a janela sai
+não assinada (`signed=false`), declarado no arranque.
+
 ---
 
 ## 4. Escolha entre candidatas do mesmo foco (Hermes)

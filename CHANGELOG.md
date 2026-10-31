@@ -39,6 +39,29 @@ Versionamento [SemVer](https://semver.org/).
   tail-sha == ISO; pendrive ≥ 32 GB). Substitui o build `9470e357`
   (sem o fix). Ver `docs/evidence/hw/2026-10-31_0140Z/README.md`.
 
+### Fixed (pós-alpha.2, in-tree — revisão de simbiose 2026-10-31)
+
+- **Voz sob `DevicePolicy=closed`**: o `nosd` só tinha `char-drm` no
+  `DeviceAllow`; `nos-voice` corre `arecord`/`aplay` como filhos do unit e
+  herdava o cgroup de dispositivos — `/dev/snd` negado (microfone "avariado").
+  Adicionado `char-alsa rw` e o check estático `nosd-voice-deviceallow`.
+- **Motor supervisionado com as mesmas flags do spawn**: `services.nosdEngine`
+  (template e concreto) passou a usar `--fit on --fit-ctx` (contexto conforme
+  VRAM), `--reasoning off` e `--no-webui`, com opções `fitCtx`/`reasoning`;
+  check `engine-fit-parity` impede a divergência voltar.
+- **`nosd-early-score` com `path = [ coreutils ]`** (regra 5: nada de comandos
+  nus em serviços NixOS).
+- **Memória mais inteligente e menos ingénua**: recall dobra acentos,
+  pontuação e hífen (`memoria`↔`memória`, `wifi`↔`Wi-Fi`) e ignora
+  stopwords PT/EN; query só com stopwords devolve vazio em vez de todos os
+  registos. O bloco `## Memory recall` passa a declarar que a memória é
+  contexto não verificado (prompt-injection persistente), com teste.
+- **Docs**: removida a frase "1777 do data-dir só pré-transmute" (a ISO aplica
+  1777 a cada boot, intencional e já documentado em ARCHITECTURE/SECURITY).
+- **Revisão completa** em `docs/SYMBIOSIS_REVIEW_2026-10-31.md`: mapa
+  boot→JARBAS, simbiose NixOS, runtime de modelos, memória, fábrica wasm e
+  roadmap P0–P2.
+
 ### Added (pós-alpha.2, in-tree — quota assinada)
 
 - **Janela assinada pela chave do nó**: com identidade M6, o

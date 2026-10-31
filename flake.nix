@@ -322,6 +322,82 @@
               touch $out
             '';
 
+          # Voz no metal: `nos-voice` corre `arecord`/`aplay` como filhos do
+          # nosd, que tem DeviceAllow (→ DevicePolicy=closed). Sem `char-alsa`
+          # (/dev/snd, major 116) o cgroup de dispositivos nega a captura e o
+          # sintoma parece “microfone avariado”. Gate estático, não prova áudio.
+          nosd-voice-deviceallow =
+            let
+              cfg = nixpkgs.lib.nixosSystem {
+                system = "x86_64-linux";
+                modules = [
+                  self.nixosModules.neural-os
+                  (_: { services.nosd.enable = true; })
+                ];
+              };
+            in
+            pkgs.runCommand "test-nosd-voice-deviceallow" {
+              nativeBuildInputs = [ pkgs.gnugrep ];
+              DA = builtins.toJSON cfg.config.systemd.services.nosd.serviceConfig.DeviceAllow;
+              ENV = builtins.toJSON cfg.config.systemd.services.nosd.serviceConfig.Environment;
+              PRE = builtins.toJSON cfg.config.systemd.services.nosd.serviceConfig.ExecStartPre;
+            } ''
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-alsa rw"' <<<"$DA"; then
+                echo "missing char-alsa rw in nosd DeviceAllow (arecord/aplay): $DA" >&2; exit 1
+              fi
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-drm rw"' <<<"$DA"; then
+                echo "missing char-drm rw in nosd DeviceAllow: $DA" >&2; exit 1
+              fi
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"XDG_RUNTIME_DIR=/run/nosd/user"' <<<"$ENV"; then
+                echo "missing XDG_RUNTIME_DIR=/run/nosd/user in nosd Environment: $ENV" >&2; exit 1
+              fi
+              if ! ${pkgs.gnugrep}/bin/grep -Fq 'install -d -m 0700 -o nosd -g nosd /run/nosd/user' <<<"$PRE"; then
+                echo "missing root install of /run/nosd/user in ExecStartPre: $PRE" >&2; exit 1
+              fi
+              touch $out
+            '';
+
+          # O motor supervisionado tem de usar as MESMAS flags do spawn do
+          # nosd: `--fit on`/`--fit-ctx` (contexto conforme VRAM) e
+          # `--reasoning off`. Sem isto, `supervise=true` era outro motor.
+          engine-fit-parity =
+            let
+              cfg = nixpkgs.lib.nixosSystem {
+                system = "x86_64-linux";
+                modules = [
+                  self.nixosModules.nosd-engine
+                  (_: {
+                    services.nosdEngine = {
+                      enable = true;
+                      supervise = true;
+                      modelPath = "/var/lib/nosd/models/fake.gguf";
+                    };
+                  })
+                ];
+              };
+              svc = cfg.config.systemd.services;
+            in
+            pkgs.runCommand "test-engine-fit-parity" {
+              nativeBuildInputs = [ pkgs.gnugrep ];
+              SUPERVISED = svc."nosd-engine".serviceConfig.ExecStart;
+              TEMPLATE = svc."nosd-engine@".serviceConfig.ExecStart;
+            } ''
+              # Unit concreto: as flags estão no ExecStart.
+              for flag in '--fit on' '--fit-ctx 2048' '--reasoning off' '--no-webui'; do
+                if ! ${pkgs.gnugrep}/bin/grep -Fq -- "$flag" <<<"$SUPERVISED"; then
+                  echo "supervised sem '$flag' (paridade com nos-cortex): $SUPERVISED" >&2; exit 1
+                fi
+              done
+              # Template: o ExecStart é o script; as flags vivem dentro dele.
+              TEMPLATE_SCRIPT="''${TEMPLATE%% *}"
+              for flag in '--fit on' '--fit-ctx 2048' '--reasoning off' '--no-webui'; do
+                if ! ${pkgs.gnugrep}/bin/grep -Fq -- "$flag" "$TEMPLATE_SCRIPT"; then
+                  echo "template sem '$flag' em $TEMPLATE_SCRIPT" >&2; exit 1
+                fi
+              done
+              touch $out
+            '';
+
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
             nodes.machine = { lib, ... }: {

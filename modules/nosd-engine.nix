@@ -20,10 +20,18 @@ let
     fi
     export CUDA_VISIBLE_DEVICES="''${CUDA_VISIBLE_DEVICES:-${cfg.cudaVisibleDevices}}"
     export NVIDIA_VISIBLE_DEVICES="''${NVIDIA_VISIBLE_DEVICES:-${cfg.cudaVisibleDevices}}"
+    # Paridade com o spawn do nosd (nos-cortex): sem `-c` fixo, `--fit on`
+    # escolhe o maior contexto/NGL que cabe na VRAM; `--reasoning off` evita
+    # o orçamento gasto em raciocínio do Qwen3.x. Estava SÓ no spawn, o que
+    # tornava `supervise=true` um motor diferente do resto do sistema.
     exec ${cfg.llamaPackage}/bin/llama-server \
       --host 127.0.0.1 \
       --port "$PORT" \
       -m "$MODEL" \
+      --fit on \
+      --fit-ctx ${toString cfg.fitCtx} \
+      --reasoning ${cfg.reasoning} \
+      --no-webui \
       -ngl ${toString cfg.nGpuLayers}
   '';
 in
@@ -78,6 +86,19 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "Flags extra do llama-server (ex.: --api-key, --no-webui)";
+    };
+    fitCtx = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 2048;
+      description = ''
+        `--fit-ctx` mínimo: sem `-c` fixo, o llama.cpp escolhe o maior contexto
+        que cabe na VRAM, nunca abaixo deste valor.
+      '';
+    };
+    reasoning = lib.mkOption {
+      type = lib.types.enum [ "on" "off" "auto" ];
+      default = "off";
+      description = "`--reasoning`: off evita que o Qwen3.x gaste o orçamento em  thinking";
     };
   };
 
@@ -173,6 +194,10 @@ in
               --host 127.0.0.1 \
               --port ${toString cfg.port} \
               -m ${cfg.modelPath} \
+              --fit on \
+              --fit-ctx ${toString cfg.fitCtx} \
+              --reasoning ${cfg.reasoning} \
+              --no-webui \
               -ngl ${toString cfg.nGpuLayers} \
               ${lib.concatStringsSep " " cfg.extraArgs}
           '';

@@ -222,6 +222,14 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **Revisao de simbiose 2026-10-31 (in-tree)**: corrigidos 4 defeitos reais —
+  `char-alsa` no DeviceAllow do nosd (voz: arecord/aplay como filhos sob
+  DevicePolicy=closed), paridade `--fit/--reasoning` dos units do motor com o
+  spawn do nos-cortex (`services.nosdEngine.fitCtx/reasoning`), `path` do
+  unit `nosd-early-score`, e recall de memoria (acentos/pontuacao/hifen,
+  stopwords PT/EN) + aviso de prompt-injection no bloco `## Memory recall`.
+  Checks novos `nosd-voice-deviceallow` e `engine-fit-parity`. Mapa completo
+  e roadmap em `docs/SYMBIOSIS_REVIEW_2026-10-31.md`. Sem metal/QEMU novo.
 - **S-04** HITL grant: **feito** (alpha.8) - `hitl_confirmed` ignorado; tudo por
   `confirm_id` server-authored; `nosctl consent <kind>`.
 - **S-07** sanitização de `fetch_to_dir`: feito.
@@ -255,7 +263,8 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   KiB de chat; score de skills clamp 0-100; `hitl_confirmed` fora do
   audio.volume - cap HITL da identidade decide; `NOSD_ENGINE_DIR` morto
   removido; `services.nosd.package` propagado a early/firstboot/hotswap;
-  StartLimit no UNIT nosd; 1777 do data-dir so pre-transmute). G1: ancora do
+  StartLimit no UNIT nosd; `iso.nix` mantem 1777 na live — ver
+  ARCHITECTURE/SECURITY, o 1777 e por-boot e intencional). G1: ancora do
   CRDT **assinada** (`NSGANCHOR bytes lines` + sig; sem-assinatura com
   identidade = recusa), pins TOFU persistidos (`keys/pins.dat`, HB+jobs),
   seq do HB persistido (`keys/hb.seq`, arranque max(epoch_ms, persistido+1)),

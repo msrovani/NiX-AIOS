@@ -65,6 +65,9 @@ in
       # Antes do login TUI / cage ? cockpit IA cedo
       before = [ "getty@tty1.service" "jarbas-cage.service" ];
       wantedBy = [ "multi-user.target" ];
+      # Regra 5: nada de comandos nus. O script usa date/cat/tr/head/seq/
+      # mkdir/sleep do coreutils; sem `path` o unit herda um PATH mínimo.
+      path = [ pkgs.coreutils ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;

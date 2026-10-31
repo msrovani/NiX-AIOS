@@ -227,7 +227,18 @@ in
         MemoryMax = "16G";
         RuntimeDirectory = "nosd";
         StateDirectory = "nosd";
-        DeviceAllow = [ "char-drm rw" ];
+        # Pipewire/ALSA precisam de XDG_RUNTIME_DIR 0700; /run/nosd/user é
+        # criado como root antes do drop para `nosd` (o tmpfiles do cage não
+        # corre na ISO de release). Sem isto a voz fica dependente de o
+        # jarbas-cage ter arrancado primeiro.
+        ExecStartPre = [
+          "+${pkgs.coreutils}/bin/install -d -m 0700 -o nosd -g nosd /run/nosd/user"
+        ];
+        # `DeviceAllow` implica DevicePolicy=closed. O `nos-voice` corre
+        # `arecord`/`aplay` COMO FILHOS deste unit, logo herdam o cgroup de
+        # dispositivos: sem `char-alsa` (major 116, /dev/snd/*) o metal dá
+        # EACCES e a voz fica muda mesmo com o grupo `audio` correto.
+        DeviceAllow = [ "char-drm rw" "char-alsa rw" ];
         RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
         NoNewPrivileges = true;
         ProtectSystem = "strict";
@@ -237,6 +248,7 @@ in
           [ cfg.dataDir "/run/nosd" "/tmp" ]
           ++ lib.optionals (config.services.nixaiosLogFat.enable or false) [ "/mnt/nixaios-log" ];
         Environment = [
+          "XDG_RUNTIME_DIR=/run/nosd/user"
           "CUDA_VISIBLE_DEVICES=${cfg.cudaVisibleDevices}"
           "NOSD_HERMES_TICK_SECS=${toString cfg.hermesTickSecs}"
           "NOSD_MESH_BIND=${cfg.meshBind}"
