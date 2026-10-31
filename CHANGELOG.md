@@ -34,6 +34,10 @@ Versionamento [SemVer](https://semver.org/).
   + check estático `checks.x86_64-linux.hw-cuda-deviceallow` no flake
   (avaliação dos DeviceAllow gerados; inclui o unit supervisionado do
   módulo). Ver lição 41 do `AGENTS.md`. Metal CUDA: AWAITING_HW.
+- **Artefacto CUDA republicado com o fix**: ISO `4f5ce467…`
+  (17 220 493 312 B) no `.img` `f7da2843…` (21 515 730 944 B;
+  tail-sha == ISO; pendrive ≥ 32 GB). Substitui o build `9470e357`
+  (sem o fix). Ver `docs/evidence/hw/2026-10-31_0140Z/README.md`.
 
 ## [0.7.0-alpha.1] — ORB UI + HW cinematic
 
