@@ -1,4 +1,4 @@
-{
+﻿{
   description = "NixAIOS — nosd daemon + JARBAS kiosk on NixOS (ADR-0118)";
 
   inputs = {
@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.7.0-alpha.2";
+            version = "0.7.0-alpha.3";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".
@@ -148,6 +148,9 @@
           # Variante CUDA (RTX 3050): NVIDIA proprietario + llama-cpp-cuda.
           iso-hw-cuda =
             self.nixosConfigurations.nixaios-iso-hw-cuda.config.system.build.isoImage;
+          # HW CUDA só com Qwen3.5-4B-Q6_K (sem 0.8B/9B/S2).
+          iso-hw-cuda-4b =
+            self.nixosConfigurations.nixaios-iso-hw-cuda-4b.config.system.build.isoImage;
         });
 
       nixosModules.neural-os = import ./modules/neural-os.nix;
@@ -266,6 +269,59 @@
             bash ${./scripts/test-stick-conf.sh}
             touch $out
           '';
+
+          # nvidia-smi ELF: PT_LOAD que cobre PT_DYNAMIC deve ter PF_W
+          # (glibc 2.44 DT_DEBUG). Usa o binário apontado por NOSD_NVIDIA_SMI
+          # na config iso-hw-cuda (derivação nvidia-bin-elf-pf-w).
+          nvidia-smi-elf-pf-w =
+            let
+              cfg = self.nixosConfigurations.nixaios-iso-hw-cuda.config;
+              envList = cfg.systemd.services.nosd.serviceConfig.Environment;
+              envs = builtins.filter builtins.isString
+                (nixpkgs.lib.flatten
+                  (if builtins.isList envList then envList else [ envList ]));
+              smiLine = nixpkgs.lib.findFirst
+                (s: nixpkgs.lib.hasPrefix "NOSD_NVIDIA_SMI=" s)
+                null
+                envs;
+              smiPath = if smiLine == null then null
+                else nixpkgs.lib.removePrefix "NOSD_NVIDIA_SMI=" smiLine;
+            in
+            pkgs.runCommand "test-nvidia-smi-elf-pf-w" {
+              nativeBuildInputs = [ pkgs.python3 ];
+              inherit smiPath;
+            } ''
+              if [ -z "$smiPath" ] || [ ! -f "$smiPath" ]; then
+                echo "NOSD_NVIDIA_SMI missing or not a file: $smiPath" >&2
+                exit 1
+              fi
+              ${pkgs.python3}/bin/python3 - "$smiPath" <<'PY'
+import struct, pathlib, sys
+p = pathlib.Path(sys.argv[1])
+b = p.read_bytes()
+assert b[:4] == b"\x7fELF", "not ELF"
+e_phoff = struct.unpack_from("<Q", b, 32)[0]
+e_phentsize, e_phnum = struct.unpack_from("<HH", b, 54)
+dyn = None
+for i in range(e_phnum):
+    off = e_phoff + i * e_phentsize
+    t, flags, _o, vaddr, _p, _f, memsz, _a = struct.unpack_from("<IIQQQQQQ", b, off)
+    if t == 2:
+        dyn = vaddr
+        break
+assert dyn is not None, "no PT_DYNAMIC"
+ok = False
+for i in range(e_phnum):
+    off = e_phoff + i * e_phentsize
+    t, flags, _o, vaddr, _p, _f, memsz, _a = struct.unpack_from("<IIQQQQQQ", b, off)
+    if t == 1 and vaddr <= dyn < vaddr + memsz:
+        assert flags & 2, f"PT_LOAD covering .dynamic lacks PF_W flags={flags:#x}"
+        ok = True
+assert ok, "no PT_LOAD covers PT_DYNAMIC"
+print(f"ok {p} PF_W on DYNAMIC LOAD", file=sys.stderr)
+PY
+              touch $out
+            '';
 
           # hw-cuda (metal/RTX 3050): DeviceAllow resolvem aliases por
           # /proc/devices (Linux-only, enforcement systemd/cgroup). `char-
@@ -1056,6 +1112,35 @@
             services.nosdBrain = {
               enable = true;
               package = self.packages.${pkgs.system}.qwen35-08b-q4km;
+            };
+          })
+        ];
+      };
+
+      # HW CUDA single-model: só Qwen3.5-4B-Q6_K na dGPU (sem 0.8B/S2).
+      nixosConfigurations.nixaios-iso-hw-cuda-4b = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          ({ pkgs, ... }: {
+            nixpkgs.config.allowUnfree = true;
+            nixpkgs.overlays = [
+              (final: prev: {
+                nosd = self.packages.x86_64-linux.nosd;
+              })
+            ];
+          })
+          self.nixosModules.default
+          ./images/iso.nix
+          ./images/hw-4b.nix
+          ./images/hw-cuda-4b.nix
+          ({ pkgs, self, ... }: {
+            services.nosd.package = pkgs.nosd;
+            environment.systemPackages = [ pkgs.nosd ];
+            services.nosdBrain = {
+              enable = true;
+              package = self.packages.${pkgs.system}.qwen35-4b-q6k;
+              name = "active.gguf";
             };
           })
         ];

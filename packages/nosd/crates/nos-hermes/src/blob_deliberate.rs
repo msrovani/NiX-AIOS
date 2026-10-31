@@ -174,6 +174,7 @@ mod tests {
             dri_render: vec![],
             vendor_hint: "nvidia".into(),
             accel: vec![],
+            ..Default::default()
         }
     }
 

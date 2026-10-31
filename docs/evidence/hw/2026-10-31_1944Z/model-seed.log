@@ -1,0 +1,20 @@
+=== model-seed 2026-10-31T19:34:57Z ===
+total 0
+drwxr-xr-x 2 nosd nosd 160 out 31 16:34 .
+drwxrwxrwt 4 nosd nosd  80 out 31 16:34 ..
+lrwxrwxrwx 1 root root  68 out 31 16:34 Qwen3.5-0.8B-Q4_K_M.gguf -> /nix/store/y6qwp3ppfcbn2jc12fjzf22bxkr1lzkk-Qwen3.5-0.8B-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  68 out 31 16:34 qwen3.5-0.8b-q4km.gguf -> /nix/store/y6qwp3ppfcbn2jc12fjzf22bxkr1lzkk-Qwen3.5-0.8B-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  66 out 31 16:34 Qwen3.5-0.8B-Q8_0.gguf -> /nix/store/1a5lhbl4z7c19bfsrq3dvg4nv21s9v6n-Qwen3.5-0.8B-Q8_0.gguf
+lrwxrwxrwx 1 root root  66 out 31 16:34 Qwen3.5-4B-Q4_K_M.gguf -> /nix/store/gyyfizg8dvj87k5h5b578x36sfvv227g-Qwen3.5-4B-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  64 out 31 16:34 Qwen3.5-4B-Q6_K.gguf -> /nix/store/0cpj2dkknhvwnzw8lj6qap5mib2mkdv8-Qwen3.5-4B-Q6_K.gguf
+lrwxrwxrwx 1 root root  66 out 31 16:34 Qwen3.5-9B-Q4_K_M.gguf -> /nix/store/2yw4k2sxd5g6lwnb4l5cdljxpnv3dzq2-Qwen3.5-9B-Q4_K_M.gguf
+=== model-seed 2026-10-31T19:44:31Z ===
+total 0
+drwxr-xr-x 2 nosd nosd 160 out 31 16:44 .
+drwxrwxrwt 4 nosd nosd  80 out 31 16:44 ..
+lrwxrwxrwx 1 root root  68 out 31 16:44 Qwen3.5-0.8B-Q4_K_M.gguf -> /nix/store/y6qwp3ppfcbn2jc12fjzf22bxkr1lzkk-Qwen3.5-0.8B-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  68 out 31 16:44 qwen3.5-0.8b-q4km.gguf -> /nix/store/y6qwp3ppfcbn2jc12fjzf22bxkr1lzkk-Qwen3.5-0.8B-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  66 out 31 16:44 Qwen3.5-0.8B-Q8_0.gguf -> /nix/store/1a5lhbl4z7c19bfsrq3dvg4nv21s9v6n-Qwen3.5-0.8B-Q8_0.gguf
+lrwxrwxrwx 1 root root  66 out 31 16:44 Qwen3.5-4B-Q4_K_M.gguf -> /nix/store/gyyfizg8dvj87k5h5b578x36sfvv227g-Qwen3.5-4B-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  64 out 31 16:44 Qwen3.5-4B-Q6_K.gguf -> /nix/store/0cpj2dkknhvwnzw8lj6qap5mib2mkdv8-Qwen3.5-4B-Q6_K.gguf
+lrwxrwxrwx 1 root root  66 out 31 16:44 Qwen3.5-9B-Q4_K_M.gguf -> /nix/store/2yw4k2sxd5g6lwnb4l5cdljxpnv3dzq2-Qwen3.5-9B-Q4_K_M.gguf

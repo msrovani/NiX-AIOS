@@ -5,12 +5,67 @@
 # acelera com o driver proprietário. O cage/JARBAS continua na iGPU (o
 # `pickDrm` prefere Intel); o dGPU fica para o llama-server (CUDA).
 #
-# S1 = 0.8B **em CPU** (NOSD_LLAMA_NGL=0) e S2/PRO = 4B **em dGPU** (unit
-# `nosd-engine-s2`, 127.0.0.1:8082). Os dois modelos viajam na imagem
-# (`images/hw.nix` já pina os 5 GGUFs); o router decide por pedido.
+# S1 = 0.8B e S2/PRO = 4B **ambos em dGPU** (`llama-cpp-cuda`, `--fit on`).
+# Os dois modelos viajam na imagem (`images/hw.nix` já pina os 5 GGUFs);
+# o router decide por pedido.
 #
 # NUNCA release: unfree + driver + CUDA; é bancada/hw.
 { config, lib, pkgs, self, ... }:
+let
+  # nvidia-x11-*-bin: patchelf mete .dynamic num PT_LOAD só PF_R → SIGSEGV
+  # no glibc 2.44 (DT_DEBUG). Metal 2026-10-31; prova WSL: OR PF_W → --help OK.
+  nvidiaBinFixed = pkgs.runCommand "nvidia-bin-elf-pf-w" {
+    nativeBuildInputs = [ pkgs.python3 ];
+    src = config.hardware.nvidia.package.bin;
+  } ''
+    mkdir -p "$out/bin"
+    cp -a "$src/bin/." "$out/bin/"
+    chmod -R u+w "$out/bin"
+    for b in nvidia-smi nvidia-powerd nvidia-cuda-mps-control; do
+      if [ -f "$out/bin/$b" ]; then
+        ${pkgs.python3}/bin/python3 ${../scripts/fix-nvidia-elf-pf-w.py} "$out/bin/$b"
+      fi
+    done
+    # sanity: segment that holds DYNAMIC must have PF_W
+    ${pkgs.python3}/bin/python3 - "$out/bin/nvidia-smi" <<'PY'
+import struct, pathlib, sys
+p = pathlib.Path(sys.argv[1])
+b = p.read_bytes()
+e_phoff = struct.unpack_from("<Q", b, 32)[0]
+e_phentsize, e_phnum = struct.unpack_from("<HH", b, 54)
+dyn = None
+for i in range(e_phnum):
+    off = e_phoff + i * e_phentsize
+    t, flags, _o, vaddr, _p, _f, memsz, _a = struct.unpack_from("<IIQQQQQQ", b, off)
+    if t == 2:
+        dyn = vaddr
+        break
+assert dyn is not None, "no PT_DYNAMIC"
+ok = False
+for i in range(e_phnum):
+    off = e_phoff + i * e_phentsize
+    t, flags, _o, vaddr, _p, _f, memsz, _a = struct.unpack_from("<IIQQQQQQ", b, off)
+    if t == 1 and vaddr <= dyn < vaddr + memsz:
+        assert flags & 2, f"PT_LOAD still RO flags={flags:#x}"
+        ok = True
+assert ok, "no LOAD covering DYNAMIC"
+print("nvidia-smi PF_W ok", file=sys.stderr)
+PY
+  '';
+
+  waitNvidia = pkgs.writeShellScript "nosd-wait-nvidia" ''
+    set -eu
+    # Corrida metal: i915 ~7s, nosd ~10s, nvidia-drm card0 ~11s.
+    for i in $(seq 1 40); do
+      if [ -e /dev/nvidia0 ] || [ -d /proc/driver/nvidia/gpus ]; then
+        exit 0
+      fi
+      sleep 0.25
+    done
+    echo "nosd-wait-nvidia: timeout (continuando; capacity pode re-probe)" >&2
+    exit 0
+  '';
+in
 {
   hardware.nvidia = {
     modesetting.enable = true;
@@ -23,21 +78,25 @@
   # mkAfter: hw.nix também acrescenta `console=tty0` (não sobrescrever).
   boot.kernelParams = lib.mkAfter [ "nvidia-drm.modeset=1" ];
 
-  # S1 (0.8B) fica no binário CPU do hw.nix (`path` mkAfter). S2 usa o build
-  # CUDA explicitamente no ExecStart — o daemon não precisa de CUDA para o S1.
+  # S1 managed: llama-cpp-cuda no PATH (antes do CPU de hw.nix).
+  systemd.services.nosd.path = lib.mkBefore [
+    self.packages.${pkgs.system}.llama-cpp-cuda
+  ];
+  systemd.services.nosd.serviceConfig.ExecStartPre = lib.mkAfter [
+    "+${waitNvidia}"
+  ];
   systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
     "CUDA_VISIBLE_DEVICES=0"
     "NVIDIA_VISIBLE_DEVICES=0"
-    # S1: 0.8B em CPU (forçado). Sem `NOSD_LLAMA_CTX`: `--fit` escolhe o ctx
-    # que cabe (mínimo NOSD_LLAMA_FIT_CTX=2048 do hw.nix).
-    "NOSD_LLAMA_NGL=0"
+    # S1: 0.8B na dGPU. Sem NOSD_LLAMA_CTX: --fit escolhe ctx/NGL.
+    # NGL=99 = offload máximo; --fit reduz se a VRAM não chegar.
+    "NOSD_LLAMA_NGL=99"
     "NOSD_LLAMA_MODEL=/var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf"
     # S2/PRO: 4B Q6_K (tier alpha.2 para 6 GB) no llama-server 8082.
     "NOSD_LLAMA_SERVER_S2=http://127.0.0.1:8082"
     "NOSD_LLAMA_MODEL_S2=/var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf"
-    # nvidia-smi vive no output `bin` (o `out` só tem nvidia-sleep.sh);
-    # caminho absoluto para capacity/energia/DIAG (allowlist do nosd).
-    "NOSD_NVIDIA_SMI=${config.hardware.nvidia.package.bin}/bin/nvidia-smi"
+    # Binário com PF_W no PT_LOAD do .dynamic (allowlist D1).
+    "NOSD_NVIDIA_SMI=${nvidiaBinFixed}/bin/nvidia-smi"
   ];
   # DeviceAllow=... implica política `closed` (o unit base já tem char-drm,
   # neural-os.nix). Os aliases resolvem por /proc/devices (Linux-only):
@@ -53,10 +112,10 @@
     "char-nvidia-caps rw"
   ];
 
-  # nvidia-smi no perfil: `out` só tem nvidia-sleep.sh; o binário está em `bin`.
+  # Pacote driver (libs) + binários ELF-fixed (nvidia-smi).
   environment.systemPackages = lib.mkAfter [
     config.hardware.nvidia.package
-    config.hardware.nvidia.package.bin
+    nvidiaBinFixed
   ];
 
   # S2/PRO: 4B no dGPU, porta 8082 (loopback). Sem `-c` nem `-ngl` fixos:
@@ -92,6 +151,7 @@
       OOMScoreAdjust = 200;
       MemoryMax = "8G";
       Environment = [ "CUDA_VISIBLE_DEVICES=0" ];
+      ExecStartPre = "+${waitNvidia}";
       ExecStart = "${self.packages.${pkgs.system}.llama-cpp-cuda}/bin/llama-server --host 127.0.0.1 --port 8082 -m /var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf --fit on --fit-ctx 2048 --reasoning off --no-webui";
     };
   };

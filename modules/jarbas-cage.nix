@@ -128,8 +128,16 @@ let
     # NIXOS_OZONE_WL está setado; sem isso o browser tenta X11 (não há Xwayland
     # no cage) e morre. O flag explícito abaixo também cobre wrappers antigos.
     export NIXOS_OZONE_WL=1
-    # Fontconfig: HOME=/var/empty -> "No writable cache directories" a cada arranque.
+    # User=nosd tem HOME=/var/empty (ProtectHome): Crashpad/WirePlumber/fontconfig
+    # precisam de dirs graváveis sob /var/lib/nosd (metal 2026-10-31).
+    export HOME=/var/lib/nosd/home
     export XDG_CACHE_HOME=/var/lib/nosd/cache
+    export XDG_CONFIG_HOME=/var/lib/nosd/home/.config
+    export XDG_DATA_HOME=/var/lib/nosd/home/.local/share
+    export XDG_STATE_HOME=/var/lib/nosd/home/.local/state
+    mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" \
+      || true
+    chmod 700 "$HOME" 2>/dev/null || true
     export RUST_LOG="''${RUST_LOG:-info}"
     export PATH="${pkgs.curl}/bin:${pkgs.cage}/bin:${pkgs.seatd}/bin:$PATH"
     UI_MODE="$( ${chooseMode} )"
@@ -149,7 +157,18 @@ let
     export WLR_DRM_DEVICES="$DRM"
     export WLR_NO_HARDWARE_CURSORS=1
     unset LIBGL_ALWAYS_SOFTWARE || true
+    # GLVND: videoDrivers=nvidia instala 10_nvidia.json antes de Mesa. Cage +
+    # Chromium têm DeviceAllow sem /dev/nvidia* → EGL_BAD_ALLOC se o ICD
+    # NVIDIA for escolhido. Pin estrito Mesa/iGPU (pickDrm já preferiu Intel).
+    export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
+    export __GLX_VENDOR_LIBRARY_NAME=mesa
+    export __NV_PRIME_RENDER_OFFLOAD=0
+    if [ -f "${pkgs.mesa}/share/vulkan/icd.d/intel_icd.x86_64.json" ]; then
+      export VK_ICD_FILENAMES="${pkgs.mesa}/share/vulkan/icd.d/intel_icd.x86_64.json"
+    fi
+    export LIBVA_DRIVER_NAME=iHD
     echo "jarbas: DRM=$DRM selected_mode=$UI_MODE configured_mode=${cfg.uiMode}"
+    echo "jarbas: chromium_env HOME=$HOME DRM=$DRM mesa_egl=$__EGL_VENDOR_LIBRARY_FILENAMES"
     echo "jarbas: XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR ($(stat -c %U:%G:%a "$XDG_RUNTIME_DIR" 2>/dev/null || echo missing))"
     echo "jarbas: seatd sock=$( [ -S /run/seatd.sock ] && echo yes || echo no ) seatd=$(${pkgs.systemd}/bin/systemctl is-active seatd.service 2>/dev/null || true)"
     ls -la /dev/dri 2>/dev/null || true
@@ -209,11 +228,14 @@ let
     fi
 
     fail_over_to_slint() {
-      echo "jarbas-chromium: $1; fail over para Slint" >&2
+      echo "jarbas-chromium: $1; fail over para Slint (tenta GL iGPU antes de pixman)" >&2
+      # Metal: iGPU Iris já modeset no cage — preferir GL a software CPU.
+      if run_slint; then exit 0; fi
+      echo "jarbas-chromium: Slint GL falhou; pixman" >&2
       run_slint_software
       exit $?
     }
-    mkdir -p "$XDG_RUNTIME_DIR/chromium-jarbas"
+    mkdir -p "$XDG_RUNTIME_DIR/chromium-jarbas" "$XDG_RUNTIME_DIR/chromium-crash"
     if ! $CURL -sf -o /dev/null "$LAB"; then
       fail_over_to_slint "lab indisponivel"
     fi
@@ -244,6 +266,7 @@ let
         --ignore-gpu-blocklist \
         --ozone-platform=wayland \
         --user-data-dir="$XDG_RUNTIME_DIR/chromium-jarbas" \
+        --crash-dumps-dir="$XDG_RUNTIME_DIR/chromium-crash" \
         "$@" \
         "''${LAB}#bootstrap=$BOOTSTRAP"
     }
@@ -347,6 +370,13 @@ in
     systemd.tmpfiles.rules = [
       "d /run/nosd/user 0700 nosd nosd -"
       "d /run/nosd/user/chromium-jarbas 0700 nosd nosd -"
+      "d /run/nosd/user/chromium-crash 0700 nosd nosd -"
+      "d /var/lib/nosd/home 0700 nosd nosd -"
+      "d /var/lib/nosd/home/.config 0700 nosd nosd -"
+      "d /var/lib/nosd/home/.local 0700 nosd nosd -"
+      "d /var/lib/nosd/home/.local/share 0700 nosd nosd -"
+      "d /var/lib/nosd/home/.local/state 0700 nosd nosd -"
+      "d /var/lib/nosd/cache 0700 nosd nosd -"
     ];
 
     environment.systemPackages = with pkgs; [
@@ -426,17 +456,25 @@ in
         # seat = libseat/seatd; sem isto DRM master falha mesmo com DeviceAllow.
         SupplementaryGroups = "video audio render input seat tty";
         # Confinamento host thin (I.3): Preferir cage vivo a ProtectSystem=strict
-        # (quebra seatd/DRM no metal � li��o PAMName/seat). Landlock syscall = nosd bin.
+        # (quebra seatd/DRM no metal — lição PAMName/seat). Landlock = nosd bin.
         ProtectHome = true;
-        NoNewPrivileges = true;
+        # Chromium SUID sandbox (chromiumSuidSandbox) precisa de elevação no
+        # helper; NoNewPrivileges=true → PreSandboxStartup morre → Slint
+        # (metal 2026-10-31). DevicePolicy=closed + User=nosd mantêm o resto.
+        NoNewPrivileges = !(builtins.elem cfg.uiMode [ "cinematic" "auto" ]);
         # DeviceAllow implica DevicePolicy=closed; tty7 (StandardInput=tty) tem
         # de estar na allowlist, senão systemd falha com 208/STDIN.
         # char-video4linux: webcam do kiosk Chromium (getUserMedia) sob DevicePolicy=closed.
         DeviceAllow = [ "char-drm rw" "char-input rw" "char-tty rw" "char-video4linux rw" ];
         OOMScoreAdjust = -500;
-        # PATH: wrap usa paths absolutos; curl bare no PATH evita regress�o
+        # PATH: wrap usa paths absolutos; curl bare no PATH evita regressão
         Environment = [
+          "HOME=/var/lib/nosd/home"
           "XDG_RUNTIME_DIR=/run/nosd/user"
+          "XDG_CACHE_HOME=/var/lib/nosd/cache"
+          "XDG_CONFIG_HOME=/var/lib/nosd/home/.config"
+          "XDG_DATA_HOME=/var/lib/nosd/home/.local/share"
+          "XDG_STATE_HOME=/var/lib/nosd/home/.local/state"
           "NOSD_SOCKET=/run/nosd/nosd.sock"
           "RUST_LOG=info,jarbas=info"
           "PATH=${pkgs.systemd}/bin:${pkgs.curl}/bin:${pkgs.coreutils}/bin:${pkgs.cage}/bin:${pkgs.seatd}/bin"

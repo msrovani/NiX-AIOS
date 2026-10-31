@@ -1,0 +1,265 @@
+=== nixaios journal dump 20261031T194440Z ===
+out 31 16:44:30 nixaios systemd[1]: Starting Mount NIXAIOSLOG FAT (robust by-label/blkid)...
+out 31 16:44:30 nixaios systemd[1]: Started llama-server S2/PRO (Qwen 4B Q6_K, CUDA).
+out 31 16:44:30 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[931]: nixaios-log: trying /dev/disk/by-label/NIXAIOSLOG (/dev/sda3)
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[949]: fsck.fat 4.2 (2021-01-31)
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[949]: /dev/sda3: 14 files, 371/1046524 clusters
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[931]: nixaios-log: OK /dev/sda3 -> /mnt/nixaios-log
+out 31 16:44:31 nixaios llama-server[932]: 0.00.000.989 I srv  llama_server: initializing ...
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: total 1484
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: drwxrwxrwx 2 root root    4096 dez 31  1969 .
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: drwxr-xr-x 3 root root      60 out 31 16:44 ..
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root   80886 out 31 16:35 dmesg-boot.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root      55 out 31 16:36 firstboot.conf
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root    3342 out 31 16:43 firstboot.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root      47 out 31 16:44 GUEST_MOUNTED.txt
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root     292 out 31 16:43 hotswap.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root    6667 out 31 16:35 hw-info.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root   37612 out 31 16:43 jarbas-cage.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root   10971 out 31 16:35 journal-boot.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root 1339160 out 31 16:43 journal-follow.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root     933 out 31 16:34 model-seed.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root    3342 out 31 16:43 nos-firstboot.log
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root      35 out 31 16:35 wifi.conf
+out 31 16:44:31 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1155]: -rwxrwxrwx 1 root root     926 out 31 16:43 wifi-diag.log
+out 31 16:44:31 nixaios systemd[1]: Finished Mount NIXAIOSLOG FAT (robust by-label/blkid).
+out 31 16:44:31 nixaios systemd[1]: Starting Neural-OS Daemon...
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.787910Z  INFO nosd: ipc token file /var/lib/nosd/ipc.token (token never logged)
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.787924Z  INFO nosd: nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test
+out 31 16:44:31 nixaios systemd-coredump[1230]: Process 1225 (nvidia-smi) of user 998 dumped core.
+                                                
+                                                Stack trace of thread 1225:
+                                                #0  0x0000774350f20a74 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x25a74)
+                                                #1  0x0000774350f1d630 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x22630)
+                                                #2  0x0000774350f1eee1 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x23ee1)
+                                                #3  0x0000774350f1dbe8 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x22be8)
+                                                ELF object binary architecture: AMD x86-64
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.854205Z  INFO nosd: capacity ram_avail_mb=13959 vendor=nvidia cards=["card1"] render=["renderD128"] vram_free_mb=0 posture=nvml_absent suggest_ngl=0 (CUDA llama only; NOSD_LLAMA_NGL overrides)
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.854271Z  INFO nosd: landlock Verified under /var/lib/nosd
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.854273Z  INFO nosd: landlock status=Verified
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.893254Z  INFO nosd: hub register active /var/lib/nosd/models/Qwen3.5-9B-Q4_K_M.gguf
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.893267Z  INFO nosd: hub register active /var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.893269Z  INFO nosd: hub register active /var/lib/nosd/models/Qwen3.5-4B-Q4_K_M.gguf
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.893271Z  INFO nosd: hub register active /var/lib/nosd/models/Qwen3.5-0.8B-Q8_0.gguf
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.893273Z  INFO nosd: hub register active /var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf
+out 31 16:44:31 nixaios nosd[1206]: 2026-10-31T19:44:31.893275Z  INFO nosd: hub register active /var/lib/nosd/models/qwen3.5-0.8b-q4km.gguf
+out 31 16:44:32 nixaios nosd[1236]: 0.00.001.512 I srv  llama_server: initializing ...
+out 31 16:44:32 nixaios nosd[1236]: 0.00.243.863 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+out 31 16:44:32 nixaios nosd[1236]: 0.00.243.907 I srv  init_listene: The UI is disabled
+out 31 16:44:32 nixaios nosd[1236]: 0.00.243.907 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+out 31 16:44:32 nixaios nosd[1236]: 0.00.245.405 I srv    load_model: loading model '/var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf'
+out 31 16:44:33 nixaios llama-server[932]: 0.01.986.957 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+out 31 16:44:33 nixaios llama-server[932]: 0.01.987.005 I srv  init_listene: The UI is disabled
+out 31 16:44:33 nixaios llama-server[932]: 0.01.987.005 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+out 31 16:44:33 nixaios llama-server[932]: 0.01.987.052 W srv  llama_server: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)
+out 31 16:44:33 nixaios llama-server[932]: 0.01.988.551 I srv    load_model: loading model '/var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf'
+out 31 16:44:39 nixaios nosd[1236]: 0.07.485.991 I cmn          init: llama threadpool init, n_threads = 6
+out 31 16:44:39 nixaios nosd[1236]: 0.07.705.568 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 262144, kv_unified = 'true'
+out 31 16:44:39 nixaios nosd[1236]: 0.07.708.043 I srv  llama_server: model loaded
+out 31 16:44:39 nixaios nosd[1236]: 0.07.708.045 I srv  llama_server: listening on http://127.0.0.1:37255
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170389Z  INFO nosd: llama-server spawned pid=1236 base=http://127.0.0.1:37255 model=/var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf ngl=0 api_key=set
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170417Z  INFO nosd: hotswap attach llama-server-http
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170420Z  INFO nosd: engine=llama-server-http
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170445Z  INFO nosd: llama-server backend base=http://127.0.0.1:8082 model=/var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170447Z  INFO nosd: hotswap attach(s2) llama-server-http
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170448Z  INFO nosd: engine_s2=llama-server-http base=http://127.0.0.1:8082
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170535Z  INFO nosd: memory open backend=Nsgdb jsonl_on_disk=false
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170556Z  INFO nosd: orb state=connecting pattern=sphere particles=120
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170559Z  INFO nosd: ui open id=1 kind=Info source=Hermes escalate=false
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170565Z  INFO nosd: orb state=idle pattern=sphere particles=80
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170594Z  INFO nosd: crdt log "/var/lib/nosd/nsgdb/crdt/seg.bin" fmt=Nsgdb replayed=0
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170603Z  INFO nosd: NOSD_SCORE phase=ready sev=Ok hub=1 mem=1 peers=0 s1=keyword llama=absent+engine=boot ll=Verified | nosd scaffold up
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170614Z  INFO nosd: sd_notify READY=1
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170622Z  INFO nosd: skill quota signed=false (chave do no via NOSD_MESH_KEY/NOSD_MESH_REQUIRE_SIG)
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170636Z  INFO nosd: mesh udp bind=0.0.0.0:19000 broadcast=255.255.255.255:19000
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170644Z  INFO nosd: mesh udp ON bind=0.0.0.0:19000 broadcast=255.255.255.255:19000
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170646Z  INFO nosd: hermes continuous tick every 2s (NOSD_HERMES_TICK_SECS)
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170648Z  INFO nosd: orb cinematic lab http://127.0.0.1:7701  (cam+mic+patterns → orb.sense)
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170651Z  INFO nosd: listen unix /run/nosd/nosd.sock
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.170755Z  INFO nosd: orb lab listening http://127.0.0.1:7701
+out 31 16:44:40 nixaios systemd[1]: Started Neural-OS Daemon.
+out 31 16:44:40 nixaios systemd[1]: Starting JARBAS hub slog (sem DRM)...
+out 31 16:44:40 nixaios systemd[1]: Started Export journal -> NIXAIOSLOG FAT32.
+out 31 16:44:40 nixaios 2jk7m7hr7p7dv1q2sw6r6q322pfza1l6-jarbas-wait-deps[1328]: /nix/store/2jk7m7hr7p7dv1q2sw6r6q322pfza1l6-jarbas-wait-deps: line 35: /var/lib/nosd/aios-mode: Arquivo ou diretório inexistente
+out 31 16:44:40 nixaios systemd-coredump[1358]: Process 1356 (nvidia-smi) of user 0 dumped core.
+                                                
+                                                Stack trace of thread 1356:
+                                                #0  0x0000784aca605a74 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x25a74)
+                                                #1  0x0000784aca602630 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x22630)
+                                                #2  0x0000784aca603ee1 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x23ee1)
+                                                #3  0x0000784aca602be8 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x22be8)
+                                                ELF object binary architecture: AMD x86-64
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.400482Z  WARN nosd: mesh HB tx err=Network is unreachable (os error 101)
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.400496Z  WARN nosd: mesh tick extra tx err=Network is unreachable (os error 101)
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.400545Z  INFO nosd: hermes runtime tick=1 peers=0 payload={"agency_agents":4,"bei_budget":9999,"chat_iterations_left":256,"engine":"llama-server-http","hub_loaded":1,"latent_tag":null,"orb_level":0.0,"orb_state":"idle","pending_skills":0,"persona_emotion":"Neutral","persona_heartbeat_due":false,"s2_pending":0,"sleep_phase":"REPLAY","sleep_phases":["REPLAY","DREAM","CONSOLIDATE","PRUNE","REFLECT"],"ui_windows":1}
+out 31 16:44:40 nixaios nosd[1206]: 2026-10-31T19:44:40.401975Z  INFO nosd: NOSD_SCORE phase=runtime sev=Ok hub=1 mem=1 peers=0 s1=keyword llama=managed+engine=llama-server-http ll=Verified | fleet=unknown | ok
+--- firstboot/hotswap tail ---
+===== firstboot.log =====
+1) Rede (cabo ou Wi-Fi) — necessario para baixar idioma/voz/modelos
+   Sem ligacao.
+   1) Wi-Fi (listar SSIDs)
+   2) Esperar cabo Ethernet (30s)
+   3) Continuar offline (sem download HF)
+    1) ROVANI  (77% WPA1 WPA2)
+    2) ROVANI  (60% WPA1 WPA2)
+    3) Seraggio_2.4  (59% WPA2)
+    4) WILLIAM   (57% WPA1 WPA2)
+    5) MarceloGotz_2.4G  (49% WPA1 WPA2)
+    6) MarceloGotz_5G  (39% WPA1 WPA2)
+    7) Contabilidade_2.4G  (29% WPA2)
+    8) Seraggio_5G  (27% WPA2)
+    9) WILLIAM_5G  (22% WPA1 WPA2)
+   S) offline
+ ? Wi-Fi OK (ROVANI)
+   Wi-Fi guardado no pendrive (wifi.conf; PSK em texto)
+
+2) Idioma do sistema e da voz (Piper/Whisper)
+   1) pt_BR (Brasil)   [default]
+   2) pt_PT (Portugal)
+   3) en_US
+   4) es_ES
+ ? LANG=pt_BR.UTF-8 (voz associada no transmute)
+
+3) Layout do teclado
+   1) br (ABNT2)
+   2) us
+   3) es
+ ? teclado=br
+
+4) Fuso horario
+   1) America/Sao_Paulo   [default]
+   2) Europe/Lisbon
+   3) UTC
+   4) outro (IANA)
+ ? timezone=America/Sao_Paulo
+host-configuration.nix gravado em /var/lib/nosd + /etc/nixos (FAT OFF)
+
+5) Confirmar AIOS Full
+   Rede: OK
+   Idioma/voz: pt_BR.UTF-8
+   Vai baixar MoE + Whisper + Piper (se online) ? Cortex ? Hermes
+   ? JARBAS Slint HUD (cage+iGPU) no tty7 — sem Chromium
+
+— Garantir nosd —
+nosd health OK (try=1)
+HITL grant obtido (kind=transmute, single-use)
+— Transmute (HITL grant + download MoE/Whisper/Piper + hot_load) —
+  pode demorar; journalctl -u nosd -f
+AVISO: nosctl transmute exit=1 — a tentar GUI na mesma (cage).
+  (downloads podem ter falhado; HUD Slint nao depende dos GGUF)
+--- transmute response (tail) ---
+  {
+    "id": 1,
+    "ok": false,
+    "error": "blob_deliberate: await JARBAS HITL disposition=Confirm (iso: REJECT: external models/firmware/voice blobs are runtime-fetched after Cortex/Hermes/JARBAS deliberation — not ISO-seeded)",
+    "result": {
+      "downloaded": [],
+      "errors": [
+        "blob_deliberate: await JARBAS HITL disposition=Confirm (iso: REJECT: external models/firmware/voice blobs are runtime-fetched after Cortex/Hermes/JARBAS deliberation — not ISO-seeded)"
+      ],
+      "hotswap_triggered": false,
+      "locale": "pt_BR.UTF-8",
+      "models_dir": "/var/lib/nosd/models",
+      "note": "await JARBAS HITL for runtime blob fetch; disposition=Confirm",
+      "ok": false,
+      "tts_greeting_played": false
+    }
+  }
+  models_dir=/var/lib/nosd/models
+  note=await JARBAS HITL for runtime blob fetch; disposition=Confirm
+  error: blob_deliberate: await JARBAS HITL disposition=Confirm (iso: REJECT: external models/firmware/voice blobs are runtime-fetched after Cortex/Hermes/JARBAS deliberation — not ISO-seeded)
+  journal: journalctl -u nosd -b --no-pager | tail -40
+— Hotswap JARBAS Slint (cage tty7 / iGPU) —
+jarbas-cage ACTIVE (t+1)
+JARBAS Slint HUD no Alt+F7 / tty7 (Enviar = Hermes).
+Logs: /tmp/nos-firstboot.log /var/lib/nosd/{firstboot,hotswap,jarbas-cage}.log
+=== nos-firstboot DONE (GUI up) ===
+Respostas guardadas em /mnt/nixaios-log/firstboot.conf (2o+ boot automatico)
+===== hotswap.log =====
+=== nosd-hotswap-aios start 2026-10-31T16:36:02-03:00 ===
+hotswap: wrote /etc/nixos/ai-managed.nix (locale=pt_BR.UTF-8)
+hotswap: stopping display-manager (se existir)…
+hotswap: nosd health OK
+hotswap: starting jarbas-cage.service…
+=== nosd-hotswap-aios DONE (jarbas-cage active, VT7) ===
+===== jarbas-cage.log =====
+> Warning:          Symbol map for key <FK23> redefined
+>                   Using last definition for conflicting fields
+> Warning:          Symbol map for key <FK24> redefined
+>                   Using last definition for conflicting fields
+> Warning:          Could not resolve keysym XF86ElectronicPrivacyScreenOn
+> Warning:          Could not resolve keysym XF86ElectronicPrivacyScreenOff
+> Warning:          Could not resolve keysym XF86ActionOnSelection
+> Warning:          Could not resolve keysym XF86ContextualInsert
+> Warning:          Could not resolve keysym XF86ContextualQuery
+Errors from xkbcomp are not fatal to the X server
+The XKEYBOARD keymap compiler (xkbcomp) reports:
+> Warning:          Unsupported maximum keycode 709, clipping.
+>                   X11 cannot support keycodes above 255.
+> Warning:          Virtual modifier Hyper multiply defined
+>                   Using 0, ignoring 0
+> Warning:          Virtual modifier ScrollLock multiply defined
+>                   Using 0, ignoring 0
+Errors from xkbcomp are not fatal to the X server
+[2m2026-10-31T19:36:10.744960Z[0m [33m WARN[0m [2marboard::platform::linux[0m[2m:[0m Tried to initialize the wayland data control protocol clipboard, but failed. Falling back to the X11 clipboard protocol. The error was: Unknown error while interacting with the clipboard: A required Wayland protocol (ext-data-control, or wlr-data-control version 1) is not supported by the compositor
+[2m2026-10-31T19:36:10.768215Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m JARBAS Slint HUD shown — Alt+F7 / journalctl -u jarbas-cage
+Error watching for xdg desktop settings: Failed to connect to address `unix:path=/run/nosd/user/bus`: No such file or directory (os error 2)
+[2m2026-10-31T19:36:10.787608Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+[2m2026-10-31T19:36:47.890840Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+[2m2026-10-31T19:36:47.890868Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:36:48.699177Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:36:48.699216Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+The XKEYBOARD keymap compiler (xkbcomp) reports:
+> Warning:          Unsupported maximum keycode 709, clipping.
+>                   X11 cannot support keycodes above 255.
+> Warning:          Virtual modifier Hyper multiply defined
+>                   Using 0, ignoring 0
+> Warning:          Virtual modifier ScrollLock multiply defined
+>                   Using 0, ignoring 0
+Errors from xkbcomp are not fatal to the X server
+[2m2026-10-31T19:36:51.499958Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=2
+[2m2026-10-31T19:36:56.509867Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 2, sub_id: 0 }
+W 16:36:57.990918           wp-state ../lib/wp/state.c:377:timeout_save_state_callback: <WpState:0x651354591e90> could not save stream-properties: Falha ao criar arquivo “/var/empty/.local/state/wireplumber/stream-properties.4P16X3”: Arquivo ou diretório inexistente
+[2m2026-10-31T19:36:58.313158Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+[2m2026-10-31T19:36:58.313180Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:36:58.440967Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:36:58.440992Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+[2m2026-10-31T19:37:01.434028Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+[2m2026-10-31T19:37:01.434055Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:37:01.474070Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:37:01.474095Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+[2m2026-10-31T19:37:01.801893Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+[2m2026-10-31T19:37:01.801916Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:37:28.810515Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=15
+[2m2026-10-31T19:37:37.829510Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 18, sub_id: 0 }
+[2m2026-10-31T19:38:06.504066Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=36
+[2m2026-10-31T19:38:09.092930Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 59, sub_id: 0 }
+[2m2026-10-31T19:38:10.394196Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Text
+[2m2026-10-31T19:38:10.394226Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::wayland::window::state[0m[2m:[0m Failed to set cursor to Default
+00:02:09.445 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy
+[2m2026-10-31T19:38:38.873201Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=39
+[2m2026-10-31T19:38:40.983513Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 112, sub_id: 0 }
+00:02:51.306 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy
+00:02:53.723 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy
+[2m2026-10-31T19:39:06.833989Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=39
+[2m2026-10-31T19:39:09.550606Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 152, sub_id: 0 }
+[2m2026-10-31T19:39:28.417447Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=30
+[2m2026-10-31T19:39:30.647099Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 189, sub_id: 0 }
+00:03:20.013 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy
+[2m2026-10-31T19:39:59.415410Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=36
+[2m2026-10-31T19:40:02.145092Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 226, sub_id: 0 }
+[2m2026-10-31T19:40:32.428333Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=34
+[2m2026-10-31T19:40:35.059021Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 261, sub_id: 0 }
+00:04:50.153 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy
+[2m2026-10-31T19:41:10.720175Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=46
+[2m2026-10-31T19:41:14.331192Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 324, sub_id: 0 }
+[2m2026-10-31T19:41:30.096867Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=8
+[2m2026-10-31T19:41:32.551493Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 333, sub_id: 0 }
+00:05:22.784 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy
+[2m2026-10-31T19:42:04.387017Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=36
+[2m2026-10-31T19:42:07.595349Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 370, sub_id: 0 }
+[2m2026-10-31T19:42:40.983370Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=75
+[2m2026-10-31T19:42:43.354678Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 446, sub_id: 0 }
+[2m2026-10-31T19:43:02.472467Z[0m [32m INFO[0m [2mjarbas[0m[2m:[0m slint chat len=2
+[2m2026-10-31T19:43:04.257587Z[0m [33m WARN[0m [2mcalloop::loop_logic[0m[2m:[0m [calloop] Received an event for non-existence source: TokenInner { id: 3, version: 449, sub_id: 0 }
+00:07:04.974 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy

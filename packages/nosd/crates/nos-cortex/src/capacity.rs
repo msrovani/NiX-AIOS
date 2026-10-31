@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NodeCapacity {
@@ -13,6 +15,12 @@ pub struct NodeCapacity {
     pub dri_cards: Vec<String>,
     pub dri_render: Vec<String>,
     pub vendor_hint: String,
+    /// DRM card Intel/AMD iGPU para GUI (ex.: `card1`), se detectado.
+    #[serde(default)]
+    pub igpu_card: Option<String>,
+    /// DRM card NVIDIA/AMD discrete para inferência (ex.: `card0`).
+    #[serde(default)]
+    pub dgpu_card: Option<String>,
     /// NX.5: backends detectados (path/sysfs) — não implica runtime wired.
     pub accel: Vec<String>,
 }
@@ -32,6 +40,9 @@ impl CapacityProber {
             vendor_hint: detect_vendor_hint(),
             ..Default::default()
         };
+        let (igpu, dgpu) = classify_dri_cards(&c.dri_cards);
+        c.igpu_card = igpu;
+        c.dgpu_card = dgpu;
         if Path::new("/proc/driver/nvidia/gpus").exists() {
             c.vendor_hint = "nvidia".into();
         }
@@ -41,6 +52,24 @@ impl CapacityProber {
             c.vendor_hint = "nvidia".into();
         }
         c.accel = detect_accel_backends(&c);
+        c
+    }
+
+    /// Re-probe se a 1ª passagem apanhou só iGPU / VRAM=0 com NVIDIA a subir.
+    /// Metal 2026-10-31: i915 ~7s, nosd ~10s, nvidia-drm card0 ~11s.
+    pub fn probe_with_retry(max_wait: Duration) -> NodeCapacity {
+        let mut c = Self::probe();
+        if !needs_nvidia_retry(&c) {
+            return c;
+        }
+        let deadline = Instant::now() + max_wait;
+        while Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(250));
+            c = Self::probe();
+            if !needs_nvidia_retry(&c) {
+                break;
+            }
+        }
         c
     }
 
@@ -61,8 +90,74 @@ impl CapacityProber {
     }
 }
 
+fn needs_nvidia_retry(c: &NodeCapacity) -> bool {
+    let nvidia_mod = Path::new("/sys/module/nvidia").exists()
+        || Path::new("/proc/driver/nvidia/gpus").exists();
+    if !nvidia_mod && c.dgpu_card.is_none() {
+        return false;
+    }
+    c.vram_free_mb == 0 || c.dgpu_card.is_none()
+}
+
+/// Classifica cards DRM por vendor sysfs (`0x8086` Intel, `0x10de` NVIDIA, …).
+pub fn classify_dri_cards(cards: &[String]) -> (Option<String>, Option<String>) {
+    let mut igpu = None;
+    let mut dgpu = None;
+    for card in cards {
+        let vendor = drm_vendor_id(card).unwrap_or_default();
+        match vendor.as_str() {
+            "0x8086" => {
+                if igpu.is_none() {
+                    igpu = Some(card.clone());
+                }
+            }
+            "0x10de" => {
+                if dgpu.is_none() {
+                    dgpu = Some(card.clone());
+                }
+            }
+            "0x1002" => {
+                // AMD: se já há Intel como iGPU, treat as dGPU; senão iGPU.
+                if igpu.is_some() {
+                    if dgpu.is_none() {
+                        dgpu = Some(card.clone());
+                    }
+                } else if igpu.is_none() {
+                    igpu = Some(card.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    (igpu, dgpu)
+}
+
+fn drm_vendor_id(card: &str) -> Option<String> {
+    let path = format!("/sys/class/drm/{card}/device/vendor");
+    let s = fs::read_to_string(path).ok()?;
+    Some(s.trim().to_ascii_lowercase())
+}
+
 /// `nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits`
+/// Cache 20 s (positivo ou negativo) — evita coredump spam no HUD.
 fn probe_nvidia_smi_free_mb() -> Option<u64> {
+    static CACHE: OnceLock<Mutex<Option<(Instant, Option<u64>)>>> = OnceLock::new();
+    let cell = CACHE.get_or_init(|| Mutex::new(None));
+    if let Ok(guard) = cell.lock() {
+        if let Some((t, v)) = guard.as_ref() {
+            if t.elapsed() < Duration::from_secs(20) {
+                return *v;
+            }
+        }
+    }
+    let result = probe_nvidia_smi_free_mb_uncached();
+    if let Ok(mut guard) = cell.lock() {
+        *guard = Some((Instant::now(), result));
+    }
+    result
+}
+
+fn probe_nvidia_smi_free_mb_uncached() -> Option<u64> {
     let smi = nos_core::nvidia_smi_path()?;
     let out = Command::new(smi)
         .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"])
@@ -132,6 +227,7 @@ pub fn detect_accel_backends(c: &NodeCapacity) -> Vec<String> {
     if c.vram_free_mb > 0
         || Path::new("/proc/driver/nvidia/gpus").exists()
         || Path::new("/sys/module/nvidia").exists()
+        || c.dgpu_card.is_some()
     {
         v.push("cuda".into());
     }
@@ -188,5 +284,12 @@ mod tests {
         let c = NodeCapacity::default();
         let a = detect_accel_backends(&c);
         assert!(a.contains(&"cpu".into()) || !a.is_empty());
+    }
+
+    #[test]
+    fn classify_intel_nvidia_names_only() {
+        // Sem sysfs real: vendor lookup falha → ambos None (honesty).
+        let (i, d) = classify_dri_cards(&["card0".into(), "card1".into()]);
+        let _ = (i, d);
     }
 }

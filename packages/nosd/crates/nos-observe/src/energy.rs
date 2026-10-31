@@ -53,6 +53,27 @@ pub struct NvmlInfo {
 }
 
 pub fn read_nvml_info() -> NvmlInfo {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    // Cache 20 s (também negativo) — evita spam de SIGSEGV/coredump se smi
+    // estiver partido (metal 2026-10-31) a cada tick do HUD.
+    static CACHE: OnceLock<Mutex<Option<(Instant, NvmlInfo)>>> = OnceLock::new();
+    let cell = CACHE.get_or_init(|| Mutex::new(None));
+    if let Ok(guard) = cell.lock() {
+        if let Some((t, info)) = guard.as_ref() {
+            if t.elapsed() < Duration::from_secs(20) {
+                return *info;
+            }
+        }
+    }
+    let info = read_nvml_info_uncached();
+    if let Ok(mut guard) = cell.lock() {
+        *guard = Some((Instant::now(), info));
+    }
+    info
+}
+
+fn read_nvml_info_uncached() -> NvmlInfo {
     let Some(smi) = nos_core::nvidia_smi_path() else {
         return NvmlInfo::default();
     };

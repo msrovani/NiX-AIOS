@@ -3,6 +3,42 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.7.0-alpha.3] — metal iGPU/dGPU + iso-hw-cuda-4b
+
+### Fixed
+
+- **`nvidia-smi` SIGSEGV (glibc 2.44)**: `.dynamic` em `PT_LOAD` só `PF_R`
+  após patchelf — OR `PF_W` via `scripts/fix-nvidia-elf-pf-w.py` + derivação
+  em `images/hw-cuda.nix` / `hw-cuda-4b.nix`; check `nvidia-smi-elf-pf-w`.
+- **Chromium → Slint no metal**: `HOME`/`XDG` graváveis sob `/var/lib/nosd`,
+  `--crash-dumps-dir`, `NoNewPrivileges=false` em cinematic/auto (SUID
+  sandbox), pin Mesa/Iris (`__EGL_VENDOR_LIBRARY_FILENAMES`), fallback Slint
+  tenta GL iGPU antes de pixman (`modules/jarbas-cage.nix`).
+- **`plan_route` no SOUL**: classificar o prompt do utilizador, não o
+  `model_prompt` alongado (evita S2Deep em todo o chat curto).
+- **Capacity híbrida**: `igpu_card`/`dgpu_card`, `probe_with_retry`, cache 20 s
+  no smi (capacity + energia) para não spammar coredump.
+
+### Added
+
+- **`iso-hw-cuda-4b`**: um único GGUF `Qwen3.5-4B-Q6_K` (`active.gguf`), S1
+  CUDA `NGL=99`, sem unit S2 :8082. Script `scripts/build-iso-hw-cuda-4b.sh`.
+- Evidência metal pré-fix: `docs/evidence/hw/2026-10-31_1944Z/`.
+- Evidência tranche: `docs/evidence/METAL_GPU_4B_0.7.0-alpha.3.md`.
+
+### Changed
+
+- `hw-cuda.nix`: S1 também em CUDA (`NGL=99`) + wait `/dev/nvidia0`.
+- `slot_map`: prefixo `active*` força `ModelSlot::Active`.
+
+### Artefactos
+
+- ISO `67355245…` (7 648 026 624 B); img `5bacea85…` (9 795 796 992 B;
+  FAT 2G). Downloads: `nixaios-hw-cuda-4b.iso` / `-logfat.img`.
+
+Tested: checks ELF/DeviceAllow, testes Rust alvo, build ISO 4B.
+Not-tested: metal re-boot com alpha.3.
+
 ## [0.7.0-alpha.2] — tier 4B Q6_K + contexto automático
 
 ### Added

@@ -1,7 +1,8 @@
 # Documentação NixAIOS
 
 Hub da documentação do produto paralelo **NixAIOS** (daemon `nosd` + ISO NixOS).  
-Versão corrente: **0.7.0-alpha.2** (in-tree; última ISO publicada `0.6.0-alpha.11`) — [`RELEASE_0.6.0-alpha.11.md`](RELEASE_0.6.0-alpha.11.md) (base [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md)).
+Versão corrente: **0.7.0-alpha.3** (in-tree; última ISO publicada `0.6.0-alpha.11`) — [`RELEASE_0.6.0-alpha.11.md`](RELEASE_0.6.0-alpha.11.md) (base [`RELEASE_0.5.1.md`](RELEASE_0.5.1.md) / [`RELEASE_0.5.0.md`](RELEASE_0.5.0.md)).
+**0.7.0-alpha.3:** metal iGPU/dGPU + `iso-hw-cuda-4b` — [`evidence/METAL_GPU_4B_0.7.0-alpha.3.md`](evidence/METAL_GPU_4B_0.7.0-alpha.3.md).
 **0.7.0-alpha.2:** ORB UI voz-primeiro, HITL, mesh rails e energia CPU/GPU; `iso-hw` cinematic com todos os modelos. Ver [`ORB_UI.md`](ORB_UI.md) e [`evidence/ORB_UI_0.7.0-alpha.2.md`](evidence/ORB_UI_0.7.0-alpha.2.md).
 
 > Bare-metal canónico: [neural-os-core](https://github.com/msrovani/neural-os-core). Este repo = bancada NixOS (ADR-0118).

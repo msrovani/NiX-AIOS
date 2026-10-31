@@ -1,4 +1,4 @@
-[workspace]
+﻿[workspace]
 resolver = "2"
 members = [
   "crates/nos-core",
@@ -19,7 +19,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.7.0-alpha.2"
+version = "0.7.0-alpha.3"
 edition = "2021"
 license = "AGPL-3.0"
 authors = ["Neural OS / NixAIOS"]

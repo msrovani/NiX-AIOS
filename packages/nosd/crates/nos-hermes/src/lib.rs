@@ -387,7 +387,9 @@ impl HermesEngine {
             decision.reason,
             self.s2.pending()
         );
-        let reply = if self.plan_route(&model_prompt, true).backend == nos_core::Backend::S2 {
+        // Classificar a intenção no prompt do utilizador — NÃO no model_prompt
+        // (SOUL+memória >280 chars ⇒ S2Deep sempre; metal 2026-10-31).
+        let reply = if self.plan_route(prompt, true).backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -479,7 +481,8 @@ impl HermesEngine {
         let decision = route_intent(prompt);
         let slot = self.plan_slot(decision);
         let model_prompt = self.build_model_prompt(prompt);
-        if self.plan_route(&model_prompt, false).backend == nos_core::Backend::S2 {
+        // Ver chat(): route no prompt do user, não no SOUL-augmented.
+        if self.plan_route(prompt, false).backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -1202,6 +1205,35 @@ mod tests {
         assert_eq!(v["lane"], "s1");
         assert_eq!(v["ready"], true);
         assert!(!v["text"].as_str().unwrap_or("").is_empty());
+    }
+
+    #[test]
+    fn plan_route_uses_user_prompt_not_soul_length() {
+        // Regressão metal 2026-10-31: classificar model_prompt (SOUL+memória)
+        // fazia p.len()>280 ⇒ S2Deep em todo o chat curto.
+        let t = eng();
+        let user = "oi";
+        let plan_user = t.eng.plan_route(user, true);
+        assert_ne!(
+            plan_user.backend,
+            nos_core::Backend::S2,
+            "prompt curto do user não deve forçar S2: {:?}",
+            plan_user
+        );
+        // Blob sintético no estilo SOUL-augmented (>280 chars).
+        let model = format!(
+            "## Persona\n{}\n## Memory recall\n(none)\n## User\noi",
+            "x".repeat(320)
+        );
+        let plan_model = t.eng.plan_route(&model, true);
+        assert!(
+            plan_model.reason == "complex_or_long"
+                || plan_model.reason == "score_v0_complex"
+                || plan_model.reason == "s2_absent"
+                || plan_model.backend == nos_core::Backend::S2,
+            "model_prompt alongado deve parecer complexo se classificado: {:?}",
+            plan_model
+        );
     }
 
     #[test]

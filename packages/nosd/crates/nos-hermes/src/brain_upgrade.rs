@@ -490,6 +490,7 @@ mod tests {
             dri_render: vec![],
             vendor_hint: "none".into(),
             accel: vec![],
+            ..Default::default()
         }
     }
 

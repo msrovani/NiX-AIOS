@@ -1,0 +1,77 @@
+=== nixaios hw 20261031T194440Z ===
+Linux nixaios 6.18.57 #1-NixOS SMP PREEMPT_DYNAMIC @1792058300 x86_64 GNU/Linux
+BOOT_IMAGE=/boot//nix/store/maq0fxv0r4p9bac4haqy45c4vhlc33ag-linux-6.18.57/bzImage findiso= init=/nix/store/bkimy668y082l16angnk7i7wl12q24kx-nixos-system-nixaios-26.11.20261020.02c087f/init nohibernate root=fstab loglevel=4 lsm=landlock,yama,bpf nvidia-drm.modeset=1 console=tty0 console=ttyS0,115200n8
+0000:00:00.0 Host bridge [0600]: Intel Corporation Device [8086:a715]
+0000:00:01.0 PCI bridge [0604]: Intel Corporation Raptor Lake PCI Express 5.0 Graphics Port (PEG010) [8086:a70d]
+0000:00:02.0 VGA compatible controller [0300]: Intel Corporation Raptor Lake-P [Intel Graphics] [8086:a7ab] (rev 04)
+0000:00:04.0 Signal processing controller [1180]: Intel Corporation Raptor Lake Dynamic Platform and Thermal Framework Processor Participant [8086:a71d]
+0000:00:06.0 PCI bridge [0604]: Intel Corporation Raptor Lake PCI Express 4.0 Graphics Port [8086:a74d]
+0000:00:08.0 System peripheral [0880]: Intel Corporation GNA Scoring Accelerator module [8086:a74f]
+0000:00:0d.0 USB controller [0c03]: Intel Corporation Raptor Lake-P Thunderbolt 4 USB Controller [8086:a71e]
+0000:00:0e.0 RAID bus controller [0104]: Intel Corporation RST Volume Management Device Controller [8086:a77f]
+0000:00:12.0 Serial controller [0700]: Intel Corporation Alder Lake-P Integrated Sensor Hub [8086:51fc] (rev 01)
+0000:00:14.0 USB controller [0c03]: Intel Corporation Alder Lake PCH USB 3.2 xHCI Host Controller [8086:51ed] (rev 01)
+0000:00:14.2 RAM memory [0500]: Intel Corporation Alder Lake PCH Shared SRAM [8086:51ef] (rev 01)
+0000:00:15.0 Serial bus controller [0c80]: Intel Corporation Alder Lake PCH Serial IO I2C Controller #0 [8086:51e8] (rev 01)
+0000:00:16.0 Communication controller [0780]: Intel Corporation Alder Lake PCH HECI Controller [8086:51e0] (rev 01)
+0000:00:1c.0 PCI bridge [0604]: Intel Corporation Alder Lake PCI Express x4 Root Port #5 [8086:51bc] (rev 01)
+0000:00:1c.5 PCI bridge [0604]: Intel Corporation Alder Lake-P PCH PCIe Root Port #6 [8086:51bd] (rev 01)
+0000:00:1f.0 ISA bridge [0601]: Intel Corporation Raptor Lake LPC/eSPI Controller [8086:519d] (rev 01)
+0000:00:1f.3 Audio device [0403]: Intel Corporation Raptor Lake-P/U/H cAVS [8086:51ca] (rev 01)
+0000:00:1f.4 SMBus [0c05]: Intel Corporation Alder Lake PCH-P SMBus Host Controller [8086:51a3] (rev 01)
+0000:00:1f.5 Serial bus controller [0c80]: Intel Corporation Alder Lake-P PCH SPI Controller [8086:51a4] (rev 01)
+0000:01:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA107BM / GN20-P0-R-K2 [GeForce RTX 3050 6GB Laptop GPU] [10de:25ac] (rev a1)
+0000:01:00.1 Audio device [0403]: NVIDIA Corporation GA107 High Definition Audio Controller [10de:2291] (rev a1)
+0000:03:00.0 Network controller [0280]: MEDIATEK Corp. MT7925 802.11be 160MHz 2x2 PCIe Wireless Network Adapter [Filogic 360] [14c3:7925]
+0000:04:00.0 Ethernet controller [0200]: Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller [10ec:8168] (rev 15)
+10000:e0:06.0 System peripheral [0880]: Intel Corporation RST VMD Managed Controller [8086:09ab]
+10000:e0:06.2 PCI bridge [0604]: Intel Corporation Device [8086:a73d]
+10000:e1:00.0 Non-Volatile memory controller [0108]: ADATA Technology Co., Ltd. SM2P41D3 NVMe SSD (DRAM-less) [1cc1:41d3] (rev 03)
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 003 Device 002: ID 18f8:0f97 [Maxxter] Optical Gaming Mouse [Xtrem]
+Bus 003 Device 003: ID 0bda:558f Realtek Semiconductor Corp. Integrated_Webcam_HD
+Bus 003 Device 004: ID 0489:e139 Foxconn / Hon Hai Wireless_Device
+Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 004 Device 002: ID 0781:5595 SanDisk Corp. Ultra USB 3.0
+--- GPU (kernel binding) ---
+0000:00:02.0 VGA compatible controller [0300]: Intel Corporation Raptor Lake-P [Intel Graphics] [8086:a7ab] (rev 04)
+	Subsystem: Dell Device [1028:0d35]
+	Kernel driver in use: i915
+	Kernel modules: i915, xe
+--
+0000:01:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA107BM / GN20-P0-R-K2 [GeForce RTX 3050 6GB Laptop GPU] [10de:25ac] (rev a1)
+	Subsystem: Dell Device [1028:0d35]
+	Kernel driver in use: nvidia
+	Kernel modules: nvidiafb, nouveau, nvidia_drm, nvidia
+--
+10000:e0:06.2 PCI bridge [0604]: Intel Corporation Device [8086:a73d]
+	Subsystem: Dell Device [1028:0d35]
+	Kernel driver in use: pcieport
+10000:e1:00.0 Non-Volatile memory controller [0108]: ADATA Technology Co., Ltd. SM2P41D3 NVMe SSD (DRAM-less) [1cc1:41d3] (rev 03)
+--- modulos nvidia/nouveau ---
+nvidia_drm            151552  0
+nvidia_modeset       1822720  1 nvidia_drm
+nvidia_uvm           2420736  2
+nvidia              105828352  40 nvidia_uvm,nvidia_drm,nvidia_modeset
+drm_ttm_helper         20480  2 nvidia_drm,xe
+video                  81920  4 dell_wmi,xe,i915,nvidia_modeset
+--- /dev/nvidia* ---
+crw-rw-rw- 1 root root 195,   0 out 31 16:44 /dev/nvidia0
+crw-rw-rw- 1 root root 195, 255 out 31 16:44 /dev/nvidiactl
+crw-rw-rw- 1 root root 195, 254 out 31 16:44 /dev/nvidia-modeset
+crw-rw-rw- 1 root root 234,   0 out 31 16:44 /dev/nvidia-uvm
+crw-rw-rw- 1 root root 234,   1 out 31 16:44 /dev/nvidia-uvm-tools
+--- nvidia-smi ---
+/nix/store/whjn0fr6032zwjgnngjsq1rq595rpkdr-nixaios-log-export: line 35:  1356 Falha de segmentação     (core dumped) /run/current-system/sw/bin/nvidia-smi --query-gpu=name,memory.total,memory.used,power.draw,driver_version --format=csv 2>&1
+(nvidia-smi falhou)
+--- nosd-engine-s2 (4B/CUDA) ---
+active
+out 31 16:44:30 nixaios systemd[1]: Started llama-server S2/PRO (Qwen 4B Q6_K, CUDA).
+out 31 16:44:31 nixaios llama-server[932]: 0.00.000.989 I srv  llama_server: initializing ...
+out 31 16:44:33 nixaios llama-server[932]: 0.01.986.957 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+out 31 16:44:33 nixaios llama-server[932]: 0.01.987.005 I srv  init_listene: The UI is disabled
+out 31 16:44:33 nixaios llama-server[932]: 0.01.987.005 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+out 31 16:44:33 nixaios llama-server[932]: 0.01.987.052 W srv  llama_server: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)
+out 31 16:44:33 nixaios llama-server[932]: 0.01.988.551 I srv    load_model: loading model '/var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf'

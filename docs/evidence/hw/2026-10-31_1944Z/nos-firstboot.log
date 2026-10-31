@@ -1,0 +1,90 @@
+Config encontrada no pendrive — 10s para reconfigurar (Enter)…
+=== nos-firstboot start 2026-10-31T16:44:49-03:00 tty=/dev/tty1 log=/tmp/nos-firstboot.log ===
+modo=interactivo net_wait=30s
+
+==============================================
+  Neural AIOS — configuracao inicial (texto)
+==============================================
+ Persistencia Linux: OK  passo_salvo=0  dir=/var/lib/nosd
+
+1) Rede (cabo ou Wi-Fi) — necessario para baixar idioma/voz/modelos
+   Sem ligacao.
+   1) Wi-Fi (listar SSIDs)
+   2) Esperar cabo Ethernet (30s)
+   3) Continuar offline (sem download HF)
+    1) ROVANI  (74% WPA1 WPA2)
+    2) ROVANI  (69% WPA1 WPA2)
+    3) WILLIAM   (59% WPA1 WPA2)
+    4) Seraggio_2.4  (59% WPA2)
+    5) MarceloGotz_5G  (39% WPA1 WPA2)
+    6) MarceloGotz_2.4G  (35% WPA1 WPA2)
+    7) Ivone  (29% WPA2)
+    8) TP-Link_3E79  (27% WPA1 WPA2)
+    9) Seraggio_5G  (25% WPA2)
+   10) WILLIAM_5G  (24% WPA1 WPA2)
+   S) offline
+ ? Wi-Fi OK (ROVANI)
+   Wi-Fi guardado no pendrive (wifi.conf; PSK em texto)
+
+2) Idioma do sistema e da voz (Piper/Whisper)
+   1) pt_BR (Brasil)   [default]
+   2) pt_PT (Portugal)
+   3) en_US
+   4) es_ES
+ ? LANG=pt_BR.UTF-8 (voz associada no transmute)
+
+3) Layout do teclado
+   1) br (ABNT2)
+   2) us
+   3) es
+ ? teclado=br
+
+4) Fuso horario
+   1) America/Sao_Paulo   [default]
+   2) Europe/Lisbon
+   3) UTC
+   4) outro (IANA)
+ ? timezone=America/Sao_Paulo
+host-configuration.nix gravado em /var/lib/nosd + /etc/nixos (FAT OFF)
+
+5) Confirmar AIOS Full
+   Rede: OK
+   Idioma/voz: pt_BR.UTF-8
+   Vai baixar MoE + Whisper + Piper (se online) ? Cortex ? Hermes
+   ? JARBAS Slint HUD (cage+iGPU) no tty7 — sem Chromium
+
+— Garantir nosd —
+nosd health OK (try=1)
+HITL grant obtido (kind=transmute, single-use)
+— Transmute (HITL grant + download MoE/Whisper/Piper + hot_load) —
+  pode demorar; journalctl -u nosd -f
+AVISO: nosctl transmute exit=1 — a tentar GUI na mesma (cage).
+  (downloads podem ter falhado; HUD Slint nao depende dos GGUF)
+--- transmute response (tail) ---
+  {
+    "id": 1,
+    "ok": false,
+    "error": "blob_deliberate: await JARBAS HITL disposition=Confirm (iso: REJECT: external models/firmware/voice blobs are runtime-fetched after Cortex/Hermes/JARBAS deliberation — not ISO-seeded)",
+    "result": {
+      "downloaded": [],
+      "errors": [
+        "blob_deliberate: await JARBAS HITL disposition=Confirm (iso: REJECT: external models/firmware/voice blobs are runtime-fetched after Cortex/Hermes/JARBAS deliberation — not ISO-seeded)"
+      ],
+      "hotswap_triggered": false,
+      "locale": "pt_BR.UTF-8",
+      "models_dir": "/var/lib/nosd/models",
+      "note": "await JARBAS HITL for runtime blob fetch; disposition=Confirm",
+      "ok": false,
+      "tts_greeting_played": false
+    }
+  }
+  models_dir=/var/lib/nosd/models
+  note=await JARBAS HITL for runtime blob fetch; disposition=Confirm
+  error: blob_deliberate: await JARBAS HITL disposition=Confirm (iso: REJECT: external models/firmware/voice blobs are runtime-fetched after Cortex/Hermes/JARBAS deliberation — not ISO-seeded)
+  journal: journalctl -u nosd -b --no-pager | tail -40
+— Hotswap JARBAS Slint (cage tty7 / iGPU) —
+jarbas-cage ACTIVE (t+1)
+JARBAS Slint HUD no Alt+F7 / tty7 (Enviar = Hermes).
+Logs: /tmp/nos-firstboot.log /var/lib/nosd/{firstboot,hotswap,jarbas-cage}.log
+=== nos-firstboot DONE (GUI up) ===
+Respostas guardadas em /mnt/nixaios-log/firstboot.conf (2o+ boot automatico)

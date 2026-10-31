@@ -267,7 +267,7 @@ in
             done
           ) &
           sync
-          exec ${pkgs.systemd}/bin/journalctl -f -u nosd -u jarbas-cage -u jarbas-hub -u nosd-hotswap-aios -o short-iso \
+          exec ${pkgs.systemd}/bin/journalctl -f -u nosd -u nosd-engine-s2 -u jarbas-cage -u jarbas-hub -u nosd-hotswap-aios -o short-iso \
             >> "$MNT/journal-follow.log"
         '';
       };

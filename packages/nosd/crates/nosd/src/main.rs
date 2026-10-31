@@ -145,17 +145,20 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let cap = CapacityProber::probe();
+    // Metal híbrido: nvidia-drm pode registar card0 *depois* do 1º probe.
+    let cap = CapacityProber::probe_with_retry(std::time::Duration::from_secs(8));
     let posture = nos_cortex::CapacityProber::vram_posture(&cap);
     // Sugestão honesta: só útil com llama CUDA; default nixpkgs = CPU (ngl=0).
     let suggest_ngl = nos_cortex::plan_n_gpu_layers(32, 80, cap.vram_free_mb, 256, 128, 256);
     info!(
         target: "nosd",
-        "capacity ram_avail_mb={} vendor={} cards={:?} render={:?} vram_free_mb={} posture={} suggest_ngl={} (CUDA llama only; NOSD_LLAMA_NGL overrides)",
+        "capacity ram_avail_mb={} vendor={} cards={:?} render={:?} igpu={:?} dgpu={:?} vram_free_mb={} posture={} suggest_ngl={} (CUDA llama only; NOSD_LLAMA_NGL overrides)",
         cap.ram_avail_mb,
         cap.vendor_hint,
         cap.dri_cards,
         cap.dri_render,
+        cap.igpu_card,
+        cap.dgpu_card,
         cap.vram_free_mb,
         posture,
         suggest_ngl

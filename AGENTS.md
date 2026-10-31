@@ -12,7 +12,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.7.0-alpha.2** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.7.0-alpha.3** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -316,6 +316,14 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `Tested:`/`Not-tested:` (lição 36). **Execução** do DAG (job.submit/factory)
   fica para V10. Host OBSERVED (`dag-plan` diamante/conflito, 374 testes,
   smokes V0–V8 verdes). Ver `docs/evidence/V9_DAG_KIOSK_0.6.0-alpha.16.md`.
+- **Tranche 0.7.0-alpha.3 (in-tree, metal GPU + ISO 4B)**: fix ELF
+  `nvidia-smi` (PF_W no PT_LOAD do `.dynamic`); Chromium cinematic (HOME/XDG,
+  Crashpad, NNP off, Mesa iGPU); S1+S2 CUDA no `hw-cuda`; capacity
+  igpu/dgpu + retry; `plan_route` no prompt do user; variante
+  **`iso-hw-cuda-4b`** (só `Qwen3.5-4B-Q6_K`). ISO `67355245…` (7,2 GB),
+  img `5bacea85…` (9,2 GB). Metal re-boot AWAITING_HW. Ver
+  `docs/evidence/METAL_GPU_4B_0.7.0-alpha.3.md` e
+  `docs/evidence/hw/2026-10-31_1944Z/`.
 - **Tranche 0.7.0-alpha.2 (in-tree, ORB UI + HW cinematic)**: HUD web
   voz-primeiro (mic antes da câmara), CC só STT/TTS em modo voz (texto quando a
   voz está off), HITL modal com tier/campos/hold, mesh `health.mesh_nodes` com
@@ -337,7 +345,8 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `--disable-gpu`. ISO `2ee396fd…` (17,2 GB), img 21 516 779 520 B sha
   `4e339f37…` (tail-sha == ISO; `char-nvidia`/DeviceAllow, `char-alsa` +
   `XDG_RUNTIME_DIR` da revisão). **Metal AWAITING_HW** (drivers/GPU/voz).
-  Ver `docs/evidence/hw/2026-10-31_0140Z/README.md`.
+  Ver `docs/evidence/hw/2026-10-31_0140Z/README.md`. Superado em parte por
+  alpha.3 (ELF smi, cage HOME, S1 CUDA, ISO 4B).
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.
@@ -411,6 +420,10 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   (`docs/ORB_UI.md`), `images/hw.nix` força `uiMode = "cinematic"` no HW real
   (Chromium `--kiosk` fullscreen, fallback Slint); ISO de release/QEMU
   continuam `slint`.
+
+## Evidência 0.7.0-alpha.3
+
+`docs/evidence/METAL_GPU_4B_0.7.0-alpha.3.md`, `docs/evidence/hw/2026-10-31_1944Z/`.
 
 ## Evidência 0.7.0-alpha.2
 
