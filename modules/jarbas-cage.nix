@@ -92,6 +92,10 @@ let
       v=$(cat "$sys" 2>/dev/null || true)
       if [ "$v" = "0x8086" ]; then echo "$c"; exit 0; fi
     done
+    # Sem preferência Intel: cai no primeiro card não-NVIDIA.
+    # AMD (0x1002) entra aqui por omissão — APU-only apanha o card correcto;
+    # Intel+AMD escolhe Intel. Nenhuma UI/inferência AMD ficou validada
+    # (inferência hoje = CUDA/NVIDIA); não preferir AMD por design.
     for c in /dev/dri/card*; do
       [ -e "$c" ] || continue
       base=$(basename "$c")

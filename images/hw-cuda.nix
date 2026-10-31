@@ -39,13 +39,18 @@
     # caminho absoluto para capacity/energia/DIAG (allowlist do nosd).
     "NOSD_NVIDIA_SMI=${config.hardware.nvidia.package.bin}/bin/nvidia-smi"
   ];
-  # O unit já tem DeviceAllow=char-drm (política closed implícita): sem estes
-  # nós a CUDA falha com ENODEV, mesmo com o driver carregado.
+  # DeviceAllow=... implica política `closed` (o unit base já tem char-drm,
+  # neural-os.nix). Os aliases resolvem por /proc/devices (Linux-only):
+  # `char-nvidia` cobre /dev/nvidiaN + /dev/nvidiactl (major 195).
+  # `char-nvidia-frontend` só existe com o módulo vGPU/Xen e
+  # `char-nvidia-ctl` NÃO é alias — sob closed o systemd ignora-os em
+  # silêncio e a CUDA morre a abrir /dev/nvidia0
+  # (Permission denied → ENODEV do runtime CUDA). Ver
+  # checks.hw-cuda-deviceallow no flake.
   systemd.services.nosd.serviceConfig.DeviceAllow = lib.mkAfter [
-    "char-nvidia-frontend rw"
+    "char-nvidia rw"
     "char-nvidia-uvm rw"
     "char-nvidia-caps rw"
-    "char-nvidia-ctl rw"
   ];
 
   # nvidia-smi no perfil: `out` só tem nvidia-sleep.sh; o binário está em `bin`.
@@ -75,11 +80,13 @@
       ProtectHome = true;
       ReadWritePaths = [ "/var/lib/nosd" ];
       DevicePolicy = "closed";
+      # `char-nvidia` cobre /dev/nvidiaN + /dev/nvidiactl (major 195);
+      # frontend/ctl não são aliases válidos em metal (ver comentário
+      # acima e checks.hw-cuda-deviceallow).
       DeviceAllow = [
-        "char-nvidia-frontend rw"
+        "char-nvidia rw"
         "char-nvidia-uvm rw"
         "char-nvidia-caps rw"
-        "char-nvidia-ctl rw"
       ];
       SupplementaryGroups = [ "video" "render" ];
       OOMScoreAdjust = 200;

@@ -267,6 +267,39 @@
             touch $out
           '';
 
+          # hw-cuda (metal/RTX 3050): DeviceAllow resolvem aliases por
+          # /proc/devices (Linux-only, enforcement systemd/cgroup). `char-
+          # nvidia` cobre /dev/nvidiaN + /dev/nvidiactl (major 195);
+          # `char-nvidia-frontend` só existe com o módulo vGPU/Xen e
+          # `char-nvidia-ctl` não é alias — sob política `closed` implícita o
+          # systemd ignora-os em silêncio e a CUDA morre a abrir
+          # /dev/nvidia0 (Permission denied → ENODEV). Check estático (eval
+          # da config + grep; NÃO prova CUDA — metal continua AWAITING_HW).
+          hw-cuda-deviceallow =
+            let
+              cfg = self.nixosConfigurations.nixaios-iso-hw-cuda.config;
+            in
+            pkgs.runCommand "test-hw-cuda-deviceallow" {
+              nativeBuildInputs = with pkgs; [ gnugrep ];
+              NOSD_DA = builtins.toJSON cfg.systemd.services.nosd.serviceConfig.DeviceAllow;
+              S2_DA = builtins.toJSON cfg.systemd.services."nosd-engine-s2".serviceConfig.DeviceAllow;
+            } ''
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-nvidia rw"' <<<"$NOSD_DA"; then
+                echo "missing char-nvidia rw in nosd DeviceAllow: $NOSD_DA" >&2; exit 1
+              fi
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-nvidia rw"' <<<"$S2_DA"; then
+                echo "missing char-nvidia rw in nosd-engine-s2 DeviceAllow: $S2_DA" >&2; exit 1
+              fi
+              if ${pkgs.gnugrep}/bin/grep -Eq 'char-nvidia-(frontend|ctl)' <<<"$NOSD_DA"; then
+                echo "dead alias in nosd DeviceAllow: $NOSD_DA" >&2; exit 1
+              fi
+              if ${pkgs.gnugrep}/bin/grep -Eq 'char-nvidia-(frontend|ctl)' <<<"$S2_DA"; then
+                echo "dead alias in nosd-engine-s2 DeviceAllow: $S2_DA" >&2; exit 1
+              fi
+              echo "nosd DeviceAllow (visible): $NOSD_DA" >&2
+              touch $out
+            '';
+
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
             nodes.machine = { lib, ... }: {

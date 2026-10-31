@@ -305,6 +305,14 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   15 946 315 776 B, sha256 `c5d7cb80…f67f`; `.img` único 20 241 711 104 B,
   sha256 `4662a340…9225` (ISO + FAT32 4G; 5 GGUFs). Metal/QEMU AWAITING_HW. Ver
   `docs/ORB_UI.md` e `docs/evidence/ORB_UI_0.7.0-alpha.2.md`.
+- **Metal CUDA 0.7.0-alpha.2 (in-tree; fix alpha.3)**: `iso-hw-cuda` com
+  driver NVIDIA + `llama-cpp-cuda`; S1 0.8B Q4 em CPU e S2 4B **Q6_K** em CUDA
+  na 8082 (`--fit on --fit-ctx 2048 --reasoning off`, sem `-c`/`-ngl` fixos).
+  Chromium no cage: `NIXOS_OZONE_WL=1` + `--ozone-platform=wayland` (sem isto
+  tentava X11 e caía para Slint), `security.chromiumSuidSandbox` e retry
+  `--disable-gpu`. ISO `9470e357…` (17,2 GB), img 21 516 779 520 B sha
+  `2e032b9a…` (repack; tail-sha == ISO). **Metal AWAITING_HW** (drivers/GPU).
+  Ver `docs/evidence/hw/2026-10-31_0140Z/README.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
   revogacao ainda.

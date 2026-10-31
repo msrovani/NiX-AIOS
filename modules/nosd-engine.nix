@@ -94,10 +94,17 @@ in
           Restart = "on-failure";
           RestartSec = "5s";
           # W2: dGPU via CUDA — sem DRM card (cage fica com iGPU /dev/dri).
-          # DeviceAllow vazio + DevicePolicy=closed bloqueia DRM; NVIDIA char nodes via SupplementaryGroups.
+          # DeviceAllow resolve aliases por /proc/devices (Linux-only, unit):
+          # `char-nvidia` cobre /dev/nvidiaN + /dev/nvidiactl (major 195).
+          # `char-nvidia-frontend` só existe com o módulo vGPU/Xen e
+          # `char-nvidia-ctl` NÃO é alias (nvidiactl pertence ao major
+          # `nvidia`): sob DevicePolicy=closed o systemd ignora-os em
+          # silêncio e a CUDA morre a abrir /dev/nvidia0
+          # (Permission denied → ENODEV do runtime CUDA). Ver
+          # checks.hw-cuda-deviceallow no flake.
           DevicePolicy = "closed";
           DeviceAllow = [
-            "char-nvidia-frontend rw"
+            "char-nvidia rw"
             "char-nvidia-uvm rw"
             "char-nvidia-caps rw"
           ];

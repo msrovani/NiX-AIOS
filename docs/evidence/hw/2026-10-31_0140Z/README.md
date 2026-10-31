@@ -1,6 +1,6 @@
 # HW image — S1 0.8B (CPU) + S2 4B Q6_K (CUDA) + cinematic ORB com DIAG
 
-Data: build 2026-10-31 (ISO `9470e357…`), pack a seguir.
+Data: build 2026-10-31 (ISO `9470e357…`), repack a 2026-10-30 22:xx.
 Base de código: `d5ee259` + WIP de `modules/jarbas-cage.nix` (ozone/wayland) da
 outra sessão no working tree. `nosd` continua a reportar **0.7.0-alpha.2**
 (o bump de versão ficou fora do snapshot) — o que interessa é o que está lá
@@ -10,13 +10,22 @@ dentro, listado abaixo.
 
 | Ficheiro | Bytes | sha256 |
 |---|---|---|
-| `nixaios-hw-cuda-051-logfat.img` | 21 516 779 520 (20.0 GiB) | `5eba41ec04ba6295bd040269a4e862574efb82eeb2b302eca6e4a6f54a39e2ec` |
+| `nixaios-hw-cuda-051-logfat.img` (repack) | 21 516 779 520 (20.0 GiB) | `2e032b9abdc46c3cc4ce3328e0f1a7e6bf85f2c2dbc2ff440a3be81527103cbb` |
 | ISO interno | 17 221 107 712 (16.0 GiB) | `9470e35762a1cd599e4d3cbee5fe44dbd03d259901652ac38fef5e3a3978086d` |
 
-Verificação: `IMG_TAIL_SHA == ISO_TAIL_SHA`
+Verificação do repack: `IMG_TAIL_SHA == ISO_TAIL_SHA`
 (`bb82a44ba0799db4910bbe8f275f9bb3f2e0cf8f128bc46c4e175b49a91b61a7`, bytes
-512..fim) — só o MBR difere (`sfdisk --append`). Partições: ISO 16G, EFI 3M,
-`NIXAIOSLOG` FAT32 4G.
+512..fim do ISO) — o payload é o **mesmo** ISO `9470e357`; só MBR/FAT metadata
+mudam (o `mkfs.vfat` gera outro serial). O `.img` original (`5eba41ec…`) foi
+apagado na coordenação de duas sessões; este repack restaura o mesmo conteúdo.
+
+O ISO foi verificado de novo: `sha256sum` = `9470e357…`, e a closure
+(`/nix/store/6gnahic…-closure-info/store-paths`) contém
+`g99xicyaq74yaygdj1k7blchd47qcy1m-jarbas-cinematic-wrap`, o wrap com
+`NIXOS_OZONE_WL=1`/`--ozone-platform=wayland` — a prova de que o fix do
+Chromium (alpha.3, commit `d4cacfa`) está dentro da imagem.
+
+Partições: ISO 16G, EFI 3M, `NIXAIOSLOG` FAT32 4G.
 
 **Precisa de pendrive ≥ 32 GB** (a anterior de 11.6 GB cabia em 16 GB).
 
