@@ -111,10 +111,32 @@ nosctl --tcp 127.0.0.1:7700 --token-file ./data/ipc.token <cmd>
 
 | Comando | Método | Notas |
 |---------|--------|-------|
-| `skill-install NAME PATH` | `skill.install` | wasm/wat, hash BLAKE3 |
+| `skill-install NAME PATH [--caps log,aios_ai.infer] [--profile app]` | `skill.install` | wasm/wat, hash BLAKE3, imports em allowlist, caps declaradas, perfil `app` exige `NOSD_SKILL_APP_PROFILE=1` |
+| `skill-list` | `skill.list` | junta manifesto: versão, foco, caps, `kind`, ABI, proveniência |
+| `skill-run NAME --arg N` | `skill.run` | `fuel_used`, `output`, `result`/`result_b64` (ABI 2), `caps_declared` vs `caps_granted` |
 | `skill-import FILE.md` | `skill.import` | `SKILL.md` **declarativo**; caps em allowlist; não activa |
 | `mcp-list` | `mcp.list` | tools filtradas pelas caps do peer |
 | `mcp-call TOOL --args JSON` | `mcp.call` | caps **da tool** no `CapGate`; side-effect exige HITL |
+
+As caps declaradas numa skill **não** são concedidas automaticamente: em
+execução valem `caps declaradas ∩ NOSD_SKILL_GRANT_CAPS` (default `log`;
+`aios_ai.infer` exige opt-in do operador). Imports fora de
+`aios_ai.infer`/`aios_log.write` são recusados no install.
+
+`skill.run` está sujeito a **quota por peer autenticado** (janela
+deslizante, persistida em `<data-dir>/skill_quota.json`):
+`NOSD_SKILL_QUOTA_RUNS` (240), `NOSD_SKILL_QUOTA_FUEL` (5 000 000) e
+`NOSD_SKILL_QUOTA_WINDOW_SECS` (60). O peer é
+`unix:<uid>`/`tcp:token:<geração>`/`jarbas-ui`, nunca um campo do payload. A
+run é reservada antes de ler o módulo e o fuel medido é cobrado depois; o
+excedente devolve `ok:false` com `quota` no erro. A janela sobrevive a um
+restart do `nosd` (um ficheiro ilegível recusa globalmente até ser removido).
+Com identidade M6 (`NOSD_MESH_KEY`/`NOSD_MESH_REQUIRE_SIG=1`) a janela é
+assinada Ed25519 e tem âncora anti-apagamento/anti-rollback: editar, apagar
+só a janela, assinar com outra chave ou repor um ficheiro antigo recusa em
+vez de repor orçamento. Sem identidade, o arranque registra
+`skill quota signed=false` e o ficheiro não é assinado. Em NixOS estes três
+valores são `services.nosd.skillQuota{Runs,Fuel,WindowSecs}`.
 
 `mcp.call` tem piso IPC `NONE` de propósito: o registry é server-authored e a
 autorização é por tool (`nos-mcp`). O transporte **stdio** é servido pelo bin

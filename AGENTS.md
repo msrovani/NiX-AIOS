@@ -336,19 +336,32 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `crdt.put/get/sync`; `mesh-2vm-crdt` PASS. Anti-entropy = estado completo
   (sem delta/Merkle), em claro, sem persistencia nsgdb.
 - **S1 skills trust**: BLAKE3 (64 hex) + manifesto `skill/<n>/meta` +
-  `skill.explain <focus>` com score 0-100 e `why` no CRDT. **Sem** assinatura
-  de publisher/allowlist (S2) nem historico no score.
+  `skill.explain <focus>` com score 0-100 e `why` no CRDT.
 - **S2a publisher**: assinatura do manifesto (`name|focus|version|hash`) +
-  allowlist `NOSD_SKILL_PUBLISHERS`; provenance `signed`. **Falta**: caps
-  declaradas, historico, versao monotonica, push assinado, revogacao.
+  allowlist `NOSD_SKILL_PUBLISHERS`; provenance `signed`. Feito.
 - **S2b caps/versao**: caps declaradas validadas (allowlist `aios_ai.infer`,
-  `log`) e downgrade por `focus` recusado. Falta: historico no score, push
-  assinado, revogacao e downgrade via HITL.
-- **S2 skills (falta)**: assinatura de publisher + allowlist + caps declaradas
-  + historico no score + versao monotonica. Desenho em
-  `docs/SKILL_TRUST_AND_SELECTION.md`.
+  `log`), downgrade por `focus` recusado sem HITL. Em runtime a concessao e
+  declaradas ∩ `NOSD_SKILL_GRANT_CAPS` (default `log`). Feito.
+- **Skills v2 (in-tree, ABI 2)**: `nos-wasm` com `SandboxPolicy`
+  (frugal/app), inspecao de imports (`aios_ai.infer`, `aios_log.write`),
+  `result_ptr`/`result_len` (≤ 64 KiB, bounds-checked), fuel medido e cache
+  BLAKE3 por processo (`FrugalRuntime::shared`). `nos-factory` promove com
+  BLAKE3 + `ExecReport` e marca `placeholder` quando nao ha codegen.
+  `skill.install`/`skill.push` partilham `install()` (hash → publisher → caps
+  → downgrade → contrato → gravacao); `skill.run` devolve `fuel_used`,
+  `output`, `result`/`result_b64` e `caps_declared/granted`. NixOS:
+  `services.nosd.skillGrantCaps` / `skillAppProfile`; perfil `app`
+  (1 MiB/500k) so com `NOSD_SKILL_APP_PROFILE=1`. Quota de execucao por
+  peer (runs+fuel, janela deslizante, reserva atomica antes de ler o
+  modulo, janela persistida em `<data-dir>/skill_quota.json` e assinada
+  Ed25519 com a chave do no + ancora anti-apagamento/rollback) em
+  `services.nosd.skillQuota*`; fuel medio entra no score do `skill.explain`
+  (`why.fuel`). Sem identidade M6 a janela e declaradamente nao assinada
+  (`signed=false`). **Falta**: assinatura do resultado, gossip de revogacao,
+  quota distribuida. Ver `docs/SKILL_TRUST_AND_SELECTION.md` §3.1.
 - **M9.1 SKILL_PUSH**: modulo viaja cifrado (`kind=3`) e so activa se o hash
-  bater; 512 KiB/push (base64 no envelope); hash FNV, sem gossip/revogacao.
+  BLAKE3 bater; 512 KiB/push (base64 no envelope); push assinado e revogacao
+  S2c; sem gossip de revogacao.
 - **M8.1e log autenticado**: registo = json+tab+sig Ed25519 do no; replay
   recusa registo invalido/sem sig (com identidade). Vale nos dois formatos.
 - **M8.1d anti-rollback**: ancora (`seg.anchor`/`crdt.anchor`, `<bytes> <linhas>`)
@@ -369,9 +382,10 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   Sem bloom/Merkle; estado em memoria (replay no arranque); sem compactacao.
 - **M6.1 Noise**: link de jobs/estado cifrado (XX + BIND Ed25519 contra a chave
   fixada). Sem modo plaintext. Sem revogacao/rotacao; HB UDP continua em claro.
-- **M9 skills**: wasmi frugal (fuel 100k/heap 256 KiB/zero caps),
-  `skill.install|list|run`, registo `skill/<n>/active` no CRDT. Local apenas
-  (sem SKILL_PUSH); fnv como id, sem BLAKE3 nem quota.
+- **M9 skills**: `skill.install|list|run` + registo `skill/<n>/active` no
+  CRDT; execucao frugal como em **Skills v2**. `skill.import` declarativo
+  (`SKILL.md`) nao executa wasm. Quota de execucao por peer (Skills v2),
+  local ao no.
 - **M7 jobs**: `job.submit` + listener TCP `NOSD_JOB_BIND` com frames
   assinados; worker tem de ser peer fixado. Sem Noise/fila/quota por peer.
   Check `mesh-2vm-jobs` PASS. Ver `docs/SKYNET_DISTRIBUTED_PLAN.md`.

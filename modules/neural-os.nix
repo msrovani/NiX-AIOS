@@ -43,6 +43,35 @@ in
       default = "255.255.255.255:19000";
       description = "NOSD_MESH_BROADCAST";
     };
+    # Skills v2: o manifesto declara; esta lista é a política do host.
+    # Declarar uma cap NÃO a autoriza — a execução usa a interseção.
+    skillGrantCaps = lib.mkOption {
+      type = lib.types.listOf (lib.types.enum [ "log" "aios_ai.infer" ]);
+      default = [ "log" ];
+      description = "NOSD_SKILL_GRANT_CAPS — caps que o host pode conceder a skills wasm";
+    };
+    skillAppProfile = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "NOSD_SKILL_APP_PROFILE — perfil app (1 MiB/500k) para skills que o peçam";
+    };
+    # Quota de execução de skills por peer autenticado (janela deslizante).
+    # Contabilizada só pela identidade do transporte; 0 runs = nega tudo.
+    skillQuotaRuns = lib.mkOption {
+      type = lib.types.ints.u32;
+      default = 240;
+      description = "NOSD_SKILL_QUOTA_RUNS — execuções de skill permitidas por peer/janela";
+    };
+    skillQuotaFuel = lib.mkOption {
+      type = lib.types.ints.unsigned;
+      default = 5000000;
+      description = "NOSD_SKILL_QUOTA_FUEL — fuel permitido por peer/janela (medido)";
+    };
+    skillQuotaWindowSecs = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 60;
+      description = "NOSD_SKILL_QUOTA_WINDOW_SECS — tamanho da janela da quota";
+    };
     # V0 (plano vampiro): pesos do score declarados (accuracy,latency,cost,efficiency).
     scoreWeights = lib.mkOption {
       type = lib.types.str;
@@ -226,11 +255,17 @@ in
           "NOSD_CLOUD_USD_OUT=${toString cfg.cloudUsdOut}"
           "NOSD_PRICE_REF_DATE=${cfg.priceRefDate}"
           "NOSD_PRICE_REF_MODEL=${cfg.priceRefModel}"
+          # Skills v2: declarar não autoriza; esta é a política do host.
+          "NOSD_SKILL_GRANT_CAPS=${lib.concatStringsSep "," cfg.skillGrantCaps}"
+          "NOSD_SKILL_QUOTA_RUNS=${toString cfg.skillQuotaRuns}"
+          "NOSD_SKILL_QUOTA_FUEL=${toString cfg.skillQuotaFuel}"
+          "NOSD_SKILL_QUOTA_WINDOW_SECS=${toString cfg.skillQuotaWindowSecs}"
           # Persona default (environment.etc acima).
           "NOSD_SOUL_PATH=/etc/nosd/SOUL.md"
           "RUST_LOG=info"
         ] ++ lib.optional (cfg.tdpWatts != null) "NOSD_TDP_W=${toString cfg.tdpWatts}"
-          ++ lib.optional (cfg.nvidiaSmi != null) "NOSD_NVIDIA_SMI=${cfg.nvidiaSmi}";
+          ++ lib.optional (cfg.nvidiaSmi != null) "NOSD_NVIDIA_SMI=${cfg.nvidiaSmi}"
+          ++ lib.optional cfg.skillAppProfile "NOSD_SKILL_APP_PROFILE=1";
       };
     };
   };

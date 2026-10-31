@@ -162,11 +162,18 @@ enum Cmd {
         focus: Option<String>,
         #[arg(long)]
         version: Option<String>,
+        /// Perfil Wasm: `frugal` (default) ou `app` (exige NOSD_SKILL_APP_PROFILE=1).
+        #[arg(long, default_value = "frugal")]
+        profile: String,
         /// S2: publisher (hex) e assinatura (base64) do manifesto.
         #[arg(long)]
         publisher: Option<String>,
         #[arg(long)]
         sig: Option<String>,
+        /// S2b: caps declaradas (vírgulas). Ex.: `log,aios_ai.infer`.
+        /// O host só concede o que estiver em NOSD_SKILL_GRANT_CAPS.
+        #[arg(long, value_delimiter = ',')]
+        caps: Vec<String>,
         /// S2c: grant HITL para permitir downgrade (kind=skill.downgrade).
         #[arg(long)]
         confirm_id: Option<String>,
@@ -428,8 +435,10 @@ async fn async_main() -> anyhow::Result<()> {
             path,
             focus,
             version,
+            profile,
             publisher,
             sig,
+            caps,
             confirm_id,
         } => {
             let bytes = match std::fs::read(path) {
@@ -453,11 +462,15 @@ async fn async_main() -> anyhow::Result<()> {
             if let Some(v) = version {
                 p["version"] = serde_json::json!(v);
             }
+            p["profile"] = serde_json::json!(profile);
             if let Some(x) = publisher {
                 p["publisher"] = serde_json::json!(x);
             }
             if let Some(x) = sig {
                 p["sig"] = serde_json::json!(x);
+            }
+            if !caps.is_empty() {
+                p["caps"] = serde_json::json!(caps);
             }
             if let Some(x) = confirm_id {
                 p["confirm_id"] = serde_json::json!(x);

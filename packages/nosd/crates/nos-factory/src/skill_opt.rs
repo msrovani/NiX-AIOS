@@ -1,4 +1,8 @@
 //! F.2 — SelfEvolve / SkillOpt thin (não só PathBcAbsent): Seek → draft → CapGate AGENT_SPAWN.
+//!
+//! O draft wasm é vazio de propósito: não há backend de codegen. A fábrica
+//! substitui-o pelo módulo identidade e marca `placeholder`, para que o
+//! resultado não seja apresentado como uma app sintetizada.
 
 use crate::{ArtifactDraft, FactoryPath, SeekReport, SkillNeed};
 use serde::{Deserialize, Serialize};
@@ -60,7 +64,7 @@ pub fn plan_skill_opt(need: &SkillNeed, seek: &SeekReport) -> SkillOptPlan {
             candidate_score: score,
             draft: Some(draft),
             agent_md: Some(md),
-            note: "SkillOpt draft — requires CapGate AGENT_SPAWN + validate path A".into(),
+            note: "SkillOpt draft sem wasm (placeholder identidade; sem codegen) — requires CapGate AGENT_SPAWN + validate path A".into(),
         };
     }
 

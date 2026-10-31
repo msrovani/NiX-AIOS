@@ -681,6 +681,456 @@ fn skill_infer_is_denied_without_cap() {
     );
 }
 
+// ABI v2: importa log (cap declarada `log`) e publica um buffer de resultado.
+const WAT_LOG_RESULT: &str = r#"(module
+    (import "aios_log" "write" (func $log (param i32 i32 i32) (result i32)))
+    (memory (export "memory") 1)
+    (data (i32.const 0) "hello")
+    (data (i32.const 32) "{\"ok\":1}")
+    (func (export "run") (param i32) (result i32)
+        (drop (call $log (i32.const 2) (i32.const 0) (i32.const 5)))
+        (local.get 0))
+    (func (export "result_ptr") (result i32) (i32.const 32))
+    (func (export "result_len") (result i32) (i32.const 8)))"#;
+
+const WAT_WASI: &str = r#"(module
+    (import "wasi_snapshot_preview1" "fd_write"
+        (func (param i32 i32 i32 i32) (result i32)))
+    (func (export "run") (param i32) (result i32) (i32.const 0)))"#;
+
+#[test]
+fn skill_abi_v2_logs_and_result_buffer() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "reporter", "wat": WAT_LOG_RESULT, "caps": ["log"] }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    assert_eq!(inst["result"]["abi"], 2, "{inst}");
+
+    let run = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "reporter", "arg": 11 }),
+    );
+    assert_eq!(run["ok"], true, "{run}");
+    assert_eq!(run["result"]["value"], 11, "{run}");
+    assert_eq!(run["result"]["output"], "hello", "{run}");
+    assert_eq!(run["result"]["result"], "{\"ok\":1}", "{run}");
+    assert_eq!(run["result"]["abi"], 2, "{run}");
+    assert_eq!(run["result"]["caps_granted"], json!(["log"]), "{run}");
+    assert!(
+        run["result"]["fuel_used"].as_u64().unwrap_or(0) > 0,
+        "fuel medido: {run}"
+    );
+
+    let list = rpc(&daemon, Some(&t), "skill.list", json!({}));
+    let item = list["result"]
+        .as_array()
+        .and_then(|a| a.iter().find(|v| v["name"] == "reporter"))
+        .unwrap_or_else(|| panic!("reporter no list: {list}"));
+    assert_eq!(item["abi"], 2, "{item}");
+    assert_eq!(item["kind"], "wasm", "{item}");
+    assert_eq!(item["caps"], json!(["log"]), "{item}");
+}
+
+#[test]
+fn skill_install_refuses_unknown_import() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let r = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "wasi", "wat": WAT_WASI }),
+    );
+    assert_eq!(r["ok"], false, "{r}");
+    let e = r["error"].as_str().unwrap_or("");
+    assert!(e.contains("import recusado"), "{r}");
+    assert!(e.contains("wasi_snapshot_preview1::fd_write"), "{r}");
+}
+
+#[test]
+fn skill_infer_declared_but_not_granted_by_host() {
+    let _serial = serial();
+    std::env::remove_var("NOSD_SKILL_GRANT_CAPS");
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "probe2", "wat": WAT_INFER, "caps": ["aios_ai.infer"] }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    let run = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "probe2", "arg": 0 }),
+    );
+    assert_eq!(run["ok"], true, "{run}");
+    assert_eq!(run["result"]["value"], -1, "{run}");
+    assert_eq!(
+        run["result"]["caps_declared"],
+        json!(["aios_ai.infer"]),
+        "{run}"
+    );
+    assert_eq!(run["result"]["caps_granted"], json!([]), "{run}");
+}
+
+#[test]
+fn skill_app_profile_requires_host_opt_in() {
+    let _serial = serial();
+    std::env::remove_var("NOSD_SKILL_APP_PROFILE");
+    // Sem opt-in: o manifesto pede `app`, o host aplica `frugal`.
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "appoff", "wat": WAT_LOG_RESULT, "profile": "app" }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    assert_eq!(inst["result"]["profile_requested"], "app", "{inst}");
+    assert_eq!(inst["result"]["profile"], "frugal", "{inst}");
+    let run = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "appoff", "arg": 1 }),
+    );
+    assert_eq!(run["result"]["profile"], "frugal", "{run}");
+    assert_eq!(run["result"]["profile_requested"], "app", "{run}");
+
+    // Com opt-in explícito, o perfil app é aplicado (novo daemon herda a env).
+    std::env::set_var("NOSD_SKILL_APP_PROFILE", "1");
+    let daemon2 = start();
+    let t2 = daemon2.token.clone();
+    let inst2 = rpc(
+        &daemon2,
+        Some(&t2),
+        "skill.install",
+        json!({ "name": "appon", "wat": WAT_LOG_RESULT, "profile": "app" }),
+    );
+    assert_eq!(inst2["ok"], true, "{inst2}");
+    assert_eq!(inst2["result"]["profile"], "app", "{inst2}");
+    let run2 = rpc(
+        &daemon2,
+        Some(&t2),
+        "skill.run",
+        json!({ "name": "appon", "arg": 1 }),
+    );
+    assert_eq!(run2["result"]["profile"], "app", "{run2}");
+    std::env::remove_var("NOSD_SKILL_APP_PROFILE");
+}
+
+#[test]
+fn skill_fuel_telemetry_feeds_the_score() {
+    let _serial = serial();
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "metered", "wat": WAT_IDENT, "focus": "metered", "version": "1.0.0" }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    for _ in 0..3 {
+        let r = rpc(
+            &daemon,
+            Some(&t),
+            "skill.run",
+            json!({ "name": "metered", "arg": 3 }),
+        );
+        assert_eq!(r["ok"], true, "{r}");
+    }
+
+    let f = rpc(
+        &daemon,
+        Some(&t),
+        "crdt.get",
+        json!({ "key": "skill/metered/fuel" }),
+    );
+    let raw = f["result"]["value"].as_str().expect("fuel json");
+    let v: Value = serde_json::from_str(raw).expect("fuel parses");
+    assert_eq!(v["runs"], 3, "{v}");
+    assert!(v["total"].as_u64().unwrap_or(0) > 0, "{v}");
+    assert_eq!(v["limit"], 100_000, "{v}");
+
+    let ex = rpc(
+        &daemon,
+        Some(&t),
+        "skill.explain",
+        json!({ "focus": "metered" }),
+    );
+    assert_eq!(ex["ok"], true, "{ex}");
+    assert_eq!(ex["result"]["why"]["fuel"], 10, "{ex}");
+    assert_eq!(ex["result"]["why"]["fuel_runs"], 3, "{ex}");
+    assert!(
+        ex["result"]["why"]["fuel_avg"].as_u64().unwrap_or(0) > 0,
+        "{ex}"
+    );
+}
+
+#[test]
+fn skill_peer_quota_rejects_after_budget() {
+    let _serial = serial();
+    std::env::remove_var("NOSD_SKILL_QUOTA_WINDOW_SECS");
+    std::env::remove_var("NOSD_SKILL_QUOTA_FUEL");
+    std::env::set_var("NOSD_SKILL_QUOTA_RUNS", "2");
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "quota", "wat": WAT_IDENT }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    for _ in 0..2 {
+        let r = rpc(
+            &daemon,
+            Some(&t),
+            "skill.run",
+            json!({ "name": "quota", "arg": 1 }),
+        );
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    let denied = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "quota", "arg": 1 }),
+    );
+    assert_eq!(denied["ok"], false, "{denied}");
+    assert!(
+        denied["error"].as_str().unwrap_or("").contains("quota"),
+        "{denied}"
+    );
+    std::env::remove_var("NOSD_SKILL_QUOTA_RUNS");
+}
+
+#[test]
+fn skill_peer_fuel_quota_rejects_after_budget() {
+    let _serial = serial();
+    std::env::remove_var("NOSD_SKILL_QUOTA_WINDOW_SECS");
+    std::env::remove_var("NOSD_SKILL_QUOTA_RUNS");
+    std::env::set_var("NOSD_SKILL_QUOTA_FUEL", "1");
+    let daemon = start();
+    let t = daemon.token.clone();
+    let inst = rpc(
+        &daemon,
+        Some(&t),
+        "skill.install",
+        json!({ "name": "fuelquota", "wat": WAT_IDENT }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    let first = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "fuelquota", "arg": 1 }),
+    );
+    assert_eq!(first["ok"], true, "{first}");
+    let denied = rpc(
+        &daemon,
+        Some(&t),
+        "skill.run",
+        json!({ "name": "fuelquota", "arg": 1 }),
+    );
+    assert_eq!(denied["ok"], false, "{denied}");
+    assert!(
+        denied["error"].as_str().unwrap_or("").contains("fuel"),
+        "{denied}"
+    );
+    std::env::remove_var("NOSD_SKILL_QUOTA_FUEL");
+}
+
+#[test]
+fn skill_quota_survives_daemon_restart() {
+    let _serial = serial();
+    // Com identidade: a janela é assinada e fica com âncora.
+    let key = std::env::temp_dir().join(format!(
+        "nosd-quota-mesh-{}-{}.key",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let key_s = key.to_string_lossy().to_string();
+    // Janela longa: o que está em causa não é o TTL, é a persistência.
+    let envs: [(&str, &str); 5] = [
+        ("NOSD_SKILL_QUOTA_RUNS", "2"),
+        ("NOSD_SKILL_QUOTA_FUEL", "1000000"),
+        ("NOSD_SKILL_QUOTA_WINDOW_SECS", "300"),
+        ("NOSD_MESH_REQUIRE_SIG", "1"),
+        ("NOSD_MESH_KEY", key_s.as_str()),
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let token = "test-token-restart-0123456789";
+
+    let port1 = free_port();
+    let mut child = spawn_nosd_env(dir.path(), port1, token, Stdio::null(), &envs);
+    wait_listen(&mut child, port1);
+    let inst = send_rpc(
+        port1,
+        &json!({
+            "id": 1,
+            "method": "skill.install",
+            "cap_gen": 1,
+            "token": token,
+            "params": { "name": "restart", "wat": WAT_IDENT }
+        }),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    for _ in 0..2 {
+        let r = send_rpc(
+            port1,
+            &json!({
+                "id": 1,
+                "method": "skill.run",
+                "cap_gen": 1,
+                "token": token,
+                "params": { "name": "restart", "arg": 1 }
+            }),
+        );
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+
+    // Ficheiro da janela gravado no data-dir.
+    let quota_file = dir.path().join("skill_quota.json");
+    let raw = std::fs::read_to_string(&quota_file).expect("quota.json persiste no data-dir");
+    let v: Value = serde_json::from_str(&raw).expect("quota.json é JSON");
+    assert_eq!(v["version"], 2, "{v}");
+    assert_eq!(v["sig"].as_str().map(str::len), Some(128), "assinada: {v}");
+    assert!(v["node"].is_u64(), "node id presente: {v}");
+    assert!(
+        dir.path().join("skill_quota.anchor").exists(),
+        "âncora ao lado"
+    );
+    let peers = v["peers"].as_object().expect("peers");
+    assert_eq!(peers.len(), 1, "{v}");
+    assert_eq!(peers.values().next().unwrap()["runs"], 2, "{v}");
+
+    // Reiniciar o MESMO data-dir: o orçamento não volta.
+    let port2 = free_port();
+    let mut child2 = spawn_nosd_env(dir.path(), port2, token, Stdio::null(), &envs);
+    wait_listen(&mut child2, port2);
+    let denied = send_rpc(
+        port2,
+        &json!({
+            "id": 1,
+            "method": "skill.run",
+            "cap_gen": 1,
+            "token": token,
+            "params": { "name": "restart", "arg": 1 }
+        }),
+    );
+    assert_eq!(denied["ok"], false, "{denied}");
+    assert!(
+        denied["error"].as_str().unwrap_or("").contains("quota"),
+        "{denied}"
+    );
+    let _ = child2.kill();
+    let _ = child2.wait();
+    let _ = std::fs::remove_file(&key);
+}
+
+#[test]
+fn tampered_signed_quota_is_refused_by_the_daemon() {
+    let _serial = serial();
+    let key = std::env::temp_dir().join(format!(
+        "nosd-quota-tamper-{}-{}.key",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let key_s = key.to_string_lossy().to_string();
+    let envs: [(&str, &str); 5] = [
+        ("NOSD_SKILL_QUOTA_RUNS", "2"),
+        ("NOSD_SKILL_QUOTA_FUEL", "1000000"),
+        ("NOSD_SKILL_QUOTA_WINDOW_SECS", "300"),
+        ("NOSD_MESH_REQUIRE_SIG", "1"),
+        ("NOSD_MESH_KEY", key_s.as_str()),
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let token = "test-token-tamper-0123456789";
+    let body = |method: &str, params: Value| {
+        json!({
+            "id": 1,
+            "method": method,
+            "cap_gen": 1,
+            "token": token,
+            "params": params
+        })
+    };
+
+    let port1 = free_port();
+    let mut child = spawn_nosd_env(dir.path(), port1, token, Stdio::null(), &envs);
+    wait_listen(&mut child, port1);
+    let inst = send_rpc(
+        port1,
+        &body(
+            "skill.install",
+            json!({ "name": "signed", "wat": WAT_IDENT }),
+        ),
+    );
+    assert_eq!(inst["ok"], true, "{inst}");
+    let first = send_rpc(
+        port1,
+        &body("skill.run", json!({ "name": "signed", "arg": 1 })),
+    );
+    assert_eq!(first["ok"], true, "{first}");
+    let _ = child.kill();
+    let _ = child.wait();
+
+    // "Edita" a janela para devolver orçamento, mantendo a assinatura velha.
+    let path = dir.path().join("skill_quota.json");
+    let mut raw: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let peer = raw["peers"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .next()
+        .unwrap()
+        .clone();
+    raw["peers"][peer.as_str()]["runs"] = json!(0);
+    std::fs::write(&path, serde_json::to_string(&raw).unwrap()).unwrap();
+
+    let port2 = free_port();
+    let mut child2 = spawn_nosd_env(dir.path(), port2, token, Stdio::null(), &envs);
+    wait_listen(&mut child2, port2);
+    let denied = send_rpc(
+        port2,
+        &body("skill.run", json!({ "name": "signed", "arg": 1 })),
+    );
+    assert_eq!(denied["ok"], false, "edição não repõe orçamento: {denied}");
+    assert!(
+        denied["error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("assinatura"),
+        "{denied}"
+    );
+    let _ = child2.kill();
+    let _ = child2.wait();
+    let _ = std::fs::remove_file(&key);
+}
+
 #[test]
 fn skill_focus_selection_prefers_newer_and_uses_blake3() {
     let _serial = serial();
@@ -768,7 +1218,7 @@ fn skill_history_feeds_the_score() {
         ex["result"]["chosen"], "good@1.0.0",
         "historico deve desempatar: {ex}"
     );
-    assert_eq!(ex["result"]["why"]["history"], 20, "{ex}");
+    assert_eq!(ex["result"]["why"]["history"], 15, "{ex}");
     assert_eq!(ex["result"]["why"]["runs"], json!([5, 0]), "{ex}");
 }
 

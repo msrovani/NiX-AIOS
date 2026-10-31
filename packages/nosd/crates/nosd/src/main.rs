@@ -279,6 +279,25 @@ async fn main() -> anyhow::Result<()> {
     // sd_notify READY=1 when NOTIFY_SOCKET set (systemd)
     sd_notify_ready();
 
+    // Quota de skills persistida e assinada com a chave do nó: um restart não
+    // devolve orçamento a um peer que já o esgotou, e editar/apagar o ficheiro
+    // não repõe nada em silêncio (assinatura + âncora). Ficheiro ilegível =
+    // recusa global (fail-closed) até o operador o remover.
+    let skill_quota = nosd_lib::rpc::skills::SkillQuota::from_env_at(
+        args.data_dir.join("skill_quota.json"),
+        mesh.identity(),
+    );
+    if let Some(reason) = skill_quota.deny_reason() {
+        tracing::warn!(target: "nosd", "{reason}");
+    }
+    // Honestidade: sem identidade o ficheiro não é assinado e isso é dito,
+    // não inferido de um "deve estar assinado".
+    tracing::info!(
+        target: "nosd",
+        "skill quota signed={} (chave do no via NOSD_MESH_KEY/NOSD_MESH_REQUIRE_SIG)",
+        skill_quota.signed()
+    );
+
     let state = Arc::new(server::AppState {
         hermes,
         mesh,
@@ -296,6 +315,7 @@ async fn main() -> anyhow::Result<()> {
         hitl: nosd_lib::rpc::HitlGrantStore::default(),
         caps: nos_core::CapRegistry::new(),
         package_store: parking_lot::Mutex::new(nos_factory::PackageStore::new()),
+        skill_quota: parking_lot::Mutex::new(skill_quota),
         shutting_down: AtomicBool::new(false),
         hermes_ticks: std::sync::atomic::AtomicU64::new(0),
         energy: parking_lot::Mutex::new(nos_observe::energy::EnergyMeter::new()),
@@ -362,33 +382,30 @@ async fn main() -> anyhow::Result<()> {
                             .map_err(|e| format!("base64: {e}"))?;
                     let focus = v["focus"].as_str().unwrap_or("");
                     let version = v["version"].as_str().unwrap_or("");
-                    let provenance = if v.get("publisher").is_some() && v.get("sig").is_some() {
-                        nosd_lib::rpc::skills::verify_publisher(
-                            name,
-                            if focus.is_empty() { name } else { focus },
-                            if version.is_empty() { "0.1.0" } else { version },
-                            hash,
-                            v["publisher"].as_str(),
-                            v["sig"].as_str(),
-                            &nosd_lib::rpc::skills::revoked_set(&st3),
-                        )
-                        .map_err(|e| format!("publisher: {e}"))?
-                    } else {
-                        "peer"
-                    };
-                    let (cid, n) =
-                        nosd_lib::rpc::skills::install_bytes(&st3, name, &bytes, Some(hash))?;
-                    nosd_lib::rpc::skills::put_meta(
-                        &st3,
+                    let caps: Vec<String> = v["caps"]
+                        .as_array()
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    // Mesmo caminho do skill.install: hash, publisher, caps,
+                    // downgrade e contrato são verificados uma só vez.
+                    let spec = nosd_lib::rpc::skills::InstallRequest {
                         name,
                         focus,
                         version,
-                        &cid,
-                        n,
-                        provenance,
-                        &[],
-                    );
-                    Ok(format!("{cid}:{n}"))
+                        caps: &caps,
+                        publisher: v["publisher"].as_str(),
+                        sig: v["sig"].as_str(),
+                        expect_hash: Some(hash),
+                        allow_downgrade: false,
+                        unsigned_provenance: "peer",
+                        profile: v["profile"].as_str().unwrap_or("frugal"),
+                    };
+                    let out = nosd_lib::rpc::skills::install(&st3, &spec, &bytes)?;
+                    Ok(format!("{}:{}", out.content_id, out.bytes))
                 });
                 tokio::spawn(async move {
                     if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec, crdt, skill).await

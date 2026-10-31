@@ -163,21 +163,35 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     let synth = v
                         .get("synthesized")
                         .and_then(|x| x.as_bool())
-                        .unwrap_or(true);
+                        .unwrap_or(false);
+                    let placeholder = v
+                        .get("placeholder")
+                        .and_then(|x| x.as_bool())
+                        .unwrap_or(false);
                     opar_after_ok(
                         state,
                         "factory.synthesize",
                         true,
                         &format!("name={name}"),
                         v.get("seek").and_then(|s| s.as_str()).unwrap_or("seek"),
-                        if synth { "path_a_frugal" } else { "seek_hit" },
+                        if placeholder {
+                            "placeholder_identity"
+                        } else if synth {
+                            "path_a_frugal"
+                        } else {
+                            "seek_hit"
+                        },
                         "ok",
                     );
                     Response {
                         id: req.id,
                         ok: true,
                         error: None,
-                        result: json!({ "synthesized": synth, "agent": v }),
+                        result: json!({
+                            "synthesized": synth,
+                            "placeholder": placeholder,
+                            "agent": v
+                        }),
                     }
                 }
                 Err(e) => Response {

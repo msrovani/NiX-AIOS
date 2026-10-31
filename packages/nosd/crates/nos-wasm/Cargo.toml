@@ -10,3 +10,5 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 wasmi = { workspace = true }
 wat = { workspace = true }
+serde = { workspace = true }
+blake3 = { workspace = true }

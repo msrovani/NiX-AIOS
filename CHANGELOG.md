@@ -39,6 +39,88 @@ Versionamento [SemVer](https://semver.org/).
   tail-sha == ISO; pendrive ≥ 32 GB). Substitui o build `9470e357`
   (sem o fix). Ver `docs/evidence/hw/2026-10-31_0140Z/README.md`.
 
+### Added (pós-alpha.2, in-tree — quota assinada)
+
+- **Janela assinada pela chave do nó**: com identidade M6, o
+  `skill_quota.json` leva Ed25519 sobre a forma canónica (peers ordenados) e o
+  `node_id`; ao lado fica `skill_quota.anchor` com o último snapshot assinado.
+  Seguintes casos passam a ser **recusados** (fail-closed) em vez de reporem
+  orçamento: editar runs/fuel, remover a assinatura, assinar com outra chave,
+  apagar a janela mantendo a âncora, repor um ficheiro assinado antigo
+  (runs/fuel abaixo da âncora ou peer desaparecido de uma janela activa).
+  Sem identidade (lab/release sem `NOSD_MESH_REQUIRE_SIG=1`) o arranque registra
+  `skill quota signed=false` — a ausência de protecção é declarada.
+- **Testes**: `signed_window_survives_a_restart_and_is_ed25519`,
+  `editing_the_signed_window_is_refused`,
+  `signed_window_without_signature_is_refused`,
+  `window_signed_by_another_node_is_refused`,
+  `deleting_the_window_with_the_anchor_present_is_refused`,
+  `rollback_to_an_older_signed_window_is_refused` e o ponta-a-ponta
+  `tampered_signed_quota_is_refused_by_the_daemon`.
+
+### Added (pós-alpha.2, in-tree — quota persistida)
+
+- **Janela da quota em disco**: `<data-dir>/skill_quota.json` (0600, tmp +
+  fsync + rename + fsync do diretório) guarda runs/fuel por peer em epoch ms;
+  um restart do `nosd` relê-a e **não devolve orçamento** a quem o esgotou.
+  Janelas expiradas são descartadas no load/save; ficheiro corrompido ou de
+  versão desconhecida = recusa global até o operador o remover (fail-closed);
+  falha de gravação recusa a execução seguinte. O tempo é de relógio de parede
+  (`Instant` não sobrevive ao processo): recuar só alonga a janela.
+- **Testes**: `quota_window_survives_a_restart` (0600 + runs/fuel lidos do
+  disco), `corrupt_quota_file_denies_instead_of_granting_a_fresh_budget`,
+  `expired_window_is_pruned_on_load` e o ponta-a-ponta
+  `skill_quota_survives_daemon_restart` (2 runs, kill, mesmo data-dir, 3.º
+  recusado).
+
+### Added (pós-alpha.2, in-tree — fuel no score + quota por peer)
+
+- **Eficiência de fuel no score do Hermes**: `skill.run` acumula
+  `skill/<nome>/fuel = {runs,total,max,limit}` no CRDT local; `skill.explain`
+  dá até **10 pontos** (alvo = 10% do limite do perfil, `<3` execuções =
+  5 neutro) e expõe `why = {fuel,fuel_avg,fuel_target,fuel_runs}`. Pesos
+  rebalanceados para somar 100 (proveniência 25, caps 15, versão 30,
+  tamanho 5, histórico 15, fuel 10).
+- **Quota de execução por peer**: janela deslizante em memória, contabilizada
+  pela identidade do transporte (`unix:<uid>`, `tcp:token:<geração>`,
+  `jarbas-ui`); `NOSD_SKILL_QUOTA_{RUNS,FUEL,WINDOW_SECS}` (240 / 5 000 000 /
+  60 s). A run é **reservada atomicamente sob o mutex antes de ler o módulo**
+  (concorrência não estoura) e o fuel medido é cobrado depois; `Fuel` trap
+  cobra o limite do perfil. Excesso = `ok:false` com `quota` no erro, sem
+  executar. NixOS: `services.nosd.skillQuota{Runs,Fuel,WindowSecs}`.
+- **Testes negativos**: quota de runs e de fuel ponta-a-ponta no daemon
+  (`skill_peer_quota_rejects_after_budget`,
+  `skill_peer_fuel_quota_rejects_after_budget`), reserva atómica
+  (`quota_reserves_before_the_run_so_concurrent_calls_cannot_overshoot`),
+  `NOSD_SKILL_QUOTA_RUNS=0` nega todos e
+  `skill_fuel_telemetry_feeds_the_score` mede a queda do score.
+
+### Changed (pós-alpha.2, in-tree — skills v2 / Wasm apps)
+
+- **`nos-wasm` v2**: `SandboxPolicy` (frugal/app), `Inspection` de imports com
+  allowlist (`aios_ai.infer`, `aios_log.write`), ABI v2
+  (`result_ptr`/`result_len`, até 64 KiB no perfil app, bounds-checked), logs limitados e
+  truncados, fuel medido (`ExecReport.fuel_used`) e cache de módulos BLAKE3
+  por processo (`FrugalRuntime::shared`).
+- **`nos-factory`**: promoção devolve `content_id` BLAKE3 (não FNV), ABI,
+  bytes e fuel; draft vazio fica marcado `placeholder` (não há backend de
+  codegen), em vez de ser apresentado como app sintetizada.
+- **Skills**: `skill.install` e o hook do `skill.push` passam pelo mesmo
+  `install()` (nome → tamanho/hash → publisher → caps → downgrade → contrato
+  → gravação). `skill.run` concede `caps declaradas ∩
+  NOSD_SKILL_GRANT_CAPS` (default `log`; `infer` exige opt-in), não executa
+  skills sem wasm activo e devolve `fuel_used`, `fuel_limit`, `output`, `result` ou
+  `result_b64`, `caps_declared`/`caps_granted`. `skill.list` junta o manifesto
+  (versão, foco, caps, `kind`, ABI, perfil, proveniência). `nosctl skill-install
+  --caps --profile app`; o perfil `app` (1 MiB/500k) só é aplicado com
+  `NOSD_SKILL_APP_PROFILE=1` (o manifesto pede, o host decide). Em NixOS:
+  `services.nosd.skillGrantCaps` (default `[ "log" ]`) e
+  `services.nosd.skillAppProfile` (default `false`).
+- **Testes**: 16 em `nos-wasm`, 24 em `nos-factory` e 10 de integração de
+  skills (ABI v2 com log+result, import WASI recusado, INFER declarado sem
+  grant, perfil app sem/com opt-in). Workspace verde no host Windows (421) e
+  na derivação Nix/Linux `nix build .#nosd` (424, com integração).
+
 ## [0.7.0-alpha.1] — ORB UI + HW cinematic
 
 ### Added

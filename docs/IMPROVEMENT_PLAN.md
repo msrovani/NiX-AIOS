@@ -47,14 +47,14 @@
 | R-09 ISO/QEMU | **OBSERVED** | ISO 2.7G, `nosd` Started, gate MQEMU PASS; `docs/evidence/QEMU_0.5.6.md` |
 | M6 identidade (HB Ed25519) | **feito** | `nos-mesh::ident` + `mesh-2vm-signed` |
 | S1 skills trust (BLAKE3+manifesto+escolha) | **feito** | `skill.explain` com score/`why`; hash 64 hex |
-| Skills: confiança/qualidade + escolha | **desenho** | `docs/SKILL_TRUST_AND_SELECTION.md`; hoje FNV sem assinatura de autor |
+| Skills: confiança/qualidade + escolha | **feito (S1–S2c)** | manifesto assinado, allowlist, caps declaradas, histórico e revogação; `docs/SKILL_TRUST_AND_SELECTION.md` §3.1 |
 | M9.1 SKILL_PUSH | **feito** | `skill.push` + `install_bytes(expect_hash)`; `mesh-2vm-skills` PASS |
 | M8.1e log autenticado | **feito** | linha assinada (Ed25519) + replay fail-closed; sem anti-rollback |
 | M8.1c compactacao do log | **feito** | snapshot+rename no arranque; linha truncada ignorada |
 | M8.1b CRDT duravel | **parcial** | log append+replay; desde M8.1d segmento `NSGC` (`nsgdb/crdt/seg.bin`) por omissao; falta indice/bloom |
 | M8.1 delta anti-entropy | **parcial** | VV + `delta_since` no `crdt.sync`; falta bloom/Merkle e nsgdb |
 | M6.1 Noise (link cifrado) | **feito** | XX + BIND Ed25519; `noise_job_roundtrip` + checks jobs/crdt |
-| M9 skills wasmi | **parcial** | `skill.install/list/run` + sandbox frugal; falta distribuicao do binario e BLAKE3 |
+| M9 skills wasmi | **feito (in-tree)** | `skill.install/list/run`, sandbox frugal, ABI 2 (`result_ptr`/logs), imports allowlist, cache BLAKE3, fuel no score e quota runs+fuel por peer; QEMU/metal AWAITING |
 | M8 CRDT wire | **parcial** | `kind=2` + `crdt.sync` + `mesh-2vm-crdt`; falta delta/Merkle/bloom e nsgdb |
 | M7 jobs remotos | **parcial** | `nos-mesh::job`, `job.submit`, `mesh-2vm-jobs`; falta Noise/fila/quota |
 | M5 lab mesh 2-VM | **OBSERVED (lab)** | `checks.x86_64-linux.mesh-2vm`; peers/TOFU/eleição; `evidence/MESH_2VM_0.6.0-alpha.7.md` |

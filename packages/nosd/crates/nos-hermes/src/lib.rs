@@ -878,23 +878,43 @@ impl HermesEngine {
             .factory
             .promote(&draft, caps, self.cap_gen, true)
             .map_err(|e| HermesError::Factory(e.to_string()))?;
+        let content_id = promoted.content_id.clone();
         self.bus.publish(
             "HERMES_AGENT_SPAWN",
-            json!({ "name": name, "hash": format!("{:016x}", promoted.content_hash) }),
+            json!({
+                "name": name,
+                "content_id": content_id,
+                "placeholder": promoted.placeholder
+            }),
         );
         let _ = self.record_opar(
             "agent.spawn",
             &format!("name={name} wasm_len={}", wasm.len()),
             &seek_audit_line(&seek),
-            &format!("hash={:016x} path=A_frugal", promoted.content_hash),
-            "validate_ok",
+            &format!(
+                "content_id={} abi={} fuel_used={} path=A_frugal",
+                content_id, promoted.abi, promoted.fuel_used
+            ),
+            if promoted.placeholder {
+                "placeholder"
+            } else {
+                "validate_ok"
+            },
         );
         Ok(json!({
             "name": promoted.name,
-            "content_hash": format!("{:016x}", promoted.content_hash),
-            "validate_i32": out,
+            "content_id": content_id,
+            "validate_i32": out.value,
+            "abi": promoted.abi,
+            "fuel_used": promoted.fuel_used,
             "path": "A",
-            "synthesized": true,
+            "synthesized": !promoted.placeholder,
+            "placeholder": promoted.placeholder,
+            "honesty": if promoted.placeholder {
+                "sem backend de codegen: módulo identidade (placeholder)"
+            } else {
+                "wasm fornecido pelo chamador, validado no sandbox frugal"
+            },
             "seek": seek_audit_line(&seek),
         }))
     }
@@ -1198,7 +1218,10 @@ mod tests {
             .unwrap();
         std::env::remove_var("NOSD_SEEK_MOCK");
         assert_eq!(v["path"], "A");
-        assert_eq!(v["synthesized"], true);
+        assert_eq!(v["placeholder"], true, "sem codegen: identidade declarada");
+        assert_eq!(v["synthesized"], false);
+        assert_eq!(v["abi"], 1);
+        assert_eq!(v["content_id"].as_str().unwrap_or("").len(), 64);
     }
 
     #[test]

@@ -234,6 +234,8 @@ pub struct AppState {
     /// CapGate server-authored (I.1) - nunca confiar em req.caps/req.agent.
     pub caps: CapRegistry,
     pub package_store: Mutex<PackageStore>,
+    /// Quota de execução de skills por peer autenticado (memória local).
+    pub skill_quota: Mutex<skills::SkillQuota>,
     pub shutting_down: AtomicBool,
     /// Contador do loop Continuous Hermes (0 = ainda não tickou / desligado).
     pub hermes_ticks: std::sync::atomic::AtomicU64,
@@ -604,6 +606,15 @@ pub fn sync_local_fleet_health(state: &AppState) {
     });
 }
 
+fn quota_peer_key(auth: &AuthContext, auth_gen: u64) -> String {
+    match auth {
+        AuthContext::Unix { uid: Some(uid), .. } => format!("unix:{uid}"),
+        AuthContext::Unix { .. } => "unix:unknown".to_string(),
+        AuthContext::Tcp => format!("tcp:token:{auth_gen}"),
+        AuthContext::JarbasUi => "jarbas-ui".to_string(),
+    }
+}
+
 fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
     // I.1: identidade vem do transporte (peer creds / token); payload é ignorado.
     let (profile, auth_gen) = state.authenticate(auth, req.token.as_deref());
@@ -617,6 +628,7 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         };
     }
 
+    let quota_peer = quota_peer_key(auth, auth_gen);
     let current_gen = state.ipc_generation();
     let gate = state.caps.gate_for(profile, auth_gen);
     let need = req.required_cap();
@@ -710,7 +722,7 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
     if let Some(r) = job::dispatch(state, req.clone()) {
         return r;
     }
-    if let Some(r) = skills::dispatch(state, req.clone()) {
+    if let Some(r) = skills::dispatch(state, req.clone(), &quota_peer) {
         return r;
     }
     if let Some(r) = mcp::dispatch(state, &gate, req.clone()) {

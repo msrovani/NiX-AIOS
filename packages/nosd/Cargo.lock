@@ -3200,6 +3200,7 @@ dependencies = [
 name = "nos-factory"
 version = "0.7.0-alpha.2"
 dependencies = [
+ "blake3",
  "ed25519-compact",
  "nos-core",
  "nos-wasm",
@@ -3209,6 +3210,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "ureq",
+ "wat",
 ]
 
 [[package]]
@@ -3325,7 +3327,9 @@ dependencies = [
 name = "nos-wasm"
 version = "0.7.0-alpha.2"
 dependencies = [
+ "blake3",
  "nos-core",
+ "serde",
  "thiserror 1.0.69",
  "tracing",
  "wasmi",
