@@ -1,29 +1,31 @@
 # HW image — S1 0.8B (CPU) + S2 4B Q6_K (CUDA) + cinematic ORB com DIAG
 
-Data: build 2026-10-31 (ISO `4f5ce467…`). Substitui o build `9470e357…`
-(sem o fix `DeviceAllow`); a `.img` desse build foi apagada.
-Base de código: `d4cacfa` (Chromium Ozone/sandbox) + `6bcc3fc`
-(`char-nvidia` DeviceAllow). `nosd` reporta **0.7.0-alpha.2** (sem bump).
+Data: build 2026-10-31 (ISO `2ee396fd…`) com a revisão de simbiose
+(`92fb47a`): voz (`char-alsa` + `XDG_RUNTIME_DIR`), recall novo e paridade do
+motor. Substitui `4f5ce467…` (sem voz/XDG) e `9470e357…` (sem DeviceAllow).
+Base de código: `92fb47a` + `6bcc3fc`/`72069a1` (DeviceAllow) + `d4cacfa`
+(Chromium Ozone). `nosd` reporta **0.7.0-alpha.2** (sem bump).
 
 ## Artefactos
 
 | Ficheiro | Bytes | sha256 |
 |---|---|---|
-| `nixaios-hw-cuda-051-logfat.img` | 21 515 730 944 (20.0 GiB) | `f7da284319b8735f2180ad4d6e820d15853e312b6b4886dc4c3d47d233d9e2ec` |
-| ISO interno | 17 220 493 312 (16.0 GiB) | `4f5ce467c43c9825d76ac25eacf20d1caecfb13919286a27b605f49109eb660b` |
+| `nixaios-hw-cuda-051-logfat.img` | 21 516 779 520 (20.0 GiB) | `4e339f371fa09ec0db8e54e3b204fb8222886b92b66baa9513acbb86deeba487` |
+| ISO interno | 17 221 165 056 (16.0 GiB) | `2ee396fd3ff4d65559f0a9340decd218f51782da16551c17520b97fd86def614` |
 
 Verificação: `IMG_TAIL_SHA == ISO_TAIL_SHA`
-(`a0fcf3113378769e0212bfb84d002d231b7e3fdaf7e0459c0372fea430833af9`, bytes
+(`5db01e7280ff8b1572bb373cbc6d581dc5ef9d51607f81b7b788281e34fe8722`, bytes
 512..fim do ISO) — só MBR/serial FAT diferem.
 
-Closure do ISO (`/nix/store/lh17hdqc…-closure-info/store-paths`):
-5 GGUFs `Qwen3.5`; `9g8k7n1z…-jarbas-cinematic-wrap` com `NIXOS_OZONE_WL`;
-units `nosd` e `nosd-engine-s2` com `DeviceAllow=char-nvidia rw` (sem
-`frontend`/`ctl`).
+Closure do ISO (`/nix/store/9d952a73…-closure-info/store-paths`):
+5 GGUFs `Qwen3.5`; `7nvd6685…-jarbas-cinematic-wrap` com `NIXOS_OZONE_WL`;
+`nosd` com `char-drm`, `char-alsa`, `char-nvidia` (sem `frontend`/`ctl`),
+`XDG_RUNTIME_DIR=/run/nosd/user` e `ExecStartPre` root que cria o diretório
+0700; `nosd-engine-s2` com `char-nvidia`.
 
-Histórico: `9470e357` (img `5eba41ec` → repack `2e032b9a`) não tinha o fix
-`char-nvidia`; foi substituído por este build. Partições: ISO 16G, EFI 3M,
-`NIXAIOSLOG` FAT32 4G.
+Histórico: `4f5ce467` (img `f7da2843`) não tinha `char-alsa`/XDG;
+`9470e357` (img `5eba41ec` → repack `2e032b9a`) não tinha DeviceAllow.
+Partições: ISO 16G, EFI 3M, `NIXAIOSLOG` FAT32 4G.
 
 **Precisa de pendrive ≥ 32 GB.**
 
@@ -41,6 +43,10 @@ Histórico: `9470e357` (img `5eba41ec` → repack `2e032b9a`) não tinha o fix
   `/dev/nvidiactl`, major 195) nos units `nosd` e `nosd-engine-s2`;
   `char-nvidia-frontend`/`char-nvidia-ctl` não são aliases válidos e foram
   removidos (check `checks.hw-cuda-deviceallow`).
+- **Voz**: `char-alsa rw` no `nosd` (arecord/aplay como filhos sob
+  `DevicePolicy=closed`) e `XDG_RUNTIME_DIR=/run/nosd/user` criado 0700 por
+  `ExecStartPre` root (check `nosd-voice-deviceallow`). Antes, o metal podia
+  dizer "microfone avariado" por EACCES.
 - **ORB cinematic** (Chromium kiosk) com `TELEMETRIA` a mostrar sempre
   `S2 / PRO`, `GPU` (MiB usados/total ou o erro do `nvidia-smi`) e `S2 PORTA`.
   Drawer `DIAG` com as seis linhas (SMI, NGL/CUDA, GPU, S2, porta, SOUL).

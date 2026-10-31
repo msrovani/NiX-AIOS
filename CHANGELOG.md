@@ -34,6 +34,10 @@ Versionamento [SemVer](https://semver.org/).
   + check estático `checks.x86_64-linux.hw-cuda-deviceallow` no flake
   (avaliação dos DeviceAllow gerados; inclui o unit supervisionado do
   módulo). Ver lição 41 do `AGENTS.md`. Metal CUDA: AWAITING_HW.
+- **Artefacto CUDA da revisão (voz+XDG)**: ISO `2ee396fd…` (17 221 165 056 B)
+  no `.img` `4e339f37…` (21 516 779 520 B; tail-sha == ISO; 32 GB). Inclui
+  `char-alsa`/`XDG_RUNTIME_DIR` (`92fb47a`), DeviceAllow e Ozone; substitui
+  `4f5ce467`/`f7da2843`.
 - **Artefacto CUDA republicado com o fix**: ISO `4f5ce467…`
   (17 220 493 312 B) no `.img` `f7da2843…` (21 515 730 944 B;
   tail-sha == ISO; pendrive ≥ 32 GB). Substitui o build `9470e357`

@@ -259,4 +259,6 @@ Notas que ficam do contra-relatório:
 - `supervise=true` a correr llama-server real (só flags/units avaliados);
 - áudio sob `DevicePolicy=closed` em kernel real (gate estático apenas);
 - promoção real de uma app wasm gerada por codegen (não existe backend);
-- ISO reconstruída nesta revisão (o `nix build .#nosd` cobre o daemon).
+- ISO reconstruída **com a revisão** (voz/XDG, DeviceAllow, Ozone) e
+  registada em `docs/evidence/hw/2026-10-31_0140Z/`, mas **não arrancada em
+  metal**; `nix build .#nosd` cobre o daemon.

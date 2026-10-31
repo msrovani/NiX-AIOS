@@ -334,9 +334,9 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   na 8082 (`--fit on --fit-ctx 2048 --reasoning off`, sem `-c`/`-ngl` fixos).
   Chromium no cage: `NIXOS_OZONE_WL=1` + `--ozone-platform=wayland` (sem isto
   tentava X11 e caía para Slint), `security.chromiumSuidSandbox` e retry
-  `--disable-gpu`. ISO `4f5ce467…` (17,2 GB), img 21 515 730 944 B sha
-  `f7da2843…` (tail-sha == ISO; inclui `char-nvidia`/DeviceAllow). **Metal
-  AWAITING_HW** (drivers/GPU).
+  `--disable-gpu`. ISO `2ee396fd…` (17,2 GB), img 21 516 779 520 B sha
+  `4e339f37…` (tail-sha == ISO; `char-nvidia`/DeviceAllow, `char-alsa` +
+  `XDG_RUNTIME_DIR` da revisão). **Metal AWAITING_HW** (drivers/GPU/voz).
   Ver `docs/evidence/hw/2026-10-31_0140Z/README.md`.
 - **M6 identidade**: HB Ed25519 assinado + pinagem TOFU + allowlist +
   anti-replay; `mesh-2vm-signed` PASS. Sem Noise (confidencialidade) e sem
