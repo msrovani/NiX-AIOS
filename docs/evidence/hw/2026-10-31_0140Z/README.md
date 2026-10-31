@@ -1,33 +1,31 @@
 # HW image — S1 0.8B (CPU) + S2 4B Q6_K (CUDA) + cinematic ORB com DIAG
 
-Data: build 2026-10-31 (ISO `9470e357…`), repack a 2026-10-30 22:xx.
-Base de código: `d5ee259` + WIP de `modules/jarbas-cage.nix` (ozone/wayland) da
-outra sessão no working tree. `nosd` continua a reportar **0.7.0-alpha.2**
-(o bump de versão ficou fora do snapshot) — o que interessa é o que está lá
-dentro, listado abaixo.
+Data: build 2026-10-31 (ISO `4f5ce467…`). Substitui o build `9470e357…`
+(sem o fix `DeviceAllow`); a `.img` desse build foi apagada.
+Base de código: `d4cacfa` (Chromium Ozone/sandbox) + `6bcc3fc`
+(`char-nvidia` DeviceAllow). `nosd` reporta **0.7.0-alpha.2** (sem bump).
 
 ## Artefactos
 
 | Ficheiro | Bytes | sha256 |
 |---|---|---|
-| `nixaios-hw-cuda-051-logfat.img` (repack) | 21 516 779 520 (20.0 GiB) | `2e032b9abdc46c3cc4ce3328e0f1a7e6bf85f2c2dbc2ff440a3be81527103cbb` |
-| ISO interno | 17 221 107 712 (16.0 GiB) | `9470e35762a1cd599e4d3cbee5fe44dbd03d259901652ac38fef5e3a3978086d` |
+| `nixaios-hw-cuda-051-logfat.img` | 21 515 730 944 (20.0 GiB) | `f7da284319b8735f2180ad4d6e820d15853e312b6b4886dc4c3d47d233d9e2ec` |
+| ISO interno | 17 220 493 312 (16.0 GiB) | `4f5ce467c43c9825d76ac25eacf20d1caecfb13919286a27b605f49109eb660b` |
 
-Verificação do repack: `IMG_TAIL_SHA == ISO_TAIL_SHA`
-(`bb82a44ba0799db4910bbe8f275f9bb3f2e0cf8f128bc46c4e175b49a91b61a7`, bytes
-512..fim do ISO) — o payload é o **mesmo** ISO `9470e357`; só MBR/FAT metadata
-mudam (o `mkfs.vfat` gera outro serial). O `.img` original (`5eba41ec…`) foi
-apagado na coordenação de duas sessões; este repack restaura o mesmo conteúdo.
+Verificação: `IMG_TAIL_SHA == ISO_TAIL_SHA`
+(`a0fcf3113378769e0212bfb84d002d231b7e3fdaf7e0459c0372fea430833af9`, bytes
+512..fim do ISO) — só MBR/serial FAT diferem.
 
-O ISO foi verificado de novo: `sha256sum` = `9470e357…`, e a closure
-(`/nix/store/6gnahic…-closure-info/store-paths`) contém
-`g99xicyaq74yaygdj1k7blchd47qcy1m-jarbas-cinematic-wrap`, o wrap com
-`NIXOS_OZONE_WL=1`/`--ozone-platform=wayland` — a prova de que o fix do
-Chromium (alpha.3, commit `d4cacfa`) está dentro da imagem.
+Closure do ISO (`/nix/store/lh17hdqc…-closure-info/store-paths`):
+5 GGUFs `Qwen3.5`; `9g8k7n1z…-jarbas-cinematic-wrap` com `NIXOS_OZONE_WL`;
+units `nosd` e `nosd-engine-s2` com `DeviceAllow=char-nvidia rw` (sem
+`frontend`/`ctl`).
 
-Partições: ISO 16G, EFI 3M, `NIXAIOSLOG` FAT32 4G.
+Histórico: `9470e357` (img `5eba41ec` → repack `2e032b9a`) não tinha o fix
+`char-nvidia`; foi substituído por este build. Partições: ISO 16G, EFI 3M,
+`NIXAIOSLOG` FAT32 4G.
 
-**Precisa de pendrive ≥ 32 GB** (a anterior de 11.6 GB cabia em 16 GB).
+**Precisa de pendrive ≥ 32 GB.**
 
 ## O que vai na imagem
 
@@ -39,6 +37,10 @@ Partições: ISO 16G, EFI 3M, `NIXAIOSLOG` FAT32 4G.
   escolhe camadas+ctx que cabem na VRAM).
 - **5 GGUFs** no `models/` (0.8B Q4/Q8, 4B Q4/Q6, 9B Q4) — o 9B não cabe em
   6 GB, existe só para `brain.plan/accept`.
+- **DeviceAllow NVIDIA**: `char-nvidia rw` (cobre `/dev/nvidiaN` **e**
+  `/dev/nvidiactl`, major 195) nos units `nosd` e `nosd-engine-s2`;
+  `char-nvidia-frontend`/`char-nvidia-ctl` não são aliases válidos e foram
+  removidos (check `checks.hw-cuda-deviceallow`).
 - **ORB cinematic** (Chromium kiosk) com `TELEMETRIA` a mostrar sempre
   `S2 / PRO`, `GPU` (MiB usados/total ou o erro do `nvidia-smi`) e `S2 PORTA`.
   Drawer `DIAG` com as seis linhas (SMI, NGL/CUDA, GPU, S2, porta, SOUL).
