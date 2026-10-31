@@ -1,0 +1,10 @@
+---
+description: Eco-Tokens v3 — CoD + SHA256 anti-loop + smart_trim
+alwaysApply: true
+---
+
+# Eco-Tokens v3
+
+Ordem: FIXO → REPO → ESTADO → DINÂMICO. CoD ≤5 palavras/passo. Sem filler.
+MCP Python: get_current_task, update_task_status, run_verification, search_ast_symbol.
+Estado `.eco/state.json`. LOOP DETECTADO / BLOCKED → 3 linhas e parar.

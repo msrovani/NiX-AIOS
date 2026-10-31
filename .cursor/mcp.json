@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "eco-tokens": {
+      "command": "python3",
+      "args": [
+        ".eco/mcp-server.py"
+      ],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

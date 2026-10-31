@@ -1,0 +1,203 @@
+# Patch NixAIOS sobre .eco/mcp-server.py do upstream Eco-tokens 0.3.0.
+# Aplicar DEPOIS de re-correr install.sh (que copia o ficheiro cru):
+#   cd .eco && git apply -p2 nixaios.patch
+# Correcoes: sem git checkout (recusa-no-revert), UTF-8 stdin/stdout,
+# find_bash -> Git Bash, search_ast_symbol com fallback Python stdlib.
+
+diff --git a/a/mcp-server.py b/b/mcp-server.py
+index a903736..04ecc92 100644
+--- a/a/mcp-server.py
++++ b/b/mcp-server.py
+@@ -186,33 +186,36 @@ def git_diff_hash() -> str:
+     return hashlib.sha256(payload.encode("utf-8", errors="replace")).hexdigest()
+ 
+ 
+-def git_checkout_hard() -> Tuple[bool, str]:
+-    try:
+-        r = subprocess.run(
+-            ["git", "checkout", "."],
+-            cwd=str(ROOT),
+-            capture_output=True,
+-            text=True,
+-            timeout=60,
+-            check=False,
+-        )
+-        msg = strip_ansi((r.stdout or "") + (r.stderr or "")).strip()
+-        return r.returncode == 0, msg or "git checkout ."
+-    except (OSError, subprocess.TimeoutExpired) as exc:
+-        return False, str(exc)
++# NOTA NixAIOS (AGENTS.md, lição 34): o kit upstream faz `git checkout .` ao
++# trip do circuit breaker. Neste repositório isso apaga trabalho de outra sessão
++# por causa de um teste flaky. O breaker RECUSA (BLOQUEIA) e nunca reverte.
++# Não reintroduzir `git checkout`/`git restore`/`git stash` aqui.
++REVERT_POLICY = "refuse-no-revert"
+ 
+ 
+ def find_bash() -> Optional[str]:
+-    for c in (
+-        os.environ.get("ECO_BASH"),
+-        "bash",
+-        r"C:\Program Files\Git\bin\bash.exe",
+-        r"C:\Program Files\Git\usr\bin\bash.exe",
+-        "/bin/bash",
+-        "/usr/bin/bash",
+-    ):
++    # Ordem importa no Windows: `bash` no PATH é o C:\windows\system32\bash.exe
++    # (WSL) e responde 127 a um caminho Windows. Git Bash vem primeiro.
++    if os.name == "nt":
++        order = (
++            os.environ.get("ECO_BASH"),
++            r"C:\Program Files\Git\bin\bash.exe",
++            r"C:\Program Files\Git\usr\bin\bash.exe",
++            r"C:\Program Files (x86)\Git\bin\bash.exe",
++            "bash",
++        )
++    else:
++        order = (
++            os.environ.get("ECO_BASH"),
++            "bash",
++            "/bin/bash",
++            "/usr/bin/bash",
++        )
++    for c in order:
+         if not c:
+             continue
++        if c.lower().endswith(r"system32\bash.exe"):
++            continue
+         try:
+             r = subprocess.run(
+                 [c, "-lc", "echo ok"],
+@@ -261,7 +264,7 @@ def _trip_circuit_breaker(
+     doc: Dict[str, Any], current_hash: str, reason: str
+ ) -> Dict[str, Any]:
+     task = doc.get("active_task") or {}
+-    reverted, rev_msg = git_checkout_hard()
++    reverted = False
+     task["status"] = "BLOCKED"
+     task["reason"] = reason
+     task["updated_at"] = _now()
+@@ -278,11 +281,13 @@ def _trip_circuit_breaker(
+         "exit_code": 2,
+         "diff_hash": current_hash,
+         "reverted": reverted,
++        "revert_policy": REVERT_POLICY,
+         "output": (
+             "LOOP DETECTADO: Nenhuma alteração real foi produzida no código "
+             "desde a última falha.\n"
+-            "Status=BLOCKED. git checkout . executado (sem nova build).\n"
+-            f"hash={current_hash[:16]}… rev={rev_msg[:80]}"
++            "Status=BLOCKED. Sem revert automático (política NixAIOS: recusa, "
++            "nunca `git checkout .`). O humano decide o reset.\n"
++            f"hash={current_hash[:16]}…"
+         ),
+     }
+ 
+@@ -398,6 +403,41 @@ def run_verification(dry_run: bool = False) -> Dict[str, Any]:
+     }
+ 
+ 
++def _python_scan(symbol: str) -> str:
++    """Fallback stdlib para máquinas sem rg/grep/ast-grep no PATH (Windows lab)."""
++    skip_dirs = {
++        ".git",
++        "target",
++        "node_modules",
++        "__pycache__",
++        ".direnv",
++        ".eco",
++        "result",
++    }
++    hits: List[str] = []
++    for dirpath, dirnames, filenames in os.walk(str(ROOT)):
++        dirnames[:] = sorted(
++            d
++            for d in dirnames
++            if d not in skip_dirs and not d.startswith("result-")
++        )
++        for name in sorted(filenames):
++            path = Path(dirpath) / name
++            try:
++                if path.stat().st_size > 2_000_000:
++                    continue
++                with path.open("r", encoding="utf-8", errors="ignore") as fh:
++                    for lineno, line in enumerate(fh, 1):
++                        if symbol in line:
++                            rel = path.relative_to(ROOT).as_posix()
++                            hits.append(f"{rel}:{lineno}:{line.rstrip()[:300]}")
++                            if len(hits) >= MAX_SYMBOL_LINES:
++                                return "\n".join(hits)
++            except OSError:
++                continue
++    return "\n".join(hits)
++
++
+ def search_ast_symbol(symbol: str) -> Dict[str, Any]:
+     if not symbol or not isinstance(symbol, str):
+         return {"ok": False, "error": "symbol required"}
+@@ -449,23 +489,26 @@ def search_ast_symbol(symbol: str) -> Dict[str, Any]:
+             tool = "ripgrep"
+     if not text.strip():
+         grep = shutil.which("grep")
+-        if not grep:
+-            return {"ok": False, "tool": "none", "snippet": "(no search tool)", "lines": 0}
+-        _, text = run(
+-            [
+-                grep,
+-                "-RIn",
+-                "--exclude-dir=.git",
+-                "--exclude-dir=target",
+-                "--exclude-dir=node_modules",
+-                "--exclude-dir=.eco",
+-                "-m",
+-                str(MAX_SYMBOL_LINES),
+-                symbol,
+-                ".",
+-            ]
+-        )
+-        tool = "grep"
++        if grep:
++            _, text = run(
++                [
++                    grep,
++                    "-RIn",
++                    "--exclude-dir=.git",
++                    "--exclude-dir=target",
++                    "--exclude-dir=node_modules",
++                    "--exclude-dir=.eco",
++                    "-m",
++                    str(MAX_SYMBOL_LINES),
++                    symbol,
++                    ".",
++                ]
++            )
++            tool = "grep"
++
++    if not text.strip():
++        text = _python_scan(symbol)
++        tool = "python"
+ 
+     lines = [ln for ln in text.splitlines() if ln.strip()][:MAX_SYMBOL_LINES]
+     snippet = "\n".join(lines) if lines else "(no matches)"
+@@ -518,7 +561,7 @@ TOOLS = [
+     },
+     {
+         "name": "search_ast_symbol",
+-        "description": "Busca cirúrgica ast-grep → rg → grep (máx. 25 linhas).",
++        "description": "Busca cirúrgica ast-grep → rg → grep → python stdlib (máx. 25 linhas).",
+         "inputSchema": {
+             "type": "object",
+             "properties": {"symbol": {"type": "string"}},
+@@ -613,6 +656,13 @@ def handle(msg: Dict[str, Any]) -> None:
+ 
+ 
+ def main() -> None:
++    # Windows: stdout/stdin herdados podem ser cp1252 e rebentar em "→"/"…"
++    # (UnicodeEncodeError a meio do tools/list). Forçar UTF-8 nos dois.
++    for stream in (sys.stdin, sys.stdout):
++        try:
++            stream.reconfigure(encoding="utf-8", errors="replace")
++        except (AttributeError, ValueError):
++            pass
+     ensure_eco()
+     for line in sys.stdin:
+         trimmed = line.strip()

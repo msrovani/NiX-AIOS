@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [".eco/RULES.md"],
+  "mcp": {
+    "servers": {
+      "eco-tokens": {
+        "type": "local",
+        "command": ["python", ".eco/mcp-server.py"],
+        "cwd": ".",
+        "environment": {
+          "ECO_BASH": "C:\\Program Files\\Git\\bin\\bash.exe",
+          "ECO_VERIFY_TIMEOUT": "1800"
+        },
+        "timeout": {
+          "execution": 1800000
+        }
+      }
+    }
+  }
+}
