@@ -54,6 +54,63 @@ struct Args {
     admin_gid: Option<u32>,
 }
 
+/// Node-id estável para frota: evita default 15 em todos os hosts.
+/// Prioridade: `--node-id` ≠ 15 → env `NOSD_NODE_ID` → hash de `/etc/machine-id`
+/// (ou hostname) em [16, 65535]. Default clap 15 = “não fixado”.
+fn resolve_node_id(cli: u32) -> u32 {
+    if cli != 15 {
+        return cli;
+    }
+    if let Ok(v) = std::env::var("NOSD_NODE_ID") {
+        if let Ok(n) = v.trim().parse::<u32>() {
+            if n != 0 {
+                return n;
+            }
+        }
+    }
+    let seed = std::fs::read_to_string("/etc/machine-id")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| std::fs::read_to_string("/etc/hostname").ok())
+        .unwrap_or_else(|| "nixaios".into());
+    let mut h: u32 = 2166136261;
+    for b in seed.bytes() {
+        h ^= u32::from(b);
+        h = h.wrapping_mul(16777619);
+    }
+    let id = 16 + (h % (65536 - 16));
+    info!(target: "nosd", "node_id derived from machine-id/hostname → {id}");
+    id
+}
+
+/// Broadcast mesh: se env/CLI ainda for 255.255.255.255:port, tenta subnet
+/// broadcast da iface com rota default (Wi‑Fi notes + AMD wired na mesma LAN).
+fn resolve_mesh_broadcast(configured: &str) -> String {
+    let configured = configured.trim();
+    if configured.is_empty() {
+        return configured.to_string();
+    }
+    let port = configured
+        .rsplit_once(':')
+        .and_then(|(_, p)| p.parse::<u16>().ok())
+        .unwrap_or(19000);
+    let is_limited = configured.starts_with("255.255.255.255")
+        || configured == format!("255.255.255.255:{port}");
+    if !is_limited {
+        return configured.to_string();
+    }
+    if let Some(subnet_bc) = nos_core::default_iface_broadcast() {
+        let out = format!("{subnet_bc}:{port}");
+        info!(
+            target: "nosd",
+            "mesh broadcast {configured} → {out} (subnet; frota Wi‑Fi+wired)"
+        );
+        return out;
+    }
+    configured.to_string()
+}
+
 /// Segundos/allowlist do mesh vêm do ambiente do unit (root-controlled).
 fn mesh_identity() -> anyhow::Result<Option<nos_mesh::Identity>> {
     let require = std::env::var("NOSD_MESH_REQUIRE_SIG").ok().as_deref() == Some("1");
@@ -168,9 +225,8 @@ async fn main() -> anyhow::Result<()> {
         std::env::set_var("NOSD_LLAMA_NGL", suggest_ngl.to_string());
     }
 
-    // I.3: Landlock real quando NOSD_LANDLOCK=1 (Linux); senão SoftAllowlist honesty.
-    let ll = nosd_lib::landlock::try_restrict_process(&args.data_dir);
-    info!(target: "nosd", "landlock status={ll:?}");
+    // node-id: CLI explícito > env > hash estável de machine-id (frota-3 sem 15/15/15).
+    let node_id = resolve_node_id(args.node_id);
 
     let (resolved_models, persist_mounted, _) =
         nosd_lib::transmute::resolve_models_dir(&args.data_dir);
@@ -180,12 +236,19 @@ async fn main() -> anyhow::Result<()> {
         vec![models_dir.clone()]
     };
 
+    // Spawn/attach llama-server ANTES do Landlock: filhos criados antes de
+    // restrict_self mantêm /dev/nvidia* (CUDA). Landlock só no processo nosd.
     let hermes = HermesEngine::boot(BootConfig {
         models_dir: models_dir.clone(),
         scan_dirs,
         mem_dir,
         cap_gen: 1,
     })?;
+
+    // I.3: Landlock real quando NOSD_LANDLOCK=1 (Linux); senão SoftAllowlist honesty.
+    let ll = nosd_lib::landlock::try_restrict_process(&args.data_dir);
+    info!(target: "nosd", "landlock status={ll:?}");
+
     // M6: identidade Ed25519. Sem `NOSD_MESH_REQUIRE_SIG=1`/chave existente,
     // o mesh fica no modo compat (HB sem assinatura) para nao quebrar o lab.
     let identity = match mesh_identity() {
@@ -197,8 +260,8 @@ async fn main() -> anyhow::Result<()> {
         }
     };
     let mesh = match identity.clone() {
-        Some(id) => MeshEngine::with_identity(args.node_id, Default::default(), id),
-        None => MeshEngine::new(args.node_id),
+        Some(id) => MeshEngine::with_identity(node_id, Default::default(), id),
+        None => MeshEngine::new(node_id),
     };
     // T1.2/T1.3: com identidade, persistir pins TOFU e seq do HB ao lado da
     // chave do mesh — um restart não re-fixa às cegas (janela TOFU) nem
@@ -222,8 +285,8 @@ async fn main() -> anyhow::Result<()> {
                     "T1.2/T1.3: persistência de pins/seq indisponível ({e}); seguindo em memória (restart re-fixará TOFU)"
                 );
                 match identity {
-                    Some(id) => MeshEngine::with_identity(args.node_id, Default::default(), id),
-                    None => MeshEngine::new(args.node_id),
+                    Some(id) => MeshEngine::with_identity(node_id, Default::default(), id),
+                    None => MeshEngine::new(node_id),
                 }
             }
         }
@@ -425,10 +488,11 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    let mesh_broadcast = resolve_mesh_broadcast(&args.mesh_broadcast);
     let mesh_udp = if !args.mesh_bind.is_empty() {
         match nos_mesh::udp::start_mesh_udp(
             &args.mesh_bind,
-            &args.mesh_broadcast,
+            &mesh_broadcast,
             state.mesh.clone(),
         )
         .await
@@ -436,9 +500,9 @@ async fn main() -> anyhow::Result<()> {
             Ok(u) => {
                 info!(
                     target: "nosd",
-                    "mesh udp ON bind={} broadcast={}",
+                    "mesh udp ON bind={} broadcast={} (Wi‑Fi notes + wired AMD na mesma LAN)",
                     args.mesh_bind,
-                    args.mesh_broadcast
+                    mesh_broadcast
                 );
                 Some(u)
             }

@@ -2,6 +2,7 @@
 
 use crate::MeshEngine;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tracing::{info, warn};
@@ -11,6 +12,8 @@ pub struct MeshUdp {
     sock: Arc<UdpSocket>,
     mesh: MeshEngine,
     broadcast: SocketAddr,
+    /// Contador de ENETUNREACH consecutivos — reduz spam até a iface (Wi‑Fi/eth) subir.
+    unreachable_streak: AtomicU64,
 }
 
 impl MeshUdp {
@@ -25,7 +28,27 @@ impl MeshUdp {
             sock: Arc::new(sock),
             mesh,
             broadcast,
+            unreachable_streak: AtomicU64::new(0),
         })
+    }
+
+    fn note_tx_err(&self, e: &std::io::Error, kind: &str) {
+        let unreachable = e.raw_os_error() == Some(101) // ENETUNREACH
+            || e.kind() == std::io::ErrorKind::NetworkUnreachable;
+        if unreachable {
+            let n = self.unreachable_streak.fetch_add(1, Ordering::Relaxed) + 1;
+            // 1º, depois a cada 32 ticks (~1 min com tick 2s) até a rede (Wi‑Fi notes / eth AMD) subir.
+            if n == 1 || n.is_multiple_of(32) {
+                warn!(
+                    target: "nosd",
+                    "mesh {kind} ENETUNREACH x{n} (aguarda Wi‑Fi/eth na mesma LAN; broadcast={})",
+                    self.broadcast
+                );
+            }
+        } else {
+            self.unreachable_streak.store(0, Ordering::Relaxed);
+            warn!(target: "nosd", "mesh {kind} err={e}");
+        }
     }
 
     pub fn mesh(&self) -> &MeshEngine {
@@ -40,12 +63,15 @@ impl MeshUdp {
     pub async fn tick_tx(&self) {
         self.mesh.tick();
         let buf = self.mesh.encode_heartbeat();
-        if let Err(e) = self.sock.send_to(&buf, self.broadcast).await {
-            warn!(target: "nosd", "mesh HB tx err={e}");
+        match self.sock.send_to(&buf, self.broadcast).await {
+            Ok(_) => {
+                self.unreachable_streak.store(0, Ordering::Relaxed);
+            }
+            Err(e) => self.note_tx_err(&e, "HB tx"),
         }
         for extra in self.mesh.encode_tick_extras() {
             if let Err(e) = self.sock.send_to(&extra, self.broadcast).await {
-                warn!(target: "nosd", "mesh tick extra tx err={e}");
+                self.note_tx_err(&e, "tick extra tx");
             }
         }
     }
@@ -73,7 +99,7 @@ impl MeshUdp {
         }
     }
 
-    /// Drena até `max` datagramas (non-blocking via try_recv pattern with timeout 0).
+    /// Drena até `max` datagramas (non-blocking via try_recv patten with timeout 0).
     pub async fn poll_rx(&self, max: usize) {
         let mut buf = [0u8; 1500];
         for _ in 0..max {

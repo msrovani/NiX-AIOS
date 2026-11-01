@@ -13,6 +13,7 @@ pub mod iteration;
 pub mod loop_guard;
 pub mod metrics;
 pub mod model_slot;
+pub mod net_util;
 pub mod orb;
 pub mod policy;
 pub mod proc;
@@ -39,6 +40,7 @@ pub use iteration::IterationBudget;
 pub use loop_guard::LoopGuard;
 pub use metrics::{ScoreWeights, DEFAULT_WEIGHTS};
 pub use model_slot::ModelSlot;
+pub use net_util::{broadcast_from_cidr, default_iface_broadcast};
 pub use orb::{OrbPattern, OrbSense, OrbSnapshot, OrbState};
 pub use policy::{
     disposition, lab_auto_switch_from_env, policy_matrix_prod, with_abstain, ActDisposition,

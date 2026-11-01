@@ -4,7 +4,8 @@
 #  - journal-boot.log / journal-follow.log (nosd, jarbas-*, hotswap)
 #  - firstboot.log / hotswap.log / jarbas-cage.log (copias periodicas)
 #  - dmesg-boot.log e hw-info.log (lspci/lsusb/uname) para analise pos-teste
-# Nao abre SSH nem firewall; comportamento de rede igual a ISO de release.
+# Frota metal: mesh UDP aberto (notes Wi‑Fi + PC AMD wired na mesma LAN).
+# ISO de release continua com firewall fechado (images/iso.nix).
 #
 # Modelo de arranque: Qwen3.5-0.8B (GGUF Q4_K_M, Apache-2.0) baixado no first
 # boot via transmute (HITL) para /var/lib/nosd/models. O repo canonico
@@ -13,6 +14,10 @@
 { lib, pkgs, self, ... }:
 {
   services.nixaiosLogFat.enable = lib.mkForce true;
+
+  # Mesh frota-3: HB UDP 19000 (Wi‑Fi↔ethernet). TCP 19001 = jobs opcional.
+  networking.firewall.allowedUDPPorts = lib.mkAfter [ 19000 ];
+  networking.firewall.allowedTCPPorts = lib.mkAfter [ 19001 ];
 
   # 0.7-alpha1: todos os GGUFs pinados viajam na imagem (offline). O brain
   # default continua 0.8B Q4; os restantes ficam disponíveis para

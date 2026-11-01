@@ -118,7 +118,14 @@ fn gpu_diag_line() -> String {
             },
             Err(e) => {
                 let first = e.lines().next().unwrap_or("falhou").trim();
-                format!("GPU · smi ERRO: {}", fit(first, 26))
+                // Pascal (1050) + driver 595: smi/CUDA falham — AIOS cai em CPU (honesty).
+                if std::path::Path::new("/sys/module/nvidia").exists()
+                    || std::path::Path::new("/proc/driver/nvidia/gpus").exists()
+                {
+                    format!("GPU · ignored/CPU · {}", fit(first, 18))
+                } else {
+                    format!("GPU · smi ERRO: {}", fit(first, 26))
+                }
             }
         },
     };
@@ -149,13 +156,29 @@ pub(crate) fn diag_lines(state: &AppState) -> Vec<String> {
     };
     let ngl = std::env::var("NOSD_LLAMA_NGL").unwrap_or_else(|_| "—".into());
     let cuda = std::env::var("CUDA_VISIBLE_DEVICES").unwrap_or_else(|_| "—".into());
+    let s2_attached = state.hermes.hotswap_s2.is_some();
     let s2 = state
         .hermes
         .hotswap_s2
         .as_ref()
         .map(|c| c.engine_name().to_string())
-        .unwrap_or_else(|| "ausente".into());
+        .unwrap_or_else(|| {
+            if std::env::var("NOSD_LLAMA_SERVER_S2").is_ok() {
+                "fallback S1".into()
+            } else {
+                "N/A".into()
+            }
+        });
     let port = s2_port();
+    let port_line = if std::env::var("NOSD_LLAMA_SERVER_S2").is_err() {
+        format!("PORTA {port} · S2 N/A")
+    } else if port_open(port) {
+        format!("PORTA {port} · a responder")
+    } else if s2_attached {
+        format!("PORTA {port} · down · fallback S1")
+    } else {
+        format!("PORTA {port} · down · fallback S1")
+    };
     let soul = std::env::var("NOSD_SOUL_PATH").unwrap_or_else(|_| "/etc/nosd/SOUL.md".into());
     vec![
         // caminho completo só interessa quando falha; basename + hash é ruído.
@@ -163,14 +186,7 @@ pub(crate) fn diag_lines(state: &AppState) -> Vec<String> {
         format!("NGL {ngl} · CUDA {cuda}"),
         gpu_diag_line(),
         format!("S2 · {s2} · fila {}", state.hermes.s2.pending()),
-        format!(
-            "PORTA {port} · {}",
-            if port_open(port) {
-                "a responder"
-            } else {
-                "sem resposta"
-            }
-        ),
+        port_line,
         format!(
             "SOUL · {}",
             if std::path::Path::new(&soul).is_file() {

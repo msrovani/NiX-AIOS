@@ -1532,7 +1532,9 @@ mod tests {
         m.on_heartbeat(2, true);
         assert_eq!(m.peer_tofu_count(), 1, "HB com PK -> peer pk-bound");
         assert!(!m.tofu_settled(), "recem-ligado ainda nao settle");
-        std::thread::sleep(std::time::Duration::from_millis(TOFU_SETTLE_MS + 300));
+        // Margem extra: sob carga do nix build (muitos testes em paralelo) 300ms
+        // falhava de forma flaky; 1.5s cobre o jitter do scheduler.
+        std::thread::sleep(std::time::Duration::from_millis(TOFU_SETTLE_MS + 1_500));
         assert!(m.tofu_settled(), "deve settle ao fim de TOFU_SETTLE_MS");
     }
 

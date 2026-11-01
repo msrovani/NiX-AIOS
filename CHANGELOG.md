@@ -3,6 +3,19 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.7.0-alpha.4] — AIOS frota-3 (S1/S2 + HITL adapt + mesh Wi‑Fi/wired)
+
+- ISO canónica `iso-hw-cuda`: S1 0.8B + S2 4B; Landlock após spawn CUDA.
+- Mesh HW: UDP 19000, broadcast subnet (notes Wi‑Fi + AMD wired), node-id estável.
+- `brain.adapt` HITL up/down/driver_hint; tier4 hot_load com VRAM sem ring.
+- Cage: dbus session + espeak greeting; ORB 2K/cam/idle; logs `boots/<stamp>_<host>/`.
+- `pack-hw-usb.sh`: `mv` same-FS (não duplicar ~20 GiB no VHDX).
+- Opcional `iso-hw-cuda-legacy` (Pascal 580).
+- Evidência: `docs/evidence/METAL_FLEET3_0.7.0-alpha.4.md`;
+  memória: `docs/memory/SESSION_20261101_FLEET3_ALPHA4.md`.
+- ISO sha256 `361cfa64…bc26f29f`; img `fa51efd5…5ea454a8`.
+- Metal 240H HUD parcial (S2/CUDA/CAM OK; MIC/áudio/mesh/logs stick pendentes).
+
 ## [0.7.0-alpha.3] — metal iGPU/dGPU + iso-hw-cuda-4b
 
 ### Fixed

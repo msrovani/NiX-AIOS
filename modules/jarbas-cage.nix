@@ -220,11 +220,24 @@ let
       exit $?
     fi
 
-    # cinematic/Chromium: pipewire para mic/cam do kiosk.
+    # cinematic/Chromium: session dbus + pipewire (mic/cam/som).
+    if [ -z "''${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+      eval "$(${pkgs.dbus}/bin/dbus-launch --sh-syntax)"
+      export DBUS_SESSION_BUS_ADDRESS
+      echo "jarbas: dbus session $DBUS_SESSION_BUS_ADDRESS"
+    fi
     if [ ! -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
       ${pkgs.pipewire}/bin/pipewire &
       ${pkgs.wireplumber}/bin/wireplumber &
       sleep 1
+    fi
+    if command -v ${pkgs.espeak-ng}/bin/espeak-ng >/dev/null 2>&1; then
+      (
+        sleep 4
+        ${pkgs.espeak-ng}/bin/espeak-ng -v pt-br -s 140 \
+          "Olá. JARBAS online. Aguardando directiva." 2>/dev/null || true
+      ) &
+      echo "jarbas: espeak greeting scheduled"
     fi
 
     fail_over_to_slint() {
@@ -386,6 +399,8 @@ in
       curl
       v4l-utils
       mesa-demos
+      espeak-ng
+      dbus
     ];
 
     services.udev.extraRules = ''
@@ -416,7 +431,16 @@ in
     systemd.services.jarbas-cage = {
       description = "JARBAS kiosk (${cfg.uiMode} / iGPU cage)";
       # Regra 5: nada de comandos nus; waitScript usa mkdir/chown/systemctl.
-      path = [ pkgs.systemd pkgs.coreutils pkgs.util-linux pkgs.seatd ];
+      path = [
+        pkgs.systemd
+        pkgs.coreutils
+        pkgs.util-linux
+        pkgs.seatd
+        pkgs.dbus
+        pkgs.pipewire
+        pkgs.wireplumber
+        pkgs.espeak-ng
+      ];
       # Só arranca quando o GUI é pedido (hotswap pós-Q5 / persist-check).
       # Sem isto o cage arrancava numa VT inactiva durante o firstboot e
       # entrava em restart-loop (ecrã preto no tty7).

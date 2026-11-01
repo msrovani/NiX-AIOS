@@ -1,4 +1,4 @@
-﻿{
+{
   description = "NixAIOS — nosd daemon + JARBAS kiosk on NixOS (ADR-0118)";
 
   inputs = {
@@ -28,7 +28,7 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.7.0-alpha.3";
+            version = "0.7.0-alpha.4";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".
@@ -151,6 +151,9 @@
           # HW CUDA só com Qwen3.5-4B-Q6_K (sem 0.8B/9B/S2).
           iso-hw-cuda-4b =
             self.nixosConfigurations.nixaios-iso-hw-cuda-4b.config.system.build.isoImage;
+          # Opcional Pascal (GTX 1050): driver legacy.
+          iso-hw-cuda-legacy =
+            self.nixosConfigurations.nixaios-iso-hw-cuda-legacy.config.system.build.isoImage;
         });
 
       nixosModules.neural-os = import ./modules/neural-os.nix;
@@ -1106,6 +1109,35 @@ PY
           ./images/iso.nix
           ./images/hw.nix
           ./images/hw-cuda.nix
+          ({ pkgs, self, ... }: {
+            services.nosd.package = pkgs.nosd;
+            environment.systemPackages = [ pkgs.nosd ];
+            services.nosdBrain = {
+              enable = true;
+              package = self.packages.${pkgs.system}.qwen35-08b-q4km;
+            };
+          })
+        ];
+      };
+
+      # Opcional: hw-cuda + nvidia legacy para Pascal (1050).
+      nixosConfigurations.nixaios-iso-hw-cuda-legacy = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          ({ pkgs, ... }: {
+            nixpkgs.config.allowUnfree = true;
+            nixpkgs.overlays = [
+              (final: prev: {
+                nosd = self.packages.x86_64-linux.nosd;
+              })
+            ];
+          })
+          self.nixosModules.default
+          ./images/iso.nix
+          ./images/hw.nix
+          ./images/hw-cuda.nix
+          ./images/hw-cuda-legacy.nix
           ({ pkgs, self, ... }: {
             services.nosd.package = pkgs.nosd;
             environment.systemPackages = [ pkgs.nosd ];

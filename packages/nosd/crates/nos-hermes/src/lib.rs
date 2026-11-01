@@ -25,7 +25,8 @@ pub use blob_deliberate::{
     remember_deliberation, BlobDeliberation, BlobKind, BlobNeed,
 };
 pub use brain_upgrade::{
-    accept, card_body, plan, sha256_file, AcceptError, AcceptOutcome, BrainUpgradePlan,
+    accept, card_body, pick_adapt_tier, pick_reachable_tier, plan, sha256_file, AcceptError,
+    AcceptOutcome, AdaptDirection, BrainUpgradePlan,
 };
 pub use card::{parse_card_prompt, CardKv, CardSpec};
 pub use cognitive_act::{wrap_opar, wrap_opar_with_seek, CognitiveAct};

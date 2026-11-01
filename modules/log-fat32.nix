@@ -223,9 +223,13 @@ in
             exit 1
           fi
           STAMP=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo boot)
+          HOST="$(hostname 2>/dev/null || echo nixaios)"
+          BOOT_DIR="$MNT/boots/''${STAMP}_''${HOST}"
+          mkdir -p "$BOOT_DIR"
+          printf '%s\n' "boots/''${STAMP}_''${HOST}" > "$MNT/LATEST"
           # retrato de HW para analise pos-teste
           {
-            echo "=== nixaios hw $STAMP ==="
+            echo "=== nixaios hw $STAMP host=$HOST ==="
             uname -a || true
             cat /proc/cmdline || true
             ${pkgs.pciutils}/bin/lspci -nn || true
@@ -243,36 +247,40 @@ in
             echo "--- nosd-engine-s2 (4B/CUDA) ---"
             ${pkgs.systemd}/bin/systemctl is-active nosd-engine-s2 2>&1 || true
             ${pkgs.systemd}/bin/journalctl -b -u nosd-engine-s2 --no-pager 2>&1 | tail -40 || true
-          } > "$MNT/hw-info.log" 2>&1 || true
-          ${pkgs.util-linux}/bin/dmesg > "$MNT/dmesg-boot.log" 2>&1 || true
+          } > "$BOOT_DIR/hw-info.log" 2>&1 || true
+          ${pkgs.util-linux}/bin/dmesg > "$BOOT_DIR/dmesg-boot.log" 2>&1 || true
           {
-            echo "=== nixaios journal dump $STAMP ==="
+            echo "=== nixaios journal dump $STAMP host=$HOST ==="
             ${pkgs.systemd}/bin/journalctl -b -u nosd -u nosd-engine-s2 -u jarbas-cage -u jarbas-hub -u jarbas-show-vt -u nosd-hotswap-aios -u nixaios-log-mount -u nixaios-log-export --no-pager || true
             echo "--- firstboot/hotswap tail ---"
             for f in firstboot.log hotswap.log jarbas-cage.log; do
-              [ -f "$MNT/$f" ] && echo "===== $f =====" && tail -n 80 "$MNT/$f" || true
+              [ -f "$BOOT_DIR/$f" ] && echo "===== $f =====" && tail -n 80 "$BOOT_DIR/$f" || true
             done
-          } > "$MNT/journal-boot.log"
-          # firstboot/hotswap/cage escrevem em /tmp e /var/lib/nosd: copia
-          # periodica para o FAT (senao perdem-se no reboot).
+          } > "$BOOT_DIR/journal-boot.log"
+          cp -f "$BOOT_DIR/hw-info.log" "$MNT/hw-info.log" 2>/dev/null || true
+          cp -f "$BOOT_DIR/dmesg-boot.log" "$MNT/dmesg-boot.log" 2>/dev/null || true
+          cp -f "$BOOT_DIR/journal-boot.log" "$MNT/journal-boot.log" 2>/dev/null || true
           (
             while true; do
               for f in /tmp/nos-firstboot.log /var/lib/nosd/firstboot.log \
                        /var/lib/nosd/hotswap.log /var/lib/nosd/jarbas-cage.log \
                        /var/lib/nosd/wifi-diag.log; do
-                [ -f "$f" ] && cp -f "$f" "$MNT/$(basename "$f")" 2>/dev/null || true
+                if [ -f "$f" ]; then
+                  bn="$(basename "$f")"
+                  cp -f "$f" "$BOOT_DIR/$bn" 2>/dev/null || true
+                  cp -f "$f" "$MNT/$bn" 2>/dev/null || true
+                fi
               done
               sync
               sleep 20
             done
           ) &
           sync
-          exec ${pkgs.systemd}/bin/journalctl -f -u nosd -u nosd-engine-s2 -u jarbas-cage -u jarbas-hub -u nosd-hotswap-aios -o short-iso \
-            >> "$MNT/journal-follow.log"
+          ${pkgs.systemd}/bin/journalctl -f -u nosd -u nosd-engine-s2 -u jarbas-cage -u jarbas-hub -u nosd-hotswap-aios -o short-iso \
+            | ${pkgs.coreutils}/bin/tee -a "$BOOT_DIR/journal-follow.log" >> "$MNT/journal-follow.log"
         '';
       };
-      # cp/sleep/dmesg/lspci/lsusb + mount/mountpoint/awk/sed.
-      path = with pkgs; [ coreutils util-linux pciutils usbutils gawk gnused ];
+      path = with pkgs; [ coreutils util-linux pciutils usbutils gawk gnused nettools ];
     };
 
     environment.variables.NIXAIOS_LOG_DIR = mnt;

@@ -12,7 +12,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.7.0-alpha.3** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.7.0-alpha.4** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
 
 ## Regras não negociáveis
 
@@ -176,6 +176,24 @@ Resumo executavel; detalhe em
     o check passou a avaliar-o). Metal: confirmar
     `journalctl -u nosd-engine-s2 -b | grep -iE 'nvidia0|Permission denied'`
     vazio. Ver `docs/evidence/HWCUDA_DEVICEALLOW_20261030.md`.
+42. **`tr -d '\r'` em massa apaga a letra `r`**: `return`→`retun`, `warn`→`wan`,
+    `kernel`→`kenel`. Em Windows use conversão CRLF→LF (`perl -pi -e 's/\r\n/\n/g'`
+    ou editor), nunca strip cego de todos os `\r`/`r`.
+43. **BOM UTF-8 no `flake.nix`**: o eval Nix falha à cabeça; strip BOM antes do
+    `nix build` (e `git add` o ficheiro limpo).
+44. **`pack-hw-usb.sh` no VHDX WSL**: `dd` WORK→OUT no mesmo disco **duplica**
+    ~20 GiB e pode encher C: (RO remount / `ERROR_DISK_FULL`). Same filesystem →
+    `mv` do WORK_IMG; só `dd` streaming para 9p/drvfs. Preferir OUT em ext4 WSL
+    (`~/….img`), não em `/mnt/c` com pouco livre.
+45. **Hybrid `.img` no Windows**: partições EFI+FAT32 do append ficam muitas
+    vezes **Offline** (D/E “dispositivo não está pronto”). Online em
+    `diskmgmt.msc` ou `wsl --mount \\.\PHYSICALDRIVEn --partition N` (admin)
+    antes de ler `NIXAIOSLOG`/`boots/`. Rufus elevado: Computer Use não atravessa
+    UIPI — START/DD é manual ou script admin.
+46. **JARBAS “não altera Nix” com ring desarmado é correcto**: `armRing=false`
+    → `NIX_RING_DISABLED`. Auto-melhoria = skill/tool `nix.propose` → HITL →
+    `nix.confirm` (helper root); nunca `nixos-rebuild` no chat. Lab:
+    `armRing=true` só com S-04 + ADR + check `nixaios-ring`.
 
 ## Comandos
 
@@ -222,6 +240,13 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **Tranche 0.7.0-alpha.4 (in-tree, frota-3 AIOS)**: `iso-hw-cuda` S1+S2,
+  Landlock pós-spawn, mesh subnet, `brain.adapt` HITL, cage dbus/espeak, ORB
+  2K/idle, `boots/` no NIXAIOSLOG, pack same-FS `mv`. ISO/img host OBSERVED
+  (sha em `docs/evidence/METAL_FLEET3_0.7.0-alpha.4.md`). Metal **Core 7 240H**:
+  HUD OBSERVED parcial (S2/CUDA/CAM; MIC OFF / sem som / peers=0); journal stick
+  AWAITING (FAT Offline no Windows). i5/1050 + 7700G + mesh 3 AWAITING_HW.
+  Ring continua desarmado. Memória: `docs/memory/SESSION_20261101_FLEET3_ALPHA4.md`.
 - **Revisao de simbiose 2026-10-31 (in-tree)**: corrigidos 4 defeitos reais —
   `char-alsa` no DeviceAllow do nosd (voz: arecord/aplay como filhos sob
   DevicePolicy=closed), paridade `--fit/--reasoning` dos units do motor com o

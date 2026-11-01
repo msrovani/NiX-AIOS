@@ -38,7 +38,7 @@
   --font-ui:"Segoe UI Variable Display","Segoe UI","DejaVu Sans","Noto Sans",system-ui,sans-serif;
   --font-mono:"Cascadia Mono","DejaVu Sans Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
   --track:.18em;
-  --fs:1.4;
+  --fs:1.4; /* runtime: scaleFs() sobe em 2K/DPR */
   --gap:clamp(10px,1.1vw,16px);
   --pad:clamp(13px,1.4vw,22px);
 }
@@ -234,7 +234,7 @@ button{cursor:pointer}
 /* ---------- visão ---------- */
 .vision-body{display:flex;gap:10px;min-height:0;flex:1}
 .vision-feed{
-  position:relative;width:108px;flex:none;aspect-ratio:16/10;overflow:hidden;
+  position:relative;width:min(28vw,168px);flex:none;aspect-ratio:4/3;overflow:hidden;
   border:1px solid var(--edge-strong);background:#030b13;
 }
 .vision-feed video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.78;filter:saturate(.7) contrast(1.15) brightness(.72)}
@@ -615,6 +615,25 @@ button{cursor:pointer}
   .dock-vol,#autoBtn{display:none}
   #statusline{display:none}
 }
+/* Idle / protecção — motion via transform (não opacity em painéis) */
+#idleShield{
+  position:fixed;inset:0;z-index:9000;display:none;place-items:center;
+  background:radial-gradient(ellipse at 50% 40%,#061018 0%,#02060a 70%);
+  cursor:none;
+}
+#idleShield.on{display:grid}
+#idleShield .idle-mark{
+  font-family:var(--font-ui);font-weight:800;letter-spacing:.32em;
+  font-size:clamp(22px,4vw,48px);color:#dff7ff;
+  animation:idleOrbit 14s linear infinite;
+}
+#idleShield .idle-sub{
+  position:absolute;bottom:12%;font-family:var(--font-mono);font-size:11px;
+  letter-spacing:.2em;color:rgba(140,180,200,.55);
+  animation:idlePulse 3.2s ease-in-out infinite;
+}
+@keyframes idleOrbit{from{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.04)}to{transform:rotate(360deg) scale(1)}}
+@keyframes idlePulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 </style>
 </head>
 <body>
@@ -825,6 +844,11 @@ button{cursor:pointer}
     <div class="foot-mid"><span><kbd>MIC</kbd> falar</span><span><kbd>TXT</kbd> texto</span><span><kbd>ESC</kbd> cancelar</span><span><kbd>H</kbd> autorizações</span></div>
     <div class="foot-right"><button id="diagBtn" type="button">DIAG</button><span>NIXAIOS · 051</span></div>
   </footer>
+</div>
+
+<div id="idleShield" aria-hidden="true">
+  <div class="idle-mark">JARBAS</div>
+  <div class="idle-sub">TOQUE · TECLA · VOZ — ACORDAR</div>
 </div>
 
 <!-- HITL: janela de autorização. O grant (nonce) nunca é mostrado nem guardado. -->
@@ -1244,8 +1268,8 @@ button{cursor:pointer}
       gpu || "nvidia-smi --query-gpu=name,memory.used,memory.total");
     const port = diagLine("PORTA ");
     setKv("kvPort", port ? port.replace(/^PORTA /, "") : "—",
-      /sem resposta/i.test(port) ? "warn" : (port ? "ok" : ""),
-      "TCP 127.0.0.1:8082 (unit nosd-engine-s2)");
+      /N\/A/i.test(port) ? "" : (/down|sem resposta|fallback/i.test(port) ? "warn" : (port ? "ok" : "")),
+      "TCP S2 :8082 — down ⇒ chat cai em S1 (honesty)");
   }
 
   function renderTick(t) {
@@ -3437,6 +3461,34 @@ button{cursor:pointer}
   }
 
   /* ================= start ================= */
+  function scaleFs() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const minSide = Math.min(window.innerWidth || 1280, window.innerHeight || 800);
+    // 2K (2560) sem isto: bases 7–10px ficam ilegíveis.
+    let fs = 1.4;
+    if (minSide >= 1400) fs = 1.85;
+    if (minSide >= 1600) fs = 2.1;
+    if (dpr >= 1.5) fs *= 1.08;
+    document.documentElement.style.setProperty("--fs", String(fs));
+  }
+
+  function armIdleShield() {
+    const IDLE_MS = 5 * 60 * 1000;
+    let last = Date.now();
+    const shield = $("idleShield");
+    const poke = () => {
+      last = Date.now();
+      if (shield) shield.classList.remove("on");
+    };
+    ["pointerdown", "keydown", "mousemove", "touchstart", "wheel"].forEach((ev) => {
+      window.addEventListener(ev, poke, { passive: true });
+    });
+    if (shield) shield.addEventListener("pointerdown", poke);
+    setInterval(() => {
+      if (Date.now() - last > IDLE_MS && shield) shield.classList.add("on");
+    }, 5000);
+  }
+
   function init() {
     // preferências locais (não são estado de segurança)
     try {
@@ -3447,6 +3499,10 @@ button{cursor:pointer}
     if (ui.muted) { $("muteBtn").textContent = "MUTE"; $("muteBtn").style.color = "var(--red)"; }
     setVolume(ui.volume);
     $("volLabel").textContent = String(ui.volume);
+
+    scaleFs();
+    window.addEventListener("resize", scaleFs);
+    armIdleShield();
 
     bind();
     applyAccent();
@@ -3463,6 +3519,8 @@ button{cursor:pointer}
     requestAnimationFrame(animLoop);
     startSession();
     setInterval(senseTick, 200);
+    const prompt = $("prompt");
+    if (prompt) setTimeout(() => { try { prompt.focus(); } catch (_) {} }, 600);
   }
 
   init();

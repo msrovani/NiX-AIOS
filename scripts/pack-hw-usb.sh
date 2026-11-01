@@ -74,22 +74,31 @@ printf 'start=%s,size=%s,type=c\n' "$START_SECT" "$SIZE_SECT" \
   | sfdisk --append --no-reread --force "$WORK_IMG"
 dd if="$FAT_TMP" of="$WORK_IMG" bs=1M seek="$START_MB" conv=notrunc status=none
 
-# O destino pode estar em 9p (/mnt/c) onde `cp` de ~10 GB morre com ENOMEM.
-# Streaming com dd + fsync grava bloco a bloco; o `.part` evita que um img
-# truncado fique com o nome final (e o `mv` no mesmo fs e barato).
-PART="$OUT.part"
+# Mesmo filesystem: rename do WORK_IMG (evita duplicar ~20 GiB no VHDX).
+# Destino 9p/drvfs: streaming dd + fsync (cp grande morre com ENOMEM).
 DONE_IMG=0
-rm -f "$PART"
-dd if="$WORK_IMG" of="$PART" bs=16M conv=fsync status=progress
-sync
-# drvfs: um .img anterior pode ter o atributo ReadOnly; aí `rm`/`mv` falham
-# (Permission denied) mesmo com o .part completo. `attrib.exe -R` limpa-o.
-if command -v attrib.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
-  attrib.exe -R "$(wslpath -w "$OUT")" >/dev/null 2>&1 || true
+OUT_DIR=$(dirname -- "$OUT")
+mkdir -p "$OUT_DIR"
+WORK_DEV=$(stat -c%d "$WORK_IMG")
+OUT_DEV=$(stat -c%d "$OUT_DIR")
+if [ "$WORK_DEV" = "$OUT_DEV" ]; then
+  chmod u+w "$OUT" 2>/dev/null || true
+  rm -f "$OUT" || true
+  mv -f "$WORK_IMG" "$OUT"
+  WORK_IMG=""
+else
+  PART="$OUT.part"
+  rm -f "$PART"
+  dd if="$WORK_IMG" of="$PART" bs=16M conv=fsync status=progress
+  sync
+  # drvfs: .img anterior ReadOnly → attrib.exe -R antes do replace.
+  if command -v attrib.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+    attrib.exe -R "$(wslpath -w "$OUT")" >/dev/null 2>&1 || true
+  fi
+  chmod u+w "$OUT" 2>/dev/null || true
+  rm -f "$OUT" || true
+  mv -f "$PART" "$OUT"
 fi
-chmod u+w "$OUT" 2>/dev/null || true
-rm -f "$OUT" || true
-mv -f "$PART" "$OUT"
 DONE_IMG=1
 echo "OK $OUT"
 sfdisk -l "$OUT" 2>/dev/null | tail -6 || true

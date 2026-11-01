@@ -102,16 +102,13 @@ fn mb(bytes: u64) -> u64 {
 }
 
 /// Escolhe o tier ALCANÇÁVEL mais alto dado o posture OBSERVADO.
-/// - tier 4 (9B): exige ring ARMADO (o desfecho declarativo do engine é a
-///   ficha do helper root) E (VRAM ≥ pino OU RAM ≥ min+2 GiB para CPU).
-///   Sem ring: o candidato morre em tier3 — baixar 5,29 GiB sabendo que o
-///   execução declarada não existe é desperdício, não proposta.
+/// - tier 4 (9B): VRAM ≥ pino (hot_load local; ring só para nix root) **ou**
+///   ring ARMADO + RAM CPU. Frota: 4070 12GB sobe; 3050 não.
 /// - tiers 2/3: CPU/iGPU, RAM avail manda.
 pub fn pick_reachable_tier(cap: &NodeCapacity, ring_armed: bool) -> Option<&'static TierCandidate> {
-    let tier4_ok = ring_armed
-        && (cap.vram_free_mb >= TIER_9B.min_vram_mb
-            || cap.ram_avail_mb >= TIER_9B.min_ram_mb + 2_000);
-    if tier4_ok {
+    let tier4_vram = cap.vram_free_mb >= TIER_9B.min_vram_mb;
+    let tier4_cpu = ring_armed && cap.ram_avail_mb >= TIER_9B.min_ram_mb + 2_000;
+    if tier4_vram || tier4_cpu {
         return Some(&TIER_9B);
     }
     // 6 GB / mesma família: Q6_K antes do Q4 quando há RAM para o runtime.
@@ -125,6 +122,63 @@ pub fn pick_reachable_tier(cap: &NodeCapacity, ring_armed: bool) -> Option<&'sta
         return Some(&TIER_Q8);
     }
     None
+}
+
+/// Direcção da proposta HITL (upgrade / downgrade / hint de driver).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdaptDirection {
+    Upgrade,
+    Downgrade,
+    DriverHint,
+    Stay,
+}
+
+/// Fit bidirecional: se posture degradado (sem VRAM / CPU apertado) propõe
+/// **menor**; se VRAM folga (ex. 4070 12GB) propõe **maior**. HITL decide.
+pub fn pick_adapt_tier(
+    cap: &NodeCapacity,
+    current_bytes: Option<u64>,
+    ring_armed: bool,
+    cuda_degraded: bool,
+) -> (AdaptDirection, Option<&'static TierCandidate>) {
+    let up = pick_reachable_tier(cap, ring_armed);
+    // Degradado: GPU ignored / CUDA fail → preferir 0.8B Q4 embutido ou Q8 se RAM ok,
+    // nunca empurrar 9B; se current já é 4B+ e CPU, propor 4B Q4 ou 0.8B.
+    if cuda_degraded || (cap.vram_free_mb == 0 && current_bytes.unwrap_or(0) > TIER_4B.size_bytes) {
+        let down = if cap.ram_avail_mb < TIER_4B.min_ram_mb {
+            Some(&TIER_Q8)
+        } else if cap.ram_avail_mb < TIER_4B_Q6.min_ram_mb {
+            Some(&TIER_4B)
+        } else {
+            // Ainda cabe 4B; propor Q4 mais leve que Q6 se current parece Q6+.
+            if current_bytes.unwrap_or(0) >= TIER_4B_Q6.size_bytes {
+                Some(&TIER_4B)
+            } else {
+                None
+            }
+        };
+        if let Some(t) = down {
+            if current_bytes.map(|b| b > t.size_bytes).unwrap_or(true) {
+                return (AdaptDirection::Downgrade, Some(t));
+            }
+        }
+        if cuda_degraded && cap.vram_free_mb == 0 {
+            // Hint: Pascal precisa legacy 580 — card informativa sem fetch.
+            return (AdaptDirection::DriverHint, None);
+        }
+    }
+    match up {
+        Some(t) => {
+            let bigger = current_bytes.map(|b| t.size_bytes > b).unwrap_or(true);
+            if bigger {
+                (AdaptDirection::Upgrade, Some(t))
+            } else {
+                (AdaptDirection::Stay, None)
+            }
+        }
+        None => (AdaptDirection::Stay, None),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -158,6 +212,7 @@ pub struct CurrentBrain {
 #[derive(Debug, Serialize)]
 pub struct Proposal {
     pub tier: u8,
+    pub direction: AdaptDirection,
     pub candidate: TierView,
     pub run_target: RunTarget,
     /// Custo exato do pin + estimativas rotuladas como "est.".
@@ -261,27 +316,45 @@ pub fn plan(
                     /var/lib/nosd/models (ou no store via symlink L+ do nosdBrain); \
                     rollback é local, sem rede"
         .to_string();
-    match pick_reachable_tier(cap, ring_armed) {
-        None => BrainUpgradePlan {
+    let cuda_degraded = cap.vram_free_mb == 0
+        && (cap.vendor_hint == "nvidia"
+            || std::path::Path::new("/sys/module/nvidia").exists());
+    let (direction, tier) = pick_adapt_tier(cap, current_bytes, ring_armed, cuda_degraded);
+    match (direction, tier) {
+        (AdaptDirection::DriverHint, _) => BrainUpgradePlan {
             observed,
             current,
             proposal: None,
             rollback,
-            honesty: "stay — sem headroom honesto para upgrade; brain actual é o correto",
+            honesty: "driver_hint — GPU NVIDIA presente sem VRAM (ex. Pascal+595); \
+                      CUDA pede legacy 580 (ISO opcional). HITL kind=brain.driver_hint; \
+                      sem fetch automático",
         },
-        Some(t) => {
-            let vram_cuda = t.tier == 4 && cap.vram_free_mb >= t.min_vram_mb;
+        (_, None) | (AdaptDirection::Stay, _) => BrainUpgradePlan {
+            observed,
+            current,
+            proposal: None,
+            rollback,
+            honesty: "stay — sem headroom/downgrade honesto; brain actual é o correto",
+        },
+        (dir, Some(t)) => {
+            let vram_cuda = t.min_vram_mb > 0 && cap.vram_free_mb >= t.min_vram_mb;
+            let hitl_kind = match dir {
+                AdaptDirection::Downgrade => "brain.downgrade",
+                AdaptDirection::Upgrade => "brain.upgrade",
+                AdaptDirection::DriverHint | AdaptDirection::Stay => "brain.upgrade",
+            };
             let run_target = RunTarget {
                 engine: if vram_cuda {
-                    "nosdEngine supervisionado (llama CUDA VERIFIED sob ring; G3 two-phase)"
-                        .to_string()
+                    "llama-server CUDA hot_load local (ring só para nix root)".to_string()
                 } else {
                     format!("llama-server managed ({engine})")
                 },
                 device: if vram_cuda { "dGPU" } else { "CPU/iGPU" },
-                note: if vram_cuda {
-                    "a troca declarativa do engine passa por nix.propose fields + \
-                     nix.confirm (G3 two-phase); sem isso o fetch fica no disco"
+                note: if matches!(dir, AdaptDirection::Downgrade) {
+                    "posture degradado: propor modelo/quant MENOR adequado ao HW — só com HITL"
+                } else if vram_cuda {
+                    "VRAM folga (ex. 4070 12GB): propor modelo MAIOR — hot_load após HITL"
                 } else {
                     "spawn managed: troca é runtime (rollback = load do anterior)"
                 },
@@ -291,6 +364,7 @@ pub fn plan(
                 current,
                 proposal: Some(Proposal {
                     tier: t.tier,
+                    direction: dir,
                     candidate: TierView {
                         name: t.name,
                         repo: t.repo,
@@ -310,23 +384,19 @@ pub fn plan(
                         ),
                         if t.tier == 4 {
                             format!(
-                                "vram_free_mb >= {} OU RAM+2GiB (observado vram {})",
+                                "vram_free_mb >= {} (observado {}) — hot_load sem ring",
                                 t.min_vram_mb, cap.vram_free_mb
                             )
                         } else {
                             "dGPU não obrigatório".to_string()
                         },
-                        if t.tier == 4 {
-                            "ring armado (armRing + two-phase) para o desfecho declarativo"
-                                .to_string()
-                        } else {
-                            "sem alteração de config Nix".to_string()
-                        },
-                        "grant HITL (kind=brain.upgrade; server-authored, single-use)".to_string(),
+                        format!(
+                            "grant HITL (kind={hitl_kind}; server-authored, single-use)"
+                        ),
                     ],
                 }),
                 rollback,
-                honesty: "custos p95/rem observados depois; nada automático — só com grant",
+                honesty: "custos p95/rem observados depois; nada automático — só com grant HITL",
             }
         }
     }
@@ -410,11 +480,12 @@ pub fn accept(
                 AcceptError::NotApplicable(format!("tier {tier_wanted} desconhecido"))
             })?,
     };
-    // Gate duplo do tier 4: SEM ring, o accepted NÃO dispara o brain em
-    // dGPU — recusar o fetch de 5,29 GiB é a decisão honesta.
-    if t.tier == 4 && !ring_armed {
+    // Tier 4: hot_load local com VRAM observada (4070 12GB) sem ring.
+    // Ring continua a gatear só nix apply / engine declarativo root.
+    let tier4_vram_ok = t.tier == 4 && cap.vram_free_mb >= TIER_9B.min_vram_mb;
+    if t.tier == 4 && !ring_armed && !tier4_vram_ok {
         return Err(AcceptError::NotApplicable(
-            "tier 4 exige ring armado (desfecho declarativo); escolhe tier <= 3".into(),
+            "tier 4 sem VRAM suficiente nem ring — escolhe tier <= 3 ou arma ring".into(),
         ));
     }
     // O mesmo pick da proposta corre DE NOVO na execução (anti-waste):
@@ -454,10 +525,11 @@ pub fn card_body(p: &BrainUpgradePlan) -> String {
             p.observed.ram_avail_mb, p.observed.vram_free_mb, p.observed.posture, p.honesty
         ),
         Some(pr) => format!(
-            "PROPOSTA brain.upgrade tier {}\nmodelo: {} ({repo}/{file})\n\
+            "PROPOSTA {:?} tier {}\nmodelo: {} ({repo}/{file})\n\
              ganho: {params} · {scale}\n\
              CUSTO: download {dl}MB · disco {dk}MB · RAM est. {ram}MB · VRAM est. {vrm}MB\n\
              alvo: {dev} ({eng})\nHONESTY: {note}\nrollback: {rb}\npin sha256={sha}",
+            pr.direction,
             pr.tier,
             pr.candidate.name,
             repo = pr.candidate.repo,
@@ -559,19 +631,17 @@ mod tests {
     }
 
     #[test]
-    fn tier4_requires_vram_and_ring() {
-        // VRAM boa mas ring desarmado → tier3 (candidato degrau abaixo, honesto).
+    fn tier4_vram_hot_load_without_ring() {
+        // 4070 12GB: VRAM ≥ pin → tier4 hot_load local sem ring (frota-3).
         let p1 = plan(&cap(4_400, 9_000), "boot default", None, "eng", false);
-        assert_eq!(p1.proposal.as_ref().expect("tier3").tier, 3);
-        // Ring armado + VRAM → tier4 (alvo dGPU).
-        let p2 = plan(&cap(4_400, 9_000), "boot default", None, "eng", true);
-        let t = p2.proposal.expect("tier4");
+        let t = p1.proposal.expect("tier4 vram");
         assert_eq!(t.tier, 4);
+        assert_eq!(t.direction, AdaptDirection::Upgrade);
         assert_eq!(t.run_target.device, "dGPU");
         assert!(t.cost.vram_est_mb > 0);
-        // Ring armado mas sem VRAM nem RAM-alta → fica no tier que a RAM pega.
-        let p3 = plan(&cap(1_024, 0), "boot default", None, "eng", true);
-        assert!(p3.proposal.is_none(), "1 GiB RAM mesmo com ring: stay");
+        // Sem VRAM nem RAM-alta → stay.
+        let p2 = plan(&cap(1_024, 0), "boot default", None, "eng", false);
+        assert!(p2.proposal.is_none(), "1 GiB RAM: stay");
     }
 
     #[test]
@@ -582,10 +652,25 @@ mod tests {
     }
 
     #[test]
-    fn accept_refuses_tier4_without_ring() {
+    fn accept_refuses_tier4_without_vram_or_ring() {
         let dir = tempfile::tempdir().unwrap();
         let e = accept(4, &cap(16_000, 0), false, dir.path()).unwrap_err();
-        assert!(e.to_string().contains("ring"), "{e}");
+        assert!(
+            e.to_string().contains("ring") || e.to_string().contains("VRAM"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn adapt_downgrade_when_current_heavy_on_cpu() {
+        let (dir, t) = pick_adapt_tier(
+            &cap(5_000, 0),
+            Some(TIER_4B_Q6.size_bytes),
+            false,
+            true,
+        );
+        assert_eq!(dir, AdaptDirection::Downgrade);
+        assert_eq!(t.expect("down").file, "Qwen3.5-4B-Q4_K_M.gguf");
     }
 
     #[test]

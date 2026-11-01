@@ -4,8 +4,8 @@
 
 Produto **paralelo** ao neural-os-core (não é fork). Licença **AGPL-3.0**.
 
-**Release 0.7.0-alpha.3** (in-tree; última ISO publicada: `0.6.0-alpha.11`) — metal GPU (smi ELF, Chromium/iGPU) + `iso-hw-cuda-4b` (só 4B Q6_K); volid ISO `NIXAIOS051`.
-**0.7.0-alpha.3:** fix `nvidia-smi`/cage/rota; variante HW CUDA single-model. **0.7.0-alpha.2:** ORB UI + `iso-hw` com 5 GGUFs. Metal re-boot AWAITING_HW.
+**Release 0.7.0-alpha.4** (in-tree; última ISO publicada: `0.6.0-alpha.11`) — AIOS frota-3 (`iso-hw-cuda` S1+S2, mesh Wi‑Fi+wired, HITL adapt); volid ISO `NIXAIOS051`.
+**0.7.0-alpha.4:** Landlock pós-spawn, mesh subnet, brain adapt HITL, cage dbus/espeak, ORB 2K/idle. **0.7.0-alpha.3:** metal GPU + `iso-hw-cuda-4b`. Metal re-boot AWAITING_HW.
 **Documentação:** [`docs/README.md`](docs/README.md) · [Getting started](docs/GETTING_STARTED.md) · [Arquitectura](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Changelog](CHANGELOG.md) · [Release 0.6.0-alpha.11](docs/RELEASE_0.6.0-alpha.11.md)
 
 ## Quick start
