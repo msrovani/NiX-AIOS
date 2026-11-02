@@ -15,6 +15,10 @@
 {
   services.nixaiosLogFat.enable = lib.mkForce true;
 
+  # Colheita M3b + gate-audio automáticos no metal (sem HITL). Opt-out:
+  # touch /var/lib/nosd/m3b-probe.skip. Bundle em NIXAIOSLOG/boots/…/m3b-probe/.
+  services.nixaiosM3bProbe.enable = lib.mkForce true;
+
   # Mesh frota-3: HB UDP 19000 (Wi‑Fi↔ethernet). TCP 19001 = jobs opcional.
   networking.firewall.allowedUDPPorts = lib.mkAfter [ 19000 ];
   networking.firewall.allowedTCPPorts = lib.mkAfter [ 19001 ];

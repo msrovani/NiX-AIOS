@@ -211,6 +211,7 @@
       nixosModules.aios-host-perf = import ./modules/aios-host-perf.nix;
       nixosModules.nosd-brain = import ./modules/nosd-brain.nix;
       nixosModules.nosd-tts = import ./modules/nosd-tts.nix;
+      nixosModules.m3b-metal-probe = import ./modules/m3b-metal-probe.nix;
       nixosModules.default = { ... }: {
         imports = [
           self.nixosModules.neural-os
@@ -224,6 +225,7 @@
           self.nixosModules.nosd-early
           self.nixosModules.transmute-stage
           self.nixosModules.aios-host-perf
+          self.nixosModules.m3b-metal-probe
         ];
       };
 
