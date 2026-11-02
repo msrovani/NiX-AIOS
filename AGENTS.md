@@ -12,8 +12,9 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.7.0-alpha.5** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.7.0-alpha.5** (in-tree + closeout fórum 2026-11-02; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
 Memória cognitiva: neural-sgdb via `MemoryGovernor` — ver [`docs/MEMORY_NSGDB.md`](docs/MEMORY_NSGDB.md) + [`docs/NSGDB_VERSION.md`](docs/NSGDB_VERSION.md).
+Closeout: [`docs/evidence/FORUM_CLOSEOUT_0.7.0-alpha.5.md`](docs/evidence/FORUM_CLOSEOUT_0.7.0-alpha.5.md) — próximo P0 = colheita metal Core7.
 
 ## Regras não negociáveis
 
@@ -248,6 +249,10 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **Closeout fórum 2026-11-02 (0.7.0-alpha.5 in-tree)**: F9/F10 harvest,
+  N1/N2 memória, M1 telepathy, `M3b-audio` opt-in; commits `2d2fb01`/`da0100c`.
+  Evidência `docs/evidence/FORUM_CLOSEOUT_0.7.0-alpha.5.md`. P0 seguinte =
+  colheita metal Core7. `mesh-3vm-faults` / `iso-hw-cuda` AWAITING.
 - **Tranche 0.7.0-alpha.4 (in-tree, frota-3 AIOS)**: `iso-hw-cuda` S1+S2,
   Landlock pós-spawn, mesh subnet, `brain.adapt` HITL, cage dbus/espeak, ORB
   2K/idle, `boots/` no NIXAIOSLOG, pack same-FS `mv`. ISO/img host OBSERVED

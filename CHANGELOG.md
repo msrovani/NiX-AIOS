@@ -23,6 +23,15 @@ Versionamento [SemVer](https://semver.org/).
 - **F7 telepathy usável entre peers mesh:** `memory.sync` / `nosctl memory-sync`
   via `KIND_MEMORY` no link Noise (`NOSD_JOB_BIND`); two-db `merge_remote`.
 - Not-tested: QEMU/metal neural e2e; multilingual embed iso-hw; telepathy metal multi-host.
+- **Closeout fórum 2026-11-02** (versão de pacote inalterada): harvest F9/F10
+  (sumário `A6=play_ok`/`snd_denied`, `--since`, `trap`); N1 curate
+  `performed:false` + RPC espelha `ok`; N2 `duplicate` separado de `applied`;
+  telepathy M1 doutrina+cap; gate `M3b-audio` opt-in (nunca PASS sem HW);
+  fixtures flake `mesh-crdt/` + empty SOUL no VM test. Commits `2d2fb01` /
+  `da0100c`. Evidência:
+  `docs/evidence/FORUM_CLOSEOUT_0.7.0-alpha.5.md`; memória:
+  `docs/memory/SESSION_20261102_FORUM_CLOSEOUT.md`. Residual metal /
+  `mesh-3vm-faults` / `iso-hw-cuda` AWAITING_HW.
 
 ## [0.7.0-alpha.4] — AIOS frota-3 (S1/S2 + HITL adapt + mesh Wi‑Fi/wired)
 
