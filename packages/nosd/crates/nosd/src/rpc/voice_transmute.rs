@@ -80,7 +80,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             let (models_dir, _, _) = transmute::resolve_models_dir(&state.data_dir);
             let vp = nos_voice::VoicePipeline::with_models_dir(models_dir);
             match vp.synthesize_wav(text, play) {
-                Ok(wav_bytes) => {
+                Ok((wav_bytes, play_ok)) => {
                     let b64 = base64::Engine::encode(
                         &base64::engine::general_purpose::STANDARD,
                         &wav_bytes,
@@ -93,6 +93,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                             "bytes": wav_bytes.len(),
                             "wav_b64": b64,
                             "voice": vp.status().locale.piper_voice,
+                            "play_ok": play_ok,
                         }),
                     }
                 }
@@ -180,15 +181,16 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("play")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
-            let (tts_ok, wav_b64) = match vp.synthesize_wav(&reply, play) {
-                Ok(wav) => (
+            let (tts_ok, play_ok, wav_b64) = match vp.synthesize_wav(&reply, play) {
+                Ok((wav, play_ok)) => (
                     true,
+                    play_ok,
                     Some(base64::Engine::encode(
                         &base64::engine::general_purpose::STANDARD,
                         &wav,
                     )),
                 ),
-                Err(_) => (false, None),
+                Err(_) => (false, false, None),
             };
 
             Response {
@@ -202,6 +204,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     "reason": route.reason,
                     "locale": vp.status().locale.raw_locale,
                     "tts_ok": tts_ok,
+                    "play_ok": play_ok,
                     "wav_b64": wav_b64,
                 }),
             }

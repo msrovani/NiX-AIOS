@@ -36,6 +36,9 @@ const KIOSK_METHODS: &[&str] = &[
     // V10: feed de acções (OPAR) no HUD. Metadados apenas (domain+lengths),
     // sem notas/PII; required_cap = NONE.
     "cognitive.trace",
+    // F2: memória cognitiva read-only no kiosk (writes = HITL via nosctl).
+    "memory.recall",
+    "memory.health",
 ];
 
 /// Lab cinemático: GET `/` → HTML (cam+mic+padrões); GET `/transmute` → wizard;
@@ -287,7 +290,7 @@ where
         .await;
     }
 
-    let resp = super::dispatch(&state, &AuthContext::JarbasUi, req);
+    let resp = super::dispatch_blocking(state.clone(), AuthContext::JarbasUi, req).await;
     let payload = serde_json::to_vec(&resp)?;
     write_response(sock, "200 OK", "application/json", &payload).await
 }
@@ -400,7 +403,13 @@ mod tests {
                 "{m} exige {need:?}: fora do âmbito do kiosk"
             );
         }
-        for m in ["observe.energy", "ui.pending", "cognitive.trace"] {
+        for m in [
+            "observe.energy",
+            "ui.pending",
+            "cognitive.trace",
+            "memory.recall",
+            "memory.health",
+        ] {
             assert!(KIOSK_METHODS.contains(&m), "{m} devia estar exposto");
         }
         for forbidden in [
@@ -421,6 +430,8 @@ mod tests {
             "crdt.put",
             "crdt.sync",
             "memory.remember",
+            "memory.sync",
+            "memory.curate",
         ] {
             assert!(
                 !KIOSK_METHODS.contains(&forbidden),

@@ -106,6 +106,18 @@ impl ToolExecutor for IpcExecutor {
                 "cognitive.trace",
                 json!({ "last": args.get("last").and_then(|v| v.as_u64()).unwrap_or(8) }),
             ),
+            "nsd.memory_health" => (
+                "memory.health",
+                json!({ "view": args.get("view").and_then(|v| v.as_str()).unwrap_or("era") }),
+            ),
+            "nsd.memory_recall" => (
+                "memory.recall",
+                json!({
+                    "query": args.get("query").and_then(|v| v.as_str()).unwrap_or(""),
+                    "scope": args.get("scope"),
+                    "k": args.get("k").and_then(|v| v.as_u64()).unwrap_or(5),
+                }),
+            ),
             other => return Err(format!("unknown tool: {other}")),
         };
         self.rpc(method, params)
@@ -126,6 +138,14 @@ fn registry() -> Registry {
         (
             "nsd.trace",
             "últimos actos OPAR: domínio + comprimentos, sem notas (leitura)",
+        ),
+        (
+            "nsd.memory_health",
+            "saúde da memória cognitiva / era (leitura; Hit ≠ ordem)",
+        ),
+        (
+            "nsd.memory_recall",
+            "recall lexical governado (leitura; null-scope; nunca write)",
         ),
     ] {
         let _ = reg.register(ToolSpec::new(name, desc, CapBits::NONE));

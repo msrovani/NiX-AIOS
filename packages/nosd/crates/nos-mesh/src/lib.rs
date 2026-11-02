@@ -93,10 +93,9 @@ pub struct PeerInfo {
 /// M8.1d: formato em disco do log do CRDT.
 ///
 /// - `Jsonl`: `data_dir/crdt.jsonl` — linhas `json\tbase64(sig)`, legado.
-/// - `Nsgdb`: `data_dir/nsgdb/crdt/seg.bin` — segmento **length-prefixed**
-///   (`NSGC` + versao + `u32 len` + payload). Segue a honestidade do backend
-///   de memoria: e um segmento local, **nao** o motor neural-sgdb completo
-///   (sem CRDT/BQ/semantico do lado do motor).
+/// - `Nsgdb`: `data_dir/mesh-crdt/seg.bin` (legacy: `nsgdb/crdt/seg.bin`) —
+///   segmento **length-prefixed** (`NSGC` + versao + `u32 len` + payload).
+///   **Não** é memória cognitiva (FileStorage); paths separados (F5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CrdtLogFormat {
     Jsonl,
@@ -1059,7 +1058,14 @@ impl MeshEngine {
             return;
         }
         if let Err(e) = self.pinned.check(hb.id, hb.pk, hb.seq) {
-            warn!(target: "nosd", "mesh HB id={} rejeitado ({e:?})", hb.id);
+            match e {
+                // Broadcast + semente entregam o mesmo HB: duplicado e
+                // esperado e nao deve poluir o journal a cada tick.
+                ident::PinError::Duplicate => {
+                    tracing::debug!(target: "nosd", "mesh HB id={} duplicado", hb.id);
+                }
+                _ => warn!(target: "nosd", "mesh HB id={} rejeitado ({e:?})", hb.id),
+            }
             return;
         }
         self.on_heartbeat_inner(hb.id, true, hb.cap);

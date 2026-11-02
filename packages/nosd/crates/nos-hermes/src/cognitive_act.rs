@@ -59,7 +59,8 @@ pub fn wrap_opar_with_seek(
         .remember(MemoryRecord {
             key: key.clone(),
             text,
-            scope: format!("session/{domain}"),
+            // F3: OPAR → aios/node (não session/*); null-scope não o vê.
+            scope: "aios/node".into(),
             entities: vec!["mom/pattern".into(), format!("domain/{domain}")],
         })
         .is_ok();
@@ -77,24 +78,35 @@ pub fn wrap_opar_with_seek(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nos_memory::{MemoryBackendKind, RecallMode, RecallReq};
     use tempfile::tempdir;
 
     #[test]
     fn wrap_opar_remembered() {
         let d = tempdir().unwrap();
-        let mem = NosMemory::open(d.path()).unwrap();
+        let mem = NosMemory::open_with_backend(d.path(), MemoryBackendKind::NsgdbLegacy).unwrap();
         let act = wrap_opar(&mem, "mesh", "peers=2", "route", "send", "ok");
         assert!(act.remembered);
         assert_eq!(act.domain, "mesh");
         assert!(act.seek_audit.is_none());
-        let hits = mem.recall("route", 3).unwrap();
+        let hits = mem
+            .recall_governed(RecallReq {
+                query: "route",
+                k: 3,
+                scope: Some("aios/node"),
+                entities: &[],
+                mode: RecallMode::Lexical,
+                embedding: None,
+                path: None,
+            })
+            .unwrap();
         assert!(!hits.is_empty());
     }
 
     #[test]
     fn wrap_opar_includes_seek_audit() {
         let d = tempdir().unwrap();
-        let mem = NosMemory::open(d.path()).unwrap();
+        let mem = NosMemory::open_with_backend(d.path(), MemoryBackendKind::NsgdbLegacy).unwrap();
         let act = wrap_opar_with_seek(
             &mem,
             "factory.seek",

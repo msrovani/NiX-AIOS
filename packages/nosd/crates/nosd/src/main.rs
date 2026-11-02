@@ -39,6 +39,11 @@ struct Args {
         env = "NOSD_MESH_BROADCAST"
     )]
     mesh_broadcast: String,
+    /// Unicast mesh seeds (repeatable / comma separated). Ex:
+    /// `--mesh-peer 192.168.1.50:19000`. Covers Wi-Fi AP isolation and routed
+    /// segments where the subnet broadcast never arrives.
+    #[arg(long = "mesh-peer", value_delimiter = ',', env = "NOSD_MESH_PEERS")]
+    mesh_peers: Vec<String>,
     /// Lab cinemático orb (vídeo+som+padrões) — HTTP JSON. Vazio = off.
     /// Ex: `127.0.0.1:7701` → abra no browser.
     #[arg(long, default_value = "", env = "NOSD_ORB_LAB")]
@@ -145,8 +150,15 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args = Args::parse();
+    // Fonte unica das sementes unicast: `--mesh-peer` passa a env para que
+    // health/config.show (que so leem ambiente) mostrem o que o runtime usa.
+    if !args.mesh_peers.is_empty() {
+        std::env::set_var("NOSD_MESH_PEERS", args.mesh_peers.join(","));
+    }
     std::fs::create_dir_all(&args.data_dir)?;
-    let mem_dir = args.data_dir.join("nsgdb");
+    // Memória cognitiva: NosMemory escolhe `memory/nsgdb` | `nsgdb` | jsonl
+    // conforme NOSD_MEMORY_BACKEND (default neural). Não partilhar path com CRDT.
+    let mem_dir = args.data_dir.clone();
     let models_dir = args.data_dir.join("models");
     std::fs::create_dir_all(&models_dir)?;
 
@@ -199,6 +211,12 @@ async fn main() -> anyhow::Result<()> {
         info!(
             target: "nosd",
             "nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test"
+        );
+    }
+    if nos_core::hitl_lab_from_env() {
+        tracing::warn!(
+            target: "nosd",
+            "HITL LAB SOFT (NOSD_HITL_LAB / NOSD_ENV=dev|test|lab): confirm_id optional; CapGate sem bit HITL — NÃO usar em ISO/prod"
         );
     }
 
@@ -293,16 +311,45 @@ async fn main() -> anyhow::Result<()> {
     } else {
         mesh
     };
-    // M8.1b/M8.1d: durabilidade do estado. `NOSD_CRDT_BACKEND=nsgdb` (default)
-    // grava um segmento length-prefixed `nsgdb/crdt/seg.bin`; `jsonl` mantem o
-    // formato legado. Falha aqui = nao arrancar (fail-closed).
+    // M8.1b/M8.1d + F5: CRDT da frota em `mesh-crdt/` (não misturar com
+    // memória cognitiva). Legacy: `nsgdb/crdt/seg.bin` → migração one-shot.
     let crdt_fmt = CrdtLogFormat::parse(
         &std::env::var("NOSD_CRDT_BACKEND").unwrap_or_else(|_| "nsgdb".into()),
     );
     let crdt_path = match crdt_fmt {
-        CrdtLogFormat::Nsgdb => args.data_dir.join("nsgdb").join("crdt").join("seg.bin"),
+        CrdtLogFormat::Nsgdb => args.data_dir.join("mesh-crdt").join("seg.bin"),
         CrdtLogFormat::Jsonl => args.data_dir.join("crdt.jsonl"),
     };
+    let legacy_crdt_seg = args.data_dir.join("nsgdb").join("crdt").join("seg.bin");
+    if crdt_fmt == CrdtLogFormat::Nsgdb && !crdt_path.exists() && legacy_crdt_seg.exists() {
+        if let Some(parent) = crdt_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Err(e) = std::fs::rename(&legacy_crdt_seg, &crdt_path) {
+            tracing::warn!(target: "nosd", "F5 rename CRDT failed ({e}); trying copy");
+            std::fs::copy(&legacy_crdt_seg, &crdt_path)?;
+            let _ = std::fs::rename(
+                &legacy_crdt_seg,
+                legacy_crdt_seg.with_file_name("seg.bin.migrated"),
+            );
+        }
+        let legacy_anchor = args.data_dir.join("nsgdb").join("crdt").join("seg.anchor");
+        let new_anchor = args.data_dir.join("mesh-crdt").join("seg.anchor");
+        if legacy_anchor.exists() && !new_anchor.exists() {
+            let _ = std::fs::rename(&legacy_anchor, &new_anchor);
+        }
+        let marker = args
+            .data_dir
+            .join("mesh-crdt")
+            .join(".migrated_from_nsgdb_crdt");
+        let _ = std::fs::write(&marker, b"1");
+        info!(
+            target: "nosd",
+            "F5: migrated CRDT {} -> {}",
+            legacy_crdt_seg.display(),
+            crdt_path.display()
+        );
+    }
     let legacy_jsonl = args.data_dir.join("crdt.jsonl");
     let mesh = if crdt_fmt == CrdtLogFormat::Nsgdb && !crdt_path.exists() && legacy_jsonl.exists() {
         // M8.1d: migra o log jsonl existente (uma vez) para o segmento nsgdb.
@@ -473,8 +520,31 @@ async fn main() -> anyhow::Result<()> {
                     let out = nosd_lib::rpc::skills::install(&st3, &spec, &bytes)?;
                     Ok(format!("{}:{}", out.content_id, out.bytes))
                 });
+                let st4 = state.clone();
+                let memory: nos_mesh::job::MemoryHook =
+                    std::sync::Arc::new(move |payload: &str| {
+                        #[derive(serde::Deserialize)]
+                        struct Tel {
+                            #[serde(default)]
+                            records_b64: Vec<String>,
+                            #[serde(default = "tel_max_default")]
+                            max: usize,
+                        }
+                        fn tel_max_default() -> usize {
+                            64
+                        }
+                        let d: Tel = serde_json::from_str(payload)
+                            .map_err(|e| format!("telepathy json: {e}"))?;
+                        let out = st4
+                            .hermes
+                            .memory
+                            .telepathy_exchange(&d.records_b64, d.max)
+                            .map_err(|e| e.to_string())?;
+                        serde_json::to_string(&out).map_err(|e| e.to_string())
+                    });
                 tokio::spawn(async move {
-                    if let Err(e) = nos_mesh::job::serve(&bind, id, pinned, exec, crdt, skill).await
+                    if let Err(e) =
+                        nos_mesh::job::serve(&bind, id, pinned, exec, crdt, skill, memory).await
                     {
                         tracing::warn!(target: "nosd", "job listener: {e}");
                     }
@@ -493,11 +563,19 @@ async fn main() -> anyhow::Result<()> {
         match nos_mesh::udp::start_mesh_udp(
             &args.mesh_bind,
             &mesh_broadcast,
+            &args.mesh_peers,
             state.mesh.clone(),
         )
         .await
         {
             Ok(u) => {
+                info!(
+                    target: "nosd",
+                    "mesh targets: broadcast={} seeds={} total={}",
+                    mesh_broadcast,
+                    args.mesh_peers.len(),
+                    u.targets().len()
+                );
                 info!(
                     target: "nosd",
                     "mesh udp ON bind={} broadcast={} (Wi‑Fi notes + wired AMD na mesma LAN)",
@@ -507,11 +585,24 @@ async fn main() -> anyhow::Result<()> {
                 Some(u)
             }
             Err(e) => {
+                // Fail-closed: seed inválida (InvalidInput) aborta o daemon —
+                // silenciar aqui esconderia typos atrás de um broadcast "ok".
+                if e.kind() == std::io::ErrorKind::InvalidInput {
+                    tracing::error!(target: "nosd", "mesh udp config inválida ({e}) — abort");
+                    std::process::exit(2);
+                }
                 tracing::warn!(target: "nosd", "mesh udp bind failed ({e}) — mesh off");
                 None
             }
         }
     } else {
+        if !args.mesh_peers.is_empty() {
+            tracing::warn!(
+                target: "nosd",
+                "mesh peers configurados ({}) mas NOSD_MESH_BIND vazio — mesh OFF",
+                args.mesh_peers.len()
+            );
+        }
         info!(target: "nosd", "mesh udp OFF (set NOSD_MESH_BIND=0.0.0.0:19000)");
         None
     };

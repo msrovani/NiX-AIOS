@@ -69,7 +69,16 @@ fn mesh_skillsync_removed_from_side_effects() {
 #[test]
 fn fleet_health_and_recall_caps() {
     assert_eq!(sample_req("fleet.health").required_cap(), CapBits::NONE);
-    assert_eq!(sample_req("memory.recall").required_cap(), CapBits::MEMORY);
+    assert_eq!(sample_req("memory.recall").required_cap(), CapBits::NONE);
+    assert_eq!(sample_req("memory.health").required_cap(), CapBits::NONE);
+    assert_eq!(
+        sample_req("memory.remember").required_cap(),
+        CapBits::MEMORY
+    );
+    assert_eq!(
+        sample_req("memory.curate").required_cap(),
+        CapBits::MEMORY.union(CapBits::HITL)
+    );
     assert_eq!(
         sample_req("store.index").required_cap(),
         CapBits::AGENT_SPAWN

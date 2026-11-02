@@ -3,7 +3,7 @@ name = "nos-memory"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Facade remember/recall/curate — doutrina neural-sgdb (ADR-0091)"
+description = "MemoryGovernor + neural-sgdb (ADR-0091) — substrato cognitivo"
 
 [dependencies]
 serde = { workspace = true }
@@ -12,6 +12,10 @@ thiserror = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+base64 = { workspace = true }
+# Pin: docs/NSGDB_VERSION.md — rev ce5a5c70… (1.5.0).
+# Vendored/junction em packages/nosd/vendor/neural-sgdb (lab) ou git no CI.
+neural-sgdb = { path = "../../vendor/neural-sgdb", default-features = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

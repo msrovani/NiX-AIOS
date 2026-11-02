@@ -289,27 +289,40 @@ button{cursor:pointer}
 #activityText{color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #activityTime{margin-left:auto;color:var(--acc);font-variant-numeric:tabular-nums}
 
-/* ---------- closed captions (voz primeiro) ---------- */
+/* ---------- closed captions / chat feed (roll-on) ---------- */
 #captions{
-  flex:none;min-height:86px;max-height:118px;overflow:hidden;
+  flex:none;min-height:110px;max-height:168px;overflow:hidden;
   border:1px solid var(--edge);background:rgba(4,13,23,.58);
   padding:7px 12px 8px;display:flex;flex-direction:column;gap:4px;
 }
-.cc-head{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:calc(7px * var(--fs));letter-spacing:.14em;color:var(--ink-mute);min-height:14px}
+.cc-head{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:calc(7px * var(--fs));letter-spacing:.14em;color:var(--ink-mute);min-height:14px;flex:none}
 .cc-badge{border:1px solid var(--acc);color:var(--acc);padding:1px 4px;font-size:calc(6.5px * var(--fs));letter-spacing:.1em}
 #ccWho{color:var(--green)}
 #ccTime{margin-left:auto;font-variant-numeric:tabular-nums}
 #ccLog{border:1px solid var(--edge);background:transparent;color:var(--ink-dim);font-family:var(--font-mono);font-size:calc(7px * var(--fs));letter-spacing:.12em;padding:2px 6px;cursor:pointer}
 #ccLog:hover{color:var(--acc)}
-#ccText{
-  font-size:calc(13px * var(--fs));line-height:1.42;color:#eafaff;font-weight:500;
-  white-space:pre-wrap;overflow-wrap:anywhere;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+/* Feed rolável: novas mensagens → scroll ao fundo (roll-on). */
+#ccFeed{
+  flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;
+  scroll-behavior:smooth;scrollbar-width:thin;
+  display:flex;flex-direction:column;gap:6px;padding-right:2px;
 }
+#ccFeed::-webkit-scrollbar{width:3px}
+#ccFeed::-webkit-scrollbar-thumb{background:rgba(var(--acc-rgb),.35)}
+.cc-line{display:grid;grid-template-columns:54px 1fr;gap:8px;align-items:start}
+.cc-line .who{font-family:var(--font-mono);font-size:calc(7px * var(--fs));letter-spacing:.12em;color:var(--ink-mute);text-align:right;padding-top:3px}
+.cc-line .body{
+  font-size:calc(12px * var(--fs));line-height:1.4;color:#eafaff;font-weight:500;
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+.cc-line.me .who{color:var(--acc)}
+.cc-line.me .body{color:#cfe9f7}
+.cc-line.ai .who{color:var(--green)}
+.cc-line.sys .who{color:var(--amber)}
+.cc-line.sys .body{color:var(--amber);font-family:var(--font-mono);font-size:calc(10px * var(--fs))}
+#ccEmpty{font-size:calc(12px * var(--fs));line-height:1.4;color:var(--ink-dim);padding:4px 0}
 #captions.me #ccWho{color:var(--acc)}
-#captions.me #ccText{color:#cfe9f7}
 #captions.sys #ccWho{color:var(--amber)}
-#captions.sys #ccText{color:var(--amber);font-family:var(--font-mono);font-size:calc(10px * var(--fs))}
 
 /* transcrição completa (drawer) */
 .msg{display:grid;grid-template-columns:50px 1fr;gap:9px;font-size:calc(11px * var(--fs));line-height:1.38;margin-bottom:8px}
@@ -770,8 +783,7 @@ button{cursor:pointer}
 
       <div id="activity"><span class="pulse" aria-hidden="true"></span><span id="activityText">A INICIAR NÚCLEO</span><span id="activityTime"></span></div>
 
-      <!-- Voz primeiro: a transcrição é uma faixa CC (closed captions).
-           O histórico completo vive no drawer, não ocupa o cockpit. -->
+      <!-- Chat/CC com roll-on: feed rolável, scroll automático ao fundo. -->
       <div id="captions" aria-live="polite">
         <div class="cc-head">
           <span class="cc-badge">CC</span>
@@ -779,7 +791,9 @@ button{cursor:pointer}
           <span id="ccTime">--:--</span>
           <button id="ccLog" type="button">HISTÓRICO</button>
         </div>
-        <div id="ccText">Sem fala ainda. O STT e o TTS aparecem aqui; o texto fica no HISTÓRICO.</div>
+        <div id="ccFeed" role="log" aria-relevant="additions">
+          <div id="ccEmpty">Sem fala ainda. O STT e o TTS aparecem aqui; o texto fica no HISTÓRICO.</div>
+        </div>
       </div>
 
       <div id="composer" class="voice">
@@ -1698,6 +1712,9 @@ button{cursor:pointer}
   }
 
   /* ================= conversa ================= */
+  const CHAT_FEED_MAX = 48;
+  const CHAT_FEED_VISIBLE = 12;
+
   function addMessage(who, text, source) {
     const t = String(text == null ? "" : text).trim();
     if (!t) return;
@@ -1705,39 +1722,65 @@ button{cursor:pointer}
     const msg = { who, text: t, source: src, ts: nowMs() };
     ui.messages.push(msg);
     if (src === "voice") ui.lastVoice = msg;
-    if (ui.messages.length > 24) ui.messages.shift();
+    if (ui.messages.length > CHAT_FEED_MAX) ui.messages.shift();
     renderMessages();
   }
 
-  /// CC = só voz: transcript do STT (VOCÊ) e saída do TTS (JARBAS).
-  /// Texto digitado e mensagens de sistema ficam no HISTÓRICO e no feed.
+  function whoLabel(who) {
+    if (who === "me") return "VOCÊ";
+    if (who === "sys") return "SYS";
+    return "JARBAS";
+  }
+
+  function feedLines() {
+    const voiceOk = !ui.textMode && ui.audioOn && ui.voice.stt !== false && ui.voice.tts !== false;
+    let lines = ui.messages;
+    if (voiceOk) {
+      lines = ui.messages.filter((m) => m.source === "voice" || m.source === "sys");
+      if (!lines.length && ui.lastVoice) lines = [ui.lastVoice];
+    }
+    if (lines.length > CHAT_FEED_VISIBLE) lines = lines.slice(-CHAT_FEED_VISIBLE);
+    return lines;
+  }
+
+  /// Feed rolável com roll-on (scroll automático ao fundo).
   function renderMessages() {
     const cap = $("captions");
-    if (!cap) return;
+    const feed = $("ccFeed");
+    if (!cap || !feed) return;
     cap.classList.remove("me", "sys");
-    // Em modo voz: CC só com STT/TTS. Em modo texto (voz desabilitada,
-    // mic/TTS em falta, ou TXT aberto): CC mostra o último chat de texto.
-    const voiceOk = !ui.textMode && ui.audioOn && ui.voice.stt !== false && ui.voice.tts !== false;
-    let last = null;
-    if (voiceOk) {
-      last = ui.lastVoice;
-    } else {
-      for (let i = ui.messages.length - 1; i >= 0; i--) {
-        if (ui.messages[i].source !== "sys") { last = ui.messages[i]; break; }
-      }
-      if (!last) last = ui.lastVoice;
-    }
+    const lines = feedLines();
     $("ccLog").textContent = ui.messages.length ? `HISTÓRICO · ${ui.messages.length}` : "HISTÓRICO";
-    if (!last) {
+    feed.replaceChildren();
+    if (!lines.length) {
       $("ccWho").textContent = "JARBAS";
       $("ccTime").textContent = "--:--";
-      $("ccText").textContent = "Sem fala ainda. O STT e o TTS aparecem aqui; o texto fica no HISTÓRICO.";
+      const empty = document.createElement("div");
+      empty.id = "ccEmpty";
+      empty.textContent = "Sem fala ainda. O STT e o TTS aparecem aqui; o texto fica no HISTÓRICO.";
+      feed.appendChild(empty);
       return;
     }
-    cap.classList.add(last.who === "me" ? "me" : "ai");
-    $("ccWho").textContent = last.who === "me" ? "VOCÊ" : "JARBAS";
+    const last = lines[lines.length - 1];
+    cap.classList.add(last.who === "me" ? "me" : last.who === "sys" ? "sys" : "ai");
+    $("ccWho").textContent = whoLabel(last.who);
     $("ccTime").textContent = hhmmss(last.ts);
-    $("ccText").textContent = last.text;
+    for (const m of lines) {
+      const row = document.createElement("div");
+      row.className = "cc-line " + (m.who === "me" ? "me" : m.who === "sys" ? "sys" : "ai");
+      const who = document.createElement("span");
+      who.className = "who";
+      who.textContent = whoLabel(m.who);
+      const body = document.createElement("div");
+      body.className = "body";
+      body.textContent = m.text;
+      row.append(who, body);
+      feed.appendChild(row);
+    }
+    // Roll-on: após paint, ancorar no fundo.
+    requestAnimationFrame(() => {
+      feed.scrollTop = feed.scrollHeight;
+    });
   }
 
   function openTranscript() {
@@ -1753,12 +1796,16 @@ button{cursor:pointer}
         row.className = "msg " + (m.who === "me" ? "me" : m.who === "sys" ? "sys" : "ai");
         const who = document.createElement("span");
         who.className = "who";
-        who.textContent = m.who === "me" ? "VOCÊ" : m.who === "sys" ? "SYS" : "JARBAS";
+        who.textContent = whoLabel(m.who);
         const p = document.createElement("p");
         p.textContent = m.text;
         row.append(who, p);
         body.appendChild(row);
       }
+      requestAnimationFrame(() => {
+        const panel = document.querySelector("#drawer .drawer-panel");
+        if (panel) panel.scrollTop = panel.scrollHeight;
+      });
     });
   }
 
@@ -2357,25 +2404,132 @@ button{cursor:pointer}
 
   async function playWavB64(b64) {
     if (!b64 || ui.muted) return 0;
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    // 1) WebAudio (orb sync). 2) Fallback <audio> blob — Chromium/kiosk
+    // por vezes tem AudioContext suspenso ou sink PipeWire mudo.
     try {
       const ctx = ensureAudio();
-      if (!ctx) return 0;
-      const bin = atob(b64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const buf = await ctx.decodeAudioData(bytes.buffer.slice(0));
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ui.gain || ctx.destination);
-      ui.source = src;
-      const ended = new Promise((resolve) => {
-        src.onended = () => { if (ui.source === src) ui.source = null; resolve(); };
+      if (ctx) {
+        if (ctx.state === "suspended") await ctx.resume().catch(() => {});
+        const buf = await ctx.decodeAudioData(bytes.buffer.slice(0));
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ui.gain || ctx.destination);
+        ui.source = src;
+        const ended = new Promise((resolve) => {
+          src.onended = () => { if (ui.source === src) ui.source = null; resolve(); };
+        });
+        src.start();
+        await ended;
+        return Math.max(0.8, buf.duration);
+      }
+    } catch (e) {
+      pushAction("TTS", "WebAudio falhou", truncate(e && e.message ? e.message : e, 80), "warn");
+    }
+    try {
+      const blob = new Blob([bytes], { type: "audio/wav" });
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      a.volume = ui.muted ? 0 : Math.max(0.05, ui.volume / 100);
+      const dur = await new Promise((resolve, reject) => {
+        a.onended = () => resolve(Math.max(0.8, a.duration || 1));
+        a.onerror = () => reject(new Error("audio element error"));
+        a.play().catch(reject);
       });
-      src.start();
-      return Math.max(0.8, buf.duration);
-    } catch (_) {
+      URL.revokeObjectURL(url);
+      return dur;
+    } catch (e) {
+      pushAction("TTS", "Sem saída de som no browser", truncate(e && e.message ? e.message : e, 80), "err");
       return 0;
     }
+  }
+
+  function encodeWav16kMono(pcm16) {
+    const dataLen = pcm16.length * 2;
+    const buf = new ArrayBuffer(44 + dataLen);
+    const v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, "RIFF"); v.setUint32(4, 36 + dataLen, true); w(8, "WAVEfmt ");
+    v.setUint32(12, 16, true); v.setUint16(16, 1, true); v.setUint16(18, 1, true);
+    v.setUint32(20, 16000, true); v.setUint32(24, 32000, true);
+    v.setUint16(28, 2, true); v.setUint16(30, 16, true); w(32, "data");
+    v.setUint32(36, dataLen, true);
+    for (let i = 0; i < pcm16.length; i++) v.setInt16(44 + i * 2, pcm16[i], true);
+    const bytes = new Uint8Array(buf);
+    let bin = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(bin);
+  }
+
+  function downsampleTo16k(floatChunks, inRate) {
+    let total = 0;
+    for (const c of floatChunks) total += c.length;
+    const merged = new Float32Array(total);
+    let off = 0;
+    for (const c of floatChunks) { merged.set(c, off); off += c.length; }
+    const ratio = inRate / 16000;
+    const outLen = Math.max(1, Math.floor(merged.length / ratio));
+    const pcm = new Int16Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const s = Math.max(-1, Math.min(1, merged[Math.floor(i * ratio)] || 0));
+      pcm[i] = s < 0 ? (s * 0x8000) | 0 : (s * 0x7fff) | 0;
+    }
+    return pcm;
+  }
+
+  /// Captura N segundos do microfone do *browser* (PipeWire/Chromium) em
+  /// WAV 16 kHz mono — o nosd não compete com arecord no mesmo device.
+  async function recordWavB64(secs) {
+    const n = Math.max(1, Math.min(12, Number(secs) || 4));
+    if (!ui.audioOn || !ui.audioStream) {
+      const ok = await startAudio();
+      if (!ok) throw new Error("microfone indisponível");
+    }
+    const ctx = ensureAudio();
+    if (!ctx) throw new Error("AudioContext indisponível");
+    if (ctx.state === "suspended") await ctx.resume().catch(() => {});
+    const src = ctx.createMediaStreamSource(ui.audioStream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    const chunks = [];
+    proc.onaudioprocess = (ev) => {
+      chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0)));
+    };
+    src.connect(proc);
+    proc.connect(mute);
+    mute.connect(ctx.destination);
+    await new Promise((r) => setTimeout(r, n * 1000));
+    try { src.disconnect(); } catch (_) {}
+    try { proc.disconnect(); } catch (_) {}
+    try { mute.disconnect(); } catch (_) {}
+    if (!chunks.length) throw new Error("captura vazia");
+    const pcm = downsampleTo16k(chunks, ctx.sampleRate || 48000);
+    // ~0.2 s de silêncio = sem fala útil
+    let energy = 0;
+    for (let i = 0; i < pcm.length; i += 32) energy += Math.abs(pcm[i]);
+    // Limiar baixo: VAD agressivo no browser gerava STT "falhou" com mic OK.
+    if (energy / Math.max(1, pcm.length / 32) < 12) {
+      throw new Error("sem fala detectada");
+    }
+    return encodeWav16kMono(pcm);
+  }
+
+  async function probeVoiceEngines() {
+    const vs = await rpc("voice.status", {}, { timeout: 8000 });
+    if (!vs || !vs.ok || !vs.result) return;
+    ui.voice.stt = !!vs.result.stt_ready;
+    ui.voice.tts = !!vs.result.tts_ready;
+    const stt = ui.voice.stt ? "STT pronto" : "STT ausente";
+    const tts = ui.voice.tts ? "TTS pronto" : "TTS ausente";
+    pushAction("VOICE", "Pipeline", `${stt} · ${tts}`, ui.voice.stt && ui.voice.tts ? "ok" : "warn");
+    if (!ui.voice.stt || !ui.voice.tts) setTextMode(true);
+    renderDock();
   }
 
   function stopAudio() {
@@ -2572,7 +2726,8 @@ button{cursor:pointer}
     setOrb("thinking");
     tone(430, .05);
     const t0 = performance.now();
-    let res = await rpc("voice.turn", { prompt, play: false }, { timeout: 180000 });
+    // play:true → ALSA no nosd. Browser toca se play_ok=false (fallback).
+    let res = await rpc("voice.turn", { prompt, play: true }, { timeout: 180000 });
     let text = "", slot = "";
     if (res && res.ok && res.result) {
       text = String(res.result.reply || res.result.text || "");
@@ -2584,8 +2739,7 @@ button{cursor:pointer}
         setTextMode(true);
       }
       if (res.result.wav_b64) {
-        // A resposta é falada no browser (play:false no servidor) para manter
-        // o orb e o áudio no mesmo relógio.
+        // WAV para fallback browser se play_ok=false no nosd.
         ui.pendingWav = res.result.wav_b64;
       }
     } else {
@@ -2622,12 +2776,15 @@ button{cursor:pointer}
     setOrb("speaking");
     const wav = ui.pendingWav;
     ui.pendingWav = null;
-    let dur = 0;
-    if (wav) {
-      dur = await playWavB64(wav);
-    } else {
+    const playOk = res && res.result && res.result.play_ok === true;
+    if (wav && !playOk) {
+      await playWavB64(wav);
+    } else if (!wav) {
       tone(540, .07); setTimeout(() => tone(760, .1), 90);
-      dur = Math.min(6, Math.max(1.6, text.length / 24));
+      await new Promise((r) => setTimeout(r, Math.min(2000, Math.max(600, text.length / 40 * 1000))));
+    }
+    if (res && res.result && res.result.play_ok === false) {
+      pushAction("TTS", "Som no servidor falhou", "a tentar saída no browser", "warn");
     }
     endBusy();
     setTimeout(() => {
@@ -2635,7 +2792,7 @@ button{cursor:pointer}
       setOrb("idle");
       setActivity("AGUARDANDO DIRECTIVA");
       if (ui.auto && ui.voice.tts !== false) setTimeout(() => { if (!ui.busy) voiceTurn(); }, 700);
-    }, Math.max(900, dur * 1000 + 350));
+    }, 450);
   }
 
   async function micPressed() {
@@ -2656,11 +2813,43 @@ button{cursor:pointer}
   async function voiceTurn() {
     if (ui.busy) { toast("NÚCLEO", "Ocupado: aguarde.", "warn"); return; }
     ensureAudio();
+    if (!ui.audioOn) {
+      const ok = await startAudio();
+      if (!ok) {
+        setTextMode(true);
+        toast("MIC", "Microfone indisponível; use TXT.", "warn");
+        return;
+      }
+    }
     beginBusy("A OUVIR · 4 s", "think");
     setOrb("listening");
     tone(600, .05);
     const t0 = performance.now();
-    const res = await rpc("voice.turn", { record_secs: 4, play: false }, { timeout: 180000 });
+    let wavB64 = null;
+    try {
+      // STT: captura no browser (mesmo PipeWire do Chromium). O nosd só
+      // transcreve — evita arecord a competir com getUserMedia.
+      wavB64 = await recordWavB64(4);
+    } catch (e) {
+      const err = e && e.message ? e.message : String(e);
+      ui.voice.stt = false;
+      addMessage("sys", `MIC: ${err}`, "sys");
+      pushAction("ERR", "Captura local falhou", truncate(err, 100), "err");
+      setActivity("SEM VOZ", "err");
+      endBusy();
+      setOrb("idle");
+      ui.autoErrors++;
+      if (ui.autoErrors >= 3 && ui.auto) {
+        ui.auto = false;
+        $("autoBtn").classList.remove("on");
+        $("autoBtn").textContent = "AUTO";
+        toast("VOZ", "Loop AUTO desarmado após 3 falhas de STT.", "warn");
+      }
+      setTimeout(() => { if (ui.auto && ui.autoErrors < 3) voiceTurn(); }, 1200);
+      return;
+    }
+    setActivity("A TRANSCRÉVER", "think");
+    const res = await rpc("voice.turn", { wav_b64: wavB64, play: true }, { timeout: 180000 });
     if (!res || !res.ok || !res.result) {
       const err = (res && res.error) || "sem transcrição";
       ui.voice.stt = false;
@@ -2669,7 +2858,7 @@ button{cursor:pointer}
       setActivity("SEM VOZ", "err");
       endBusy();
       setOrb("idle");
-      setTextMode(true);
+      if (/EngineAbsent|model absent|whisper/i.test(String(err))) setTextMode(true);
       ui.autoErrors++;
       if (ui.autoErrors >= 3 && ui.auto) {
         ui.auto = false;
@@ -2691,22 +2880,24 @@ button{cursor:pointer}
     const reply = String(res.result.reply || res.result.text || "").trim();
     if (reply) recordTps(reply, (performance.now() - t0) / 1000);
     if (transcript) addMessage("me", transcript, "voice");
-    // A resposta só entra nas CC se o TTS a tornou áudio.
     if (reply) addMessage("ai", reply, res.result.wav_b64 ? "voice" : "text");
     pushAction("VOICE", "Transcrição", truncate(transcript || "(vazio)", 90), "info");
     if (reply) pushAction("REPLY", "Resposta falada", truncate(reply, 96), "ok");
     setActivity("A TRANSMITIR", "speak");
     setOrb("speaking");
-    let dur = 0;
-    if (res.result.wav_b64) dur = await playWavB64(res.result.wav_b64);
-    else dur = Math.min(5, Math.max(1.4, reply.length / 24));
+    if (res.result.play_ok === false && res.result.wav_b64) {
+      pushAction("TTS", "Som no servidor falhou", "a tentar saída no browser", "warn");
+      await playWavB64(res.result.wav_b64);
+    } else if (!res.result.wav_b64) {
+      await new Promise((r) => setTimeout(r, Math.min(2000, Math.max(600, reply.length / 40 * 1000))));
+    }
     endBusy();
     setTimeout(() => {
       if (ui.busy) return;
       setOrb("idle");
       setActivity("AGUARDANDO DIRECTIVA");
       if (ui.auto && ui.voice.tts !== false) setTimeout(() => { if (!ui.busy) voiceTurn(); }, 700);
-    }, Math.max(900, dur * 1000 + 300));
+    }, 450);
   }
 
   /* ================= poll ================= */
@@ -2893,13 +3084,21 @@ button{cursor:pointer}
     renderHealth(probe.result);
     logBoot(`nosd online · ${probe.result.engine || "engine?"}`, "ok");
     logBoot("seteado HITL server-authored", "ok");
+    await probeVoiceEngines();
+    logBoot(
+      `voz · STT=${ui.voice.stt ? "ok" : "ausente"} TTS=${ui.voice.tts ? "ok" : "ausente"}`,
+      ui.voice.stt && ui.voice.tts ? "ok" : "err"
+    );
     logBoot("HUD pronto", "ok");
     await rpc("orb.set", { state: "connecting", presets: true });
     // Deixa o boot respirar; depois entrega o ecrã ao operador.
     setTimeout(() => {
       finishBoot();
       setActivity("AGUARDANDO DIRECTIVA");
-      startAV();
+      startAV().then(() => {
+        if (ui.audioOn) logBoot("microfone browser ligado", "ok");
+        else logBoot("microfone browser falhou — TXT", "err");
+      });
       pollNow();
       schedulePoll();
       // Se a câmara demorar (ou não existir), o núcleo não fica preso em

@@ -317,8 +317,7 @@ pub fn plan(
                     rollback é local, sem rede"
         .to_string();
     let cuda_degraded = cap.vram_free_mb == 0
-        && (cap.vendor_hint == "nvidia"
-            || std::path::Path::new("/sys/module/nvidia").exists());
+        && (cap.vendor_hint == "nvidia" || std::path::Path::new("/sys/module/nvidia").exists());
     let (direction, tier) = pick_adapt_tier(cap, current_bytes, ring_armed, cuda_degraded);
     match (direction, tier) {
         (AdaptDirection::DriverHint, _) => BrainUpgradePlan {
@@ -390,9 +389,7 @@ pub fn plan(
                         } else {
                             "dGPU não obrigatório".to_string()
                         },
-                        format!(
-                            "grant HITL (kind={hitl_kind}; server-authored, single-use)"
-                        ),
+                        format!("grant HITL (kind={hitl_kind}; server-authored, single-use)"),
                     ],
                 }),
                 rollback,
@@ -663,12 +660,7 @@ mod tests {
 
     #[test]
     fn adapt_downgrade_when_current_heavy_on_cpu() {
-        let (dir, t) = pick_adapt_tier(
-            &cap(5_000, 0),
-            Some(TIER_4B_Q6.size_bytes),
-            false,
-            true,
-        );
+        let (dir, t) = pick_adapt_tier(&cap(5_000, 0), Some(TIER_4B_Q6.size_bytes), false, true);
         assert_eq!(dir, AdaptDirection::Downgrade);
         assert_eq!(t.expect("down").file, "Qwen3.5-4B-Q4_K_M.gguf");
     }

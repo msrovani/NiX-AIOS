@@ -4,6 +4,8 @@ result-*
 data/
 *.qcow2
 packages/nosd/target/
+# Checkout/junction do neural-sgdb (flake injecta o input pinado)
+packages/nosd/vendor/
 # pasta vazia residual de consolidação path (deletar se aparecer de novo)
 /nix-aios/
 

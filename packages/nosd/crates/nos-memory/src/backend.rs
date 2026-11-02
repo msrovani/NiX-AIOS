@@ -1,64 +1,63 @@
-//! Backends — honesty DB.1:
+//! Backends de memória cognitiva.
 //!
-//! - `NOSD_MEMORY_BACKEND=jsonl` → append-only `data_dir/memories.jsonl` (opt-in)
-//! - default `nsgdb` → length-prefixed `data_dir/nsgdb/L{2,3,4}/seg.bin` (NOT JSONL).
-//!   Não é motor MCP neural-sgdb completo (sem CRDT/BQ/semantic host).
+//! - `neural` (default) → FileStorage real em `data_dir/memory/nsgdb/`
+//! - `nsgdb_legacy` → seg.bin length-prefixed em `data_dir/nsgdb/L{2,3}/`
+//! - `jsonl` → `data_dir/memories.jsonl` (lab)
 
 use std::path::{Path, PathBuf};
 
-/// Camadas NSGDB efectivamente suportadas neste crate (honest).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryLayer {
     L2Episodic,
     L3Pattern,
-    /// Header stub em `L4/seg.bin`; recall activo = L2+L3 apenas.
     L4Stub,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryBackendKind {
+    Neural,
+    NsgdbLegacy,
     Jsonl,
-    Nsgdb,
 }
 
 impl MemoryBackendKind {
-    /// Parser puro (testável sem `std::env`).
     pub fn parse(value: &str) -> Self {
         match value.to_ascii_lowercase().as_str() {
             "jsonl" => Self::Jsonl,
-            _ => Self::Nsgdb,
+            "nsgdb_legacy" | "legacy" | "nsgdb" => Self::NsgdbLegacy,
+            _ => Self::Neural,
         }
     }
 
     pub fn from_env() -> Self {
-        Self::parse(&std::env::var("NOSD_MEMORY_BACKEND").unwrap_or_else(|_| "nsgdb".into()))
+        Self::parse(&std::env::var("NOSD_MEMORY_BACKEND").unwrap_or_else(|_| "neural".into()))
     }
 
     pub fn storage_path_for(self, data_dir: &Path) -> PathBuf {
         match self {
             Self::Jsonl => data_dir.join("memories.jsonl"),
-            Self::Nsgdb => data_dir.join("nsgdb"),
+            Self::NsgdbLegacy => data_dir.join("nsgdb"),
+            Self::Neural => data_dir.join("memory").join("nsgdb"),
         }
-    }
-
-    pub fn storage_path(data_dir: &Path) -> PathBuf {
-        Self::from_env().storage_path_for(data_dir)
     }
 
     pub fn ensure_dirs_for(self, data_dir: &Path) -> std::io::Result<()> {
         match self {
             Self::Jsonl => {
-                let path = data_dir.join("memories.jsonl");
-                if let Some(parent) = path.parent() {
+                if let Some(parent) = data_dir.join("memories.jsonl").parent() {
                     std::fs::create_dir_all(parent)?;
                 }
                 Ok(())
             }
-            Self::Nsgdb => {
+            Self::NsgdbLegacy => {
                 let root = data_dir.join("nsgdb");
                 std::fs::create_dir_all(root.join("L2"))?;
                 std::fs::create_dir_all(root.join("L3"))?;
                 std::fs::create_dir_all(root.join("L4"))?;
+                Ok(())
+            }
+            Self::Neural => {
+                std::fs::create_dir_all(data_dir.join("memory").join("nsgdb"))?;
                 Ok(())
             }
         }
@@ -68,11 +67,10 @@ impl MemoryBackendKind {
         Self::from_env().ensure_dirs_for(data_dir)
     }
 
-    /// Camadas activas até wiring neural-sgdb MCP real (BQ/semantic = AWAITING).
     pub fn layers_supported(self) -> &'static [MemoryLayer] {
         match self {
             Self::Jsonl => &[MemoryLayer::L3Pattern],
-            Self::Nsgdb => &[
+            Self::NsgdbLegacy | Self::Neural => &[
                 MemoryLayer::L2Episodic,
                 MemoryLayer::L3Pattern,
                 MemoryLayer::L4Stub,
@@ -83,6 +81,10 @@ impl MemoryBackendKind {
     pub fn uses_jsonl_on_disk(self) -> bool {
         matches!(self, Self::Jsonl)
     }
+
+    pub fn is_neural(self) -> bool {
+        matches!(self, Self::Neural)
+    }
 }
 
 #[cfg(test)]
@@ -91,26 +93,22 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn nsgdb_default_dir() {
+    fn neural_default_path() {
         let d = tempdir().unwrap();
-        let p = MemoryBackendKind::Nsgdb.storage_path_for(d.path());
-        assert!(p.ends_with("nsgdb"));
+        let p = MemoryBackendKind::Neural.storage_path_for(d.path());
+        assert!(p.ends_with("memory/nsgdb") || p.ends_with(r"memory\nsgdb"));
     }
 
     #[test]
-    fn nsgdb_binary_layers_l2_l3() {
-        let kind = MemoryBackendKind::Nsgdb;
-        assert!(!kind.uses_jsonl_on_disk());
-        assert!(kind.layers_supported().contains(&MemoryLayer::L2Episodic));
-        assert!(kind.layers_supported().contains(&MemoryLayer::L3Pattern));
-    }
-
-    #[test]
-    fn jsonl_path_is_file() {
-        let d = tempdir().unwrap();
-        let p = MemoryBackendKind::parse("jsonl").storage_path_for(d.path());
-        assert!(p.ends_with("memories.jsonl"));
-        assert_eq!(MemoryBackendKind::parse("JSONL"), MemoryBackendKind::Jsonl);
-        assert_eq!(MemoryBackendKind::parse("nsgdb"), MemoryBackendKind::Nsgdb);
+    fn parse_aliases() {
+        assert_eq!(
+            MemoryBackendKind::parse("neural"),
+            MemoryBackendKind::Neural
+        );
+        assert_eq!(
+            MemoryBackendKind::parse("nsgdb_legacy"),
+            MemoryBackendKind::NsgdbLegacy
+        );
+        assert_eq!(MemoryBackendKind::parse("jsonl"), MemoryBackendKind::Jsonl);
     }
 }

@@ -69,17 +69,23 @@ pub type CrdtHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
 /// M9.1: hook de skills — recebe {name,hash,wasm_b64} e activa se o hash bater.
 pub type SkillHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
 
+/// F7: telepathy cognitiva (dois FileStorage) — payload JSON com records_b64.
+pub type MemoryHook = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync>;
+
 pub const KIND_CHAT: u8 = 1;
 pub const KIND_CRDT: u8 = 2;
 pub const KIND_SKILL: u8 = 3;
+/// F7: sync de memória cognitiva entre peers mesh (não é CRDT NSGC).
+pub const KIND_MEMORY: u8 = 4;
+/// Teto do envelope telepathy (records NMD1 em base64; ≤ skill).
+pub const MAX_MEMORY_PAYLOAD: usize = 768 * 1024;
 
 /// Limite do campo `prompt` por kind: chat/CRDT ficam no teto de chat;
-/// skill tem teto próprio (base64 do módulo + manifesto).
+/// skill/memory têm teto próprio.
 pub fn max_prompt_for(kind: u8) -> usize {
-    if kind == KIND_SKILL {
-        MAX_SKILL_PAYLOAD
-    } else {
-        MAX_PROMPT
+    match kind {
+        KIND_SKILL | KIND_MEMORY => MAX_MEMORY_PAYLOAD,
+        _ => MAX_PROMPT,
     }
 }
 
@@ -131,6 +137,7 @@ pub async fn serve(
     exec: Executor,
     crdt: CrdtHook,
     skill: SkillHook,
+    memory: MemoryHook,
 ) -> std::io::Result<()> {
     let listener = TcpListener::bind(bind).await?;
     info!(
@@ -138,10 +145,10 @@ pub async fn serve(
         "job listener bind={bind} node={} noise=XX",
         identity.node_id()
     );
-    serve_on(listener, identity, pinned, exec, crdt, skill).await
+    serve_on(listener, identity, pinned, exec, crdt, skill, memory).await
 }
 
-/// Igual a `serve`, mas com listener j? aberto (testes / socket activation).
+/// Igual a `serve`, mas com listener já aberto (testes / socket activation).
 pub async fn serve_on(
     listener: TcpListener,
     identity: Identity,
@@ -149,6 +156,7 @@ pub async fn serve_on(
     exec: Executor,
     crdt: CrdtHook,
     skill: SkillHook,
+    memory: MemoryHook,
 ) -> std::io::Result<()> {
     loop {
         let (sock, peer) = listener.accept().await?;
@@ -157,6 +165,7 @@ pub async fn serve_on(
         let exec = exec.clone();
         let crdt = crdt.clone();
         let skill = skill.clone();
+        let memory = memory.clone();
         tokio::spawn(async move {
             let mut s = match Secure::responder(sock, &id, &pins).await {
                 Ok(s) => s,
@@ -172,7 +181,7 @@ pub async fn serve_on(
                     return;
                 }
             };
-            match handle(&req, &id, &pins, &exec, &crdt, &skill).await {
+            match handle(&req, &id, &pins, &exec, &crdt, &skill, &memory).await {
                 Ok(out) => {
                     if let Err(e) = s.send(&out).await {
                         warn!(target: "nosd", "job send: {e}");
@@ -191,6 +200,7 @@ async fn handle(
     exec: &Executor,
     crdt: &CrdtHook,
     skill: &SkillHook,
+    memory: &MemoryHook,
 ) -> Result<Vec<u8>, String> {
     let pf = parse_frame(buf)?;
     let env: JobEnvelope = serde_json::from_slice(&pf.body).map_err(|e| format!("json: {e}"))?;
@@ -217,6 +227,8 @@ async fn handle(
         crdt(&env.prompt)
     } else if env.kind == KIND_SKILL {
         skill(&env.prompt)
+    } else if env.kind == KIND_MEMORY {
+        memory(&env.prompt)
     } else {
         exec(&env.prompt, env.budget_tokens)
     };
@@ -281,6 +293,17 @@ pub async fn submit_crdt(
     deadline_ms: u64,
 ) -> Result<JobResult, String> {
     submit_kind(addr, identity, pinned, payload, deadline_ms, 0, KIND_CRDT).await
+}
+
+/// F7: troca telepathy (memória cognitiva) pelo link Noise mesh.
+pub async fn submit_memory(
+    addr: &str,
+    identity: &Identity,
+    pinned: &Arc<Pinned>,
+    payload: &str,
+    deadline_ms: u64,
+) -> Result<JobResult, String> {
+    submit_kind(addr, identity, pinned, payload, deadline_ms, 0, KIND_MEMORY).await
 }
 
 /// M9.1: empurra um módulo `.wasm` para um peer (activa só se o hash bater).
@@ -401,7 +424,8 @@ mod tests {
         let pins_task = pins_srv.clone();
         tokio::spawn(async move {
             let skill: SkillHook = Arc::new(|_p: &str| Err("skill hook nao usado".into()));
-            let _ = serve_on(l, s, pins_task, exec, crdt, skill).await;
+            let memory: MemoryHook = Arc::new(|_p: &str| Err("memory hook nao usado".into()));
+            let _ = serve_on(l, s, pins_task, exec, crdt, skill, memory).await;
         });
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
@@ -439,7 +463,8 @@ mod tests {
                 }
                 Ok("skill grande ok".into())
             });
-            let _ = serve_on(l, s, pins_task, exec, crdt, skill).await;
+            let memory: MemoryHook = Arc::new(|_p: &str| Err("memory hook nao usado".into()));
+            let _ = serve_on(l, s, pins_task, exec, crdt, skill, memory).await;
         });
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 

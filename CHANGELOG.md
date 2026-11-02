@@ -3,6 +3,20 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.7.0-alpha.5] — neural-sgdb MemoryGovernor + pin sync
+
+- **nsgdb 1.5.0 → NixAIOS**: pin `ce5a5c70…` (`docs/NSGDB_VERSION.md` + flake input).
+- `nos-memory::MemoryGovernor`: two-pass, null-scope, ADD-only follow-ups, SOUL markers.
+- Backends: `neural` (default, FileStorage `memory/nsgdb/`) | `nsgdb_legacy` | `jsonl`.
+- IPC: `memory.recall|health|remember|curate|decide`; kiosk read-only; nosmcp read tools.
+- F5: CRDT path `mesh-crdt/` (migração one-shot desde `nsgdb/crdt/`).
+- CI: `scripts/nsgdb-pin-check.sh` + `scripts/smoke-nsgdb-memory.sh`.
+- Evidência: `docs/evidence/NSGDB_MEMORY_GOV_0.7.0-alpha.5.md`.
+- Tested: `cargo test -p nos-memory` (incl. neural scoped); hermes cognitive_bridge/OPAR; ipc/kiosk.
+- **F7 telepathy usável entre peers mesh:** `memory.sync` / `nosctl memory-sync`
+  via `KIND_MEMORY` no link Noise (`NOSD_JOB_BIND`); two-db `merge_remote`.
+- Not-tested: QEMU/metal neural e2e; multilingual embed iso-hw; telepathy metal multi-host.
+
 ## [0.7.0-alpha.4] — AIOS frota-3 (S1/S2 + HITL adapt + mesh Wi‑Fi/wired)
 
 - ISO canónica `iso-hw-cuda`: S1 0.8B + S2 4B; Landlock após spawn CUDA.

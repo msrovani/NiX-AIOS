@@ -30,6 +30,9 @@ pub const SIDE_EFFECT_METHODS: &[&str] = &[
     "brain.accept",
     "mcp.call",
     "skill.import",
+    "memory.remember",
+    "memory.curate",
+    "memory.sync",
 ];
 
 pub fn is_side_effect(method: &str) -> bool {

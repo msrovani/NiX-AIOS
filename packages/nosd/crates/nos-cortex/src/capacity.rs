@@ -91,8 +91,8 @@ impl CapacityProber {
 }
 
 fn needs_nvidia_retry(c: &NodeCapacity) -> bool {
-    let nvidia_mod = Path::new("/sys/module/nvidia").exists()
-        || Path::new("/proc/driver/nvidia/gpus").exists();
+    let nvidia_mod =
+        Path::new("/sys/module/nvidia").exists() || Path::new("/proc/driver/nvidia/gpus").exists();
     if !nvidia_mod && c.dgpu_card.is_none() {
         return false;
     }
@@ -140,8 +140,11 @@ fn drm_vendor_id(card: &str) -> Option<String> {
 
 /// `nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits`
 /// Cache 20 s (positivo ou negativo) — evita coredump spam no HUD.
+/// Cache de `nvidia-smi` (instante da leitura + valor), 20 s.
+type SmiCache = Mutex<Option<(Instant, Option<u64>)>>;
+
 fn probe_nvidia_smi_free_mb() -> Option<u64> {
-    static CACHE: OnceLock<Mutex<Option<(Instant, Option<u64>)>>> = OnceLock::new();
+    static CACHE: OnceLock<SmiCache> = OnceLock::new();
     let cell = CACHE.get_or_init(|| Mutex::new(None));
     if let Ok(guard) = cell.lock() {
         if let Some((t, v)) = guard.as_ref() {

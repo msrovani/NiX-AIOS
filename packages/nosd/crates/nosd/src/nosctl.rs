@@ -77,6 +77,36 @@ enum Cmd {
     },
     Recall {
         query: String,
+        #[arg(long)]
+        scope: Option<String>,
+        #[arg(long, default_value = "5")]
+        k: u64,
+    },
+    #[command(name = "memory-health")]
+    MemoryHealth {
+        #[arg(long, default_value = "era")]
+        view: String,
+    },
+    #[command(name = "memory-remember")]
+    MemoryRemember {
+        text: String,
+        #[arg(long, default_value = "aios/user")]
+        scope: String,
+        #[arg(long, default_value = "mom/fact")]
+        entity: String,
+    },
+    #[command(name = "memory-curate")]
+    MemoryCurate {
+        op: String,
+        #[arg(long)]
+        key: Option<String>,
+    },
+    /// F7 telepathy: sync memória cognitiva com peer mesh (JOB_BIND).
+    #[command(name = "memory-sync")]
+    MemorySync {
+        addr: String,
+        #[arg(long, default_value = "64")]
+        max: u64,
     },
     /// MoE S1/S2 route explain (no infer).
     Route {
@@ -572,7 +602,35 @@ async fn async_main() -> anyhow::Result<()> {
             1 | 16,
         ),
         Cmd::Poll { id } => ("chat.poll", serde_json::json!({ "id": id }), 1),
-        Cmd::Recall { query } => ("memory.recall", serde_json::json!({ "query": query }), 16),
+        Cmd::Recall { query, scope, k } => (
+            "memory.recall",
+            serde_json::json!({ "query": query, "scope": scope, "k": k }),
+            0,
+        ),
+        Cmd::MemoryHealth { view } => ("memory.health", serde_json::json!({ "view": view }), 0),
+        Cmd::MemoryRemember {
+            text,
+            scope,
+            entity,
+        } => (
+            "memory.remember",
+            serde_json::json!({
+                "text": text,
+                "scope": scope,
+                "entities": [entity],
+            }),
+            16,
+        ),
+        Cmd::MemoryCurate { op, key } => (
+            "memory.curate",
+            serde_json::json!({ "op": op, "key": key }),
+            16 | 64, // MEMORY|HITL
+        ),
+        Cmd::MemorySync { addr, max } => (
+            "memory.sync",
+            serde_json::json!({ "addr": addr, "max": max }),
+            16, // MEMORY
+        ),
         Cmd::Route { prompt } => ("route.explain", serde_json::json!({ "prompt": prompt }), 0),
         Cmd::Spawn { name, wasm_b64 } => {
             let mut p = serde_json::json!({ "name": name });

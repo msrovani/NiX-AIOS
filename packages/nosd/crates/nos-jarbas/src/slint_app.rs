@@ -352,7 +352,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
         let always = always_on.clone();
         info!(target: "jarbas", "slint chat len={}", prompt.len());
         chat_history.push(format!("> {prompt}"));
-        if chat_history.len() > 4 {
+        if chat_history.len() > 16 {
             chat_history.remove(0);
         }
         if let Some(ui) = ui_chat.upgrade() {
@@ -360,6 +360,8 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             ui.set_status("THINK".into());
             ui.set_last_reply("a pensar…".into());
             ui.set_chat_log(chat_history.join("\n").into());
+            // Roll-on: valor alto → Flickable clampa ao fundo.
+            ui.set_chat_scroll_y(100_000f32);
         }
         let _ = ep_chat.rpc_blocking(Request {
             id: 9000,
@@ -412,7 +414,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
         });
         if let Some(ui) = ui_chat.upgrade() {
             chat_history.push(format!("JARBAS: {text}"));
-            if chat_history.len() > 4 {
+            if chat_history.len() > 16 {
                 chat_history.remove(0);
             }
             ui.set_orb_state("speaking".into());
@@ -420,6 +422,7 @@ pub fn run(endpoint: Endpoint, interval_secs: u64) -> anyhow::Result<()> {
             ui.set_status("SPEAK".into());
             ui.set_last_reply(text.clone().into());
             ui.set_chat_log(chat_history.join("\n").into());
+            ui.set_chat_scroll_y(100_000f32);
         }
         // TTS: voz local (Piper se existir, senão espeak-ng) — não bloqueia a UI.
         // Erros não são falados (evita ler "err unreachable" em voz alta).

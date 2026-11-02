@@ -207,6 +207,10 @@ impl HermesEngine {
         }));
         let memory =
             NosMemory::open(&cfg.mem_dir).map_err(|e| HermesError::Memory(e.to_string()))?;
+        match memory.cold_start() {
+            Ok(cs) => info!(target: "nosd", "memory cold_start {cs}"),
+            Err(e) => warn!(target: "nosd", "memory cold_start failed (fail-soft): {e}"),
+        }
         let bus = EventBus::new(64);
         let eng = Self {
             hub,
@@ -522,8 +526,8 @@ impl HermesEngine {
             let _ = self.memory.remember(MemoryRecord {
                 key,
                 text: format!("user: {prompt} | assistant: {reply}"),
-                scope: "session/nosd".into(),
-                entities: vec!["mom/episodic".into(), format!("slot/{}", slot.name())],
+                scope: "aios/session".into(),
+                entities: vec!["mom/learning".into(), format!("slot/{}", slot.name())],
             });
         }
         let id = self.s2.park_done(reply.clone(), true);
@@ -621,7 +625,7 @@ impl HermesEngine {
         let _ = self.memory.remember(MemoryRecord {
             key: format!("md/L3/seek/{}", Uuid::new_v4()),
             text: audit.clone(),
-            scope: "session/seek".into(),
+            scope: "aios/skills".into(),
             entities: vec!["mom/pattern".into(), "domain/seek".into()],
         });
         let _ = self.record_opar_seek(
@@ -776,7 +780,7 @@ impl HermesEngine {
             let _ = self.memory.remember(MemoryRecord {
                 key,
                 text,
-                scope: "session/autolearn".into(),
+                scope: "aios/skills".into(),
                 entities: vec!["mom/pattern".into(), "domain/autolearn".into()],
             });
         }
@@ -813,7 +817,7 @@ impl HermesEngine {
         let _ = self.memory.remember(MemoryRecord {
             key,
             text: note,
-            scope: "session/sleep".into(),
+            scope: "aios/node".into(),
             entities: vec!["mom/pattern".into(), "domain/sleep_cycle".into()],
         });
         self.bus.publish(
@@ -1103,7 +1107,7 @@ mod tests {
         ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
     }
     use nos_cortex::HotSwapController;
-    use nos_memory::NosMemory;
+    use nos_memory::{MemoryBackendKind, NosMemory};
     use tempfile::{tempdir, TempDir};
 
     struct TestEng {
@@ -1124,7 +1128,8 @@ mod tests {
             hotswap,
             hotswap_s2: None,
             s2,
-            memory: NosMemory::open(dir.path()).unwrap(),
+            memory: NosMemory::open_with_backend(dir.path(), MemoryBackendKind::NsgdbLegacy)
+                .unwrap(),
             bei: BeiRuntime::new(1000),
             windows: WindowBroker::new(bus.clone()),
             orb: OrbBroker::new(bus.clone()),

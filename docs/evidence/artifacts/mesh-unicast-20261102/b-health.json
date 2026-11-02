@@ -1,0 +1,90 @@
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "diag": [
+      "SMI · AUSENTE",
+      "NGL — · CUDA —",
+      "GPU · nvidia-smi AUSENTE",
+      "S2 · N/A · fila 0",
+      "PORTA 8082 · S2 N/A",
+      "SOUL · FALTA"
+    ],
+    "engine": "cpu-echo",
+    "engine_s2": null,
+    "fleet_machines": 2,
+    "fleet_verdict": "unknown",
+    "gpu": {
+      "cuda_visible": "",
+      "ngl": "",
+      "nvidia_smi": null
+    },
+    "hermes": "running",
+    "hermes_ticks": 8,
+    "hub_loaded": 0,
+    "landlock": "Disabled",
+    "llama_server": "absent+engine=cpu-echo",
+    "memory_records": 0,
+    "mesh": "[{\"local\":16,\"peers\":1,\"tofu\":1,\"last_frag\":0,\"role\":\"Master\",\"pending_fracks\":0}]",
+    "mesh_node_id": null,
+    "mesh_nodes": {
+      "local": {
+        "cpu": 4,
+        "id": 16,
+        "last_frag": 0,
+        "local": true,
+        "mem_mib": 2048,
+        "net": 100,
+        "pending_fracks": 0,
+        "role": "Master",
+        "tofu_peers": 1,
+        "tofu_settled": true
+      },
+      "machines": 2,
+      "peers": [
+        {
+          "age_ms": 279,
+          "cpu": 4,
+          "id": 14407,
+          "last_seen_ms": 1793588315519,
+          "local": false,
+          "mem_mib": 2048,
+          "net": 100,
+          "pk_bound": true,
+          "role": "Worker"
+        }
+      ],
+      "verdict": "unknown"
+    },
+    "mesh_peers": 1,
+    "mesh_pinned": 0,
+    "mesh_seeds": [
+      "127.0.0.1:19010"
+    ],
+    "orb": {
+      "agitation": 0.10000000149011612,
+      "links": 0.10000000149011612,
+      "particles": 80,
+      "pattern": "sphere",
+      "rings": 2,
+      "sense": {
+        "audio_on": false,
+        "bass": 0.0,
+        "level": 0.0,
+        "mid": 0.0,
+        "motion": 0.0,
+        "treble": 0.0,
+        "video_on": false
+      },
+      "size": 1.0,
+      "speed": 0.699999988079071,
+      "state": "idle",
+      "vision_ready": false,
+      "vision_slot": "vision"
+    },
+    "orb_lab": "http://127.0.0.1:7701/",
+    "s1_backend": "absent",
+    "s2_pending": 0,
+    "status": "ok"
+  }
+}

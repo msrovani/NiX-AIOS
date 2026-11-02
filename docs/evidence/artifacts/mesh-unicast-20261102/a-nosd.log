@@ -1,0 +1,38 @@
+[2m2026-11-02T02:58:27.574824Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m ipc token file /var/tmp/anvil-a/ipc.token (token never logged)
+[2m2026-11-02T02:58:27.574878Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test
+[2m2026-11-02T02:58:27.575259Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m capacity ram_avail_mb=7051 vendor=cpu cards=["card0"] render=["renderD128"] igpu=None dgpu=None vram_free_mb=0 posture=drm_present_vram_unknown suggest_ngl=0 (CUDA llama only; NOSD_LLAMA_NGL overrides)
+[2m2026-11-02T02:58:27.575311Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m node_id derived from machine-id/hostname → 14407
+[2m2026-11-02T02:58:27.575402Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m engine=cpu-echo (no gguf in /var/tmp/anvil-a/models)
+Sgdb open: 0 docs reindexados (ART/BQ) em 0 ms
+[2m2026-11-02T02:58:27.576802Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m nsgdb doctrine seeded path=/var/tmp/anvil-a/memory/nsgdb/store
+[2m2026-11-02T02:58:27.576827Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m memory open backend=Neural neural=true path=/var/tmp/anvil-a/memory/nsgdb
+[2m2026-11-02T02:58:27.577022Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m memory cold_start {"api_version":"1","backend":"Neural","doctrine_hits":1,"era":{"embedder_note":"demo_trigram_not_cosine","indexed_models":[],"telepathy":"ready","view":"era"},"memory_ok":true,"pref_hits":0}
+[2m2026-11-02T02:58:27.577216Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m orb state=connecting pattern=sphere particles=120
+[2m2026-11-02T02:58:27.577234Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m ui open id=1 kind=Info source=Hermes escalate=false
+[2m2026-11-02T02:58:27.577255Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m orb state=idle pattern=sphere particles=80
+[2m2026-11-02T02:58:27.577286Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m landlock status=Disabled
+[2m2026-11-02T02:58:27.580607Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m crdt log "/var/tmp/anvil-a/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+[2m2026-11-02T02:58:27.580674Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m NOSD_SCORE phase=ready sev=Ok hub=0 mem=1 peers=0 s1=absent llama=absent+engine=boot ll=Disabled | nosd scaffold up
+[2m2026-11-02T02:58:27.580716Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m skill quota signed=false (chave do no via NOSD_MESH_KEY/NOSD_MESH_REQUIRE_SIG)
+[2m2026-11-02T02:58:27.580794Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh udp bind=0.0.0.0:19010 broadcast=127.0.0.1:19999 targets=2 peers=1
+[2m2026-11-02T02:58:27.580836Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh targets: broadcast=127.0.0.1:19999 seeds=1 total=2
+[2m2026-11-02T02:58:27.580844Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh udp ON bind=0.0.0.0:19010 broadcast=127.0.0.1:19999 (Wi‑Fi notes + wired AMD na mesma LAN)
+[2m2026-11-02T02:58:27.580855Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m hermes continuous tick every 1s (NOSD_HERMES_TICK_SECS)
+[2m2026-11-02T02:58:27.580868Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m listen tcp 127.0.0.1:7800
+[2m2026-11-02T02:58:27.838057Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m hermes runtime tick=1 peers=0 payload={"agency_agents":4,"bei_budget":9999,"chat_iterations_left":256,"engine":"cpu-echo","hub_loaded":0,"latent_tag":null,"orb_level":0.0,"orb_state":"idle","pending_skills":0,"persona_emotion":"Neutral","persona_heartbeat_due":false,"s2_pending":0,"sleep_phase":"REPLAY","sleep_phases":["REPLAY","DREAM","CONSOLIDATE","PRUNE","REFLECT"],"ui_windows":1}
+[2m2026-11-02T02:58:27.932500Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:27.932613Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:28.936685Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:28.936823Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:29.938931Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:29.939033Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:31.393501Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:31.393644Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:32.396475Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:32.396522Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:33.399894Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:33.400063Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:34.734138Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:34.734283Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:35.735161Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=16 pk=true
+[2m2026-11-02T02:58:35.735210Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=16 arm=1 fnv=e8130093679f47c9

@@ -12,7 +12,8 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.7.0-alpha.4** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.7.0-alpha.5** (in-tree; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Memória cognitiva: neural-sgdb via `MemoryGovernor` — ver [`docs/MEMORY_NSGDB.md`](docs/MEMORY_NSGDB.md) + [`docs/NSGDB_VERSION.md`](docs/NSGDB_VERSION.md).
 
 ## Regras não negociáveis
 
@@ -194,6 +195,13 @@ Resumo executavel; detalhe em
     → `NIX_RING_DISABLED`. Auto-melhoria = skill/tool `nix.propose` → HITL →
     `nix.confirm` (helper root); nunca `nixos-rebuild` no chat. Lab:
     `armRing=true` só com S-04 + ADR + check `nixaios-ring`.
+47. **Matar o wrapper não mata o filho**: `taskkill //F //PID <bash>` de um
+    watcher deixou o `python` vivo — dois pollers escreveram no mesmo log e no
+    mesmo ledger durante ~30 min (ciclos repetidos, linhas truncadas; o
+    `forum-log.py` só deduplica por `id`, não por conteúdo). Parar = matar o
+    **PID do intérprete** (`Get-CimInstance Win32_Process` filtrado por
+    `CommandLine -like '*<script>'`), ou `taskkill //F //T` a partir de um PID
+    que ainda exista. `//PID` do bash **não** é prova de paragem.
 
 ## Comandos
 

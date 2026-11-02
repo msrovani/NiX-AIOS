@@ -205,6 +205,17 @@ modo `cinematic`/`auto`):
 
 Não expor à WAN. Em produção, o lab deve ficar desligado (`NOSD_ORB_LAB=""`).
 
+### Mesh UDP — sementes unicast
+
+O heartbeat (e FRAG/FRACK) vai para `--mesh-broadcast` **e** para cada
+`--mesh-peer` (`NOSD_MESH_PEERS`, separado por vírgulas; no NixOS
+`services.nosd.meshPeers`). É o caminho quando o broadcast não chega — Wi‑Fi
+com AP isolation, segmentos roteados, NAT. Uma semente inválida **aborta** o
+arranque (fail-closed); lista vazia mantém o comportamento antigo (só
+broadcast). `health` expõe `mesh_peers` (contagem viva) e `mesh_seeds` (lista
+configurada); `config.show` expõe ambos. Ver
+[`adr-addenda/0118-mesh-unicast-seeds.md`](adr-addenda/0118-mesh-unicast-seeds.md).
+
 ## EventBus (amostra)
 
 Eventos internos (não API estável externa): `HERMES_S2_DONE`, `MESH_OFFLOAD_HINT`, `SOUL_MIRROR`, `OBSERVE_SNAPSHOT`, …

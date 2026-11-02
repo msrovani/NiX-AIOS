@@ -129,7 +129,7 @@ pub fn remember_deliberation(memory: &NosMemory, d: &BlobDeliberation) -> bool {
         .remember(MemoryRecord {
             key,
             text,
-            scope: "session/blob_fetch".into(),
+            scope: "aios/node".into(),
             entities: vec![
                 "mom/decision".into(),
                 "blob/runtime_fetch".into(),

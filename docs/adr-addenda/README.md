@@ -10,7 +10,9 @@ Addenda curtas por cluster. Corpos históricos bare-metal **não** são reescrit
 | Hermes / WASM | 0059, 0052, 0041 P3 | PORT Factory A + CapGate |
 | BEI | 0060 | PORT tick fino; não substitui LLM |
 | Mesh | 0081 | PORT protocolo UDP std |
-| Memory | 0091 | PORT neural-sgdb FileStorage |
+| Mesh unicast seeds | 0118 | `--mesh-peer` / `services.nosd.meshPeers` — `0118-mesh-unicast-seeds.md` |
+| M3b metal audio/journal | 0128 | checklist A1–A6 + harvest — `0128-m3b-metal-audio-and-journal.md` |
+| Memory | 0091 | PORT neural-sgdb FileStorage + Governor ([addenda](0091-neural-sgdb-governor.md)) |
 | UI | 0058, 0090 | ADAPT Slint + **Wayland cage** (`0118-wayland-cage-kiosk.md`); **persona JARBAS** (`0118-jarbas-persona-ui.md`) — janelas HITL |
 | Portabilidade | 0118 | Camadas PORT/ADAPT/DELEGATE — `0118-portability-layers.md` |
 | HotSwap/HF | 0118 | GGUF llama MVP — `0118-hotswap-hf.md` |

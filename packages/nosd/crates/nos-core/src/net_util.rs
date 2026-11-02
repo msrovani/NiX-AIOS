@@ -80,11 +80,7 @@ pub fn broadcast_from_cidr(cidr: &str) -> Option<String> {
         return None;
     }
     let ip_u = u32::from(ip);
-    let mask = if pref == 0 {
-        0
-    } else {
-        (!0u32) << (32 - pref)
-    };
+    let mask = if pref == 0 { 0 } else { (!0u32) << (32 - pref) };
     let bc = std::net::Ipv4Addr::from(ip_u | !mask);
     Some(bc.to_string())
 }

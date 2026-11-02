@@ -333,11 +333,12 @@ impl VoicePipeline {
     }
 
     fn find_whisper_model(&self, loc: &LocaleVoiceSpec) -> Option<PathBuf> {
+        // Preferir tiny (embutido na iso-hw); base/small só se existirem.
         [
+            self.models_dir.join("ggml-tiny.bin"),
             self.models_dir.join(&loc.whisper_model_file),
             self.models_dir.join("ggml-small.bin"),
             self.models_dir.join("ggml-base.bin"),
-            self.models_dir.join("ggml-tiny.bin"),
         ]
         .into_iter()
         .find(|cand| cand.is_file())
@@ -533,10 +534,17 @@ impl VoicePipeline {
     }
 
     /// Sintetiza texto via `piper` ONNX local (ou fallback local `espeak-ng` no idioma) e toca via PipeWire/ALSA.
-    pub fn synthesize_wav(&self, text: &str, play_audio: bool) -> Result<Vec<u8>, VoiceError> {
+    /// Devolve `(wav_bytes, play_ok)` — `play_ok=false` se o pedido era tocar e aplay/pw-play falhou.
+    pub fn synthesize_wav(
+        &self,
+        text: &str,
+        play_audio: bool,
+    ) -> Result<(Vec<u8>, bool), VoiceError> {
         let loc = LocaleVoiceSpec::detect();
-        let out_wav = std::env::temp_dir().join("nosd-tts-out.wav");
-        let _ = fs::remove_file(&out_wav);
+        // F5: WAV único por chamada. Dois TTS concorrentes (UI + chat) não
+        // podem trocar ficheiros; o guard apaga no fim do scope.
+        let out_wav_guard = tts_temp_path()?;
+        let out_wav = out_wav_guard.to_path_buf();
 
         // Backend de alta qualidade (`audio.cpp` / Audio8 GGUF), só quando o
         // operador configura caminho absoluto + modelo. Sem Python, sem CUDA
@@ -614,33 +622,42 @@ impl VoicePipeline {
             }
         }
 
+        let mut play_ok = !play_audio;
         if play_audio {
-            let _ = if which(&["pw-play"]).is_some() {
-                Command::new("pw-play").arg(&out_wav).spawn()
-            } else {
-                Command::new("aplay").arg("-q").arg(&out_wav).spawn()
-            };
+            // Preferir PipeWire (mesmo XDG_RUNTIME_DIR do nosd/cage); ALSA
+            // como fallback. Esperar o play — spawn+forget perdia erros e
+            // cortava o TTS no Slint antes do fim.
+            match play_wav_file(&out_wav) {
+                Ok(()) => play_ok = true,
+                Err(e) => {
+                    play_ok = false;
+                    warn!(target: "nosd", "tts play fail: {e}");
+                }
+            }
         }
 
         let bytes = fs::read(&out_wav)?;
         info!(
             target: "nosd",
-            "tts locale={} bytes={} play={}",
+            "tts locale={} bytes={} play={} play_ok={}",
             loc.raw_locale,
             bytes.len(),
-            play_audio
+            play_audio,
+            play_ok
         );
-        Ok(bytes)
+        Ok((bytes, play_ok))
     }
 
     pub fn synthesize(&self, text: &str) -> Result<Vec<i16>, VoiceError> {
-        let wav = self.synthesize_wav(text, false)?;
+        let (wav, _) = self.synthesize_wav(text, false)?;
         if wav.len() <= 44 {
             return Ok(Vec::new());
         }
         let pcm = wav[44..]
-            .chunks_exact(2)
-            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| i16::from_le_bytes(*c))
             .collect();
         Ok(pcm)
     }
@@ -650,6 +667,49 @@ impl Default for VoicePipeline {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// WAV temporário único por chamada de TTS. O `TempPath` apaga o ficheiro no
+/// drop; dois pedidos concorrentes nunca partilham o mesmo caminho.
+fn tts_temp_path() -> std::io::Result<tempfile::TempPath> {
+    tempfile::Builder::new()
+        .prefix("nosd-tts-")
+        .suffix(".wav")
+        .tempfile()
+        .map(|f| f.into_temp_path())
+}
+
+/// Reproduz WAV via PipeWire (`pw-play`) ou ALSA (`aplay`), com vários
+/// devices — no metal o default pode ser HDMI mudo / sem sink PipeWire.
+fn play_wav_file(path: &Path) -> Result<(), VoiceError> {
+    if which(&["pw-play"]).is_some() {
+        let st = Command::new("pw-play").arg(path).status()?;
+        if st.success() {
+            return Ok(());
+        }
+        warn!(target: "nosd", "pw-play exit={st:?}; fallback aplay");
+    }
+    let aplay = which(&["aplay"]).ok_or(VoiceError::EngineAbsent("pw-play/aplay"))?;
+    // Ordem: default → pipewire plugin → primeira placa analógica comum.
+    for args in [
+        vec!["-q"],
+        vec!["-q", "-D", "pipewire"],
+        vec!["-q", "-D", "default"],
+        vec!["-q", "-D", "plughw:0,0"],
+        vec!["-q", "-D", "hw:0,0"],
+    ] {
+        let mut cmd = Command::new(&aplay);
+        cmd.args(&args).arg(path);
+        match cmd.status() {
+            Ok(st) if st.success() => {
+                info!(target: "nosd", "aplay ok args={args:?}");
+                return Ok(());
+            }
+            Ok(st) => warn!(target: "nosd", "aplay exit={st:?} args={args:?}"),
+            Err(e) => warn!(target: "nosd", "aplay err={e} args={args:?}"),
+        }
+    }
+    Err(VoiceError::Exec("aplay: todos os devices falharam".into()))
 }
 
 fn write_wav_16k_mono(path: &Path, pcm: &[i16]) -> std::io::Result<()> {
@@ -733,6 +793,24 @@ mod tts_backend_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tts_temp_paths_are_unique_and_removed() {
+        let a = tts_temp_path().unwrap();
+        let b = tts_temp_path().unwrap();
+        assert_ne!(
+            a.to_path_buf(),
+            b.to_path_buf(),
+            "cada chamada de TTS tem o seu WAV"
+        );
+        assert!(a.exists() && b.exists());
+        let pa = a.to_path_buf();
+        let pb = b.to_path_buf();
+        drop(a);
+        drop(b);
+        assert!(!pa.exists(), "o guard apaga o WAV de A");
+        assert!(!pb.exists(), "o guard apaga o WAV de B");
+    }
 
     #[test]
     fn absent_honest() {

@@ -19,15 +19,19 @@
   networking.firewall.allowedUDPPorts = lib.mkAfter [ 19000 ];
   networking.firewall.allowedTCPPorts = lib.mkAfter [ 19001 ];
 
-  # 0.7-alpha1: todos os GGUFs pinados viajam na imagem (offline). O brain
-  # default continua 0.8B Q4; os restantes ficam disponíveis para
-  # brain.plan/accept (HITL; 9B exige ring) ou model-load explícito.
+  # HW slim: S1 0.8B Q4 + S2 4B Q6_K + STT (ggml-tiny) + TTS (piper pt_BR).
+  # Sem Q8/4B-Q4/9B na imagem (upgrades via brain.plan + rede/seed).
   systemd.tmpfiles.rules = lib.mkAfter [
     "L+ /var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf - - - - ${self.packages.${pkgs.system}.qwen35-08b-q4km}"
-    "L+ /var/lib/nosd/models/Qwen3.5-0.8B-Q8_0.gguf - - - - ${self.packages.${pkgs.system}.qwen35-08b-q8}"
-    "L+ /var/lib/nosd/models/Qwen3.5-4B-Q4_K_M.gguf - - - - ${self.packages.${pkgs.system}.qwen35-4b-q4km}"
     "L+ /var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf - - - - ${self.packages.${pkgs.system}.qwen35-4b-q6k}"
-    "L+ /var/lib/nosd/models/Qwen3.5-9B-Q4_K_M.gguf - - - - ${self.packages.${pkgs.system}.qwen35-9b-q4km}"
+    # STT: whisper-cli precisa do modelo; sem ficheiro = ModelAbsent no metal.
+    "L+ /var/lib/nosd/models/ggml-tiny.bin - - - - ${self.packages.${pkgs.system}.ggml-tiny}"
+    # TTS: piper lê <voice>.onnx + <voice>.onnx.json no models_dir.
+    "L+ /var/lib/nosd/models/pt_BR-faber-medium.onnx - - - - ${self.packages.${pkgs.system}.piper-pt-br-faber-medium-onnx}"
+    "L+ /var/lib/nosd/models/pt_BR-faber-medium.onnx.json - - - - ${self.packages.${pkgs.system}.piper-pt-br-faber-medium-json}"
+    # Binário standalone (não pkgs.piper-tts: pyopenjtalk check quebra em nixpkgs).
+    # nos-voice: find_piper_cli → /var/lib/nosd/models/piper/piper
+    "L+ /var/lib/nosd/models/piper - - - - ${self.packages.${pkgs.system}.piper-standalone}"
   ];
 
   # Seed offline: NIXAIOSLOG/models/*.gguf -> /var/lib/nosd/models antes do nosd.
@@ -52,6 +56,7 @@
   boot.kernelParams = lib.mkAfter [ "console=tty0" ];
 
   # A ISO de release nao inclui llama.cpp (engine=cpu-echo). A imagem HW inclui.
+  # Piper vem via tmpfiles → /var/lib/nosd/models/piper (standalone), não nixpkgs.
   environment.systemPackages = [ pkgs.llama-cpp ];
   systemd.services.nosd.path = lib.mkAfter [ pkgs.llama-cpp ];
 

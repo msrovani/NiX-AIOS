@@ -327,14 +327,14 @@ fn read_udev_hint() -> UdevHint {
         }
         devices.sort();
         devices.truncate(24);
-        return UdevHint {
+        UdevHint {
             source: if devices.is_empty() {
                 "sysfs_empty".into()
             } else {
                 "sysfs".into()
             },
             devices,
-        };
+        }
     }
     #[cfg(not(unix))]
     {
@@ -372,11 +372,11 @@ fn read_nm_hint() -> NmHint {
                 };
             }
         }
-        return NmHint {
+        NmHint {
             source: "sysfs_net".into(),
             connectivity: read_net_state_linux(),
             primary: None,
-        };
+        }
     }
     #[cfg(not(unix))]
     {

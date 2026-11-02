@@ -37,6 +37,15 @@ impl CapBits {
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
+
+    /// Remove o bit HITL (lab CapGate: exige MEMORY/FS/… mas não a cerimónia).
+    pub const fn without_hitl(self) -> Self {
+        if self.0 == Self::DENY_UNKNOWN.0 {
+            self
+        } else {
+            Self(self.0 & !Self::HITL.0)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -155,6 +164,15 @@ mod tests {
         assert!(g.allow(CapBits::HITL, 1).is_err());
         let g = CapGate::new(CapBits::HITL, 1);
         assert!(g.allow(CapBits::HITL, 1).is_ok());
+    }
+
+    #[test]
+    fn without_hitl_keeps_other_bits() {
+        let need = CapBits::MEMORY.union(CapBits::HITL);
+        let soft = need.without_hitl();
+        assert!(soft.contains(CapBits::MEMORY));
+        assert!(!soft.contains(CapBits::HITL));
+        assert_eq!(CapBits::DENY_UNKNOWN.without_hitl(), CapBits::DENY_UNKNOWN);
     }
 
     #[test]

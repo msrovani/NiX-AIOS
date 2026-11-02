@@ -229,13 +229,27 @@ let
     if [ ! -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
       ${pkgs.pipewire}/bin/pipewire &
       ${pkgs.wireplumber}/bin/wireplumber &
+      # pulse shim: Chromium/espeak por vezes falam Pulse, não ALSA puro.
+      if [ -x ${pkgs.pipewire}/bin/pipewire-pulse ]; then
+        ${pkgs.pipewire}/bin/pipewire-pulse &
+      fi
+      # Esperar o socket (1s era curto no metal → greeting/TTS mudos).
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        [ -S "$XDG_RUNTIME_DIR/pipewire-0" ] && break
+        sleep 0.5
+      done
       sleep 1
+      echo "jarbas: pipewire socket=$( [ -S "$XDG_RUNTIME_DIR/pipewire-0" ] && echo ok || echo MISSING )"
     fi
+    # Probe ALSA cedo (journal): sem card = sem som mesmo com TTS ok.
+    ${pkgs.alsa-utils}/bin/aplay -l >"$XDG_RUNTIME_DIR/alsa-cards.txt" 2>&1 || true
+    echo "jarbas: alsa cards:"; cat "$XDG_RUNTIME_DIR/alsa-cards.txt" 2>/dev/null || true
     if command -v ${pkgs.espeak-ng}/bin/espeak-ng >/dev/null 2>&1; then
       (
-        sleep 4
+        sleep 5
         ${pkgs.espeak-ng}/bin/espeak-ng -v pt-br -s 140 \
-          "Olá. JARBAS online. Aguardando directiva." 2>/dev/null || true
+          "Olá. JARBAS online. Aguardando directiva." 2>>"$XDG_RUNTIME_DIR/espeak-greeting.log" \
+          || echo "jarbas: espeak greeting FAILED" >&2
       ) &
       echo "jarbas: espeak greeting scheduled"
     fi
@@ -440,6 +454,7 @@ in
         pkgs.pipewire
         pkgs.wireplumber
         pkgs.espeak-ng
+        pkgs.alsa-utils
       ];
       # Só arranca quando o GUI é pedido (hotswap pós-Q5 / persist-check).
       # Sem isto o cage arrancava numa VT inactiva durante o firstboot e
@@ -488,8 +503,17 @@ in
         NoNewPrivileges = !(builtins.elem cfg.uiMode [ "cinematic" "auto" ]);
         # DeviceAllow implica DevicePolicy=closed; tty7 (StandardInput=tty) tem
         # de estar na allowlist, senão systemd falha com 208/STDIN.
-        # char-video4linux: webcam do kiosk Chromium (getUserMedia) sob DevicePolicy=closed.
-        DeviceAllow = [ "char-drm rw" "char-input rw" "char-tty rw" "char-video4linux rw" ];
+        # char-video4linux: webcam do kiosk Chromium (getUserMedia).
+        # char-alsa: PipeWire/Chromium precisam de /dev/snd/* para MIC e
+        # altifalantes (WebAudio/TTS no browser). Sem isto = MIC OFF / mudo
+        # no metal mesmo com grupo `audio` e pipewire no path.
+        DeviceAllow = [
+          "char-drm rw"
+          "char-input rw"
+          "char-tty rw"
+          "char-video4linux rw"
+          "char-alsa rw"
+        ];
         OOMScoreAdjust = -500;
         # PATH: wrap usa paths absolutos; curl bare no PATH evita regressão
         Environment = [

@@ -1,0 +1,31 @@
+[2m2026-11-02T02:58:27.590037Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m ipc token file /var/tmp/anvil-b/ipc.token (token never logged)
+[2m2026-11-02T02:58:27.590095Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test
+[2m2026-11-02T02:58:27.590316Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m capacity ram_avail_mb=7051 vendor=cpu cards=["card0"] render=["renderD128"] igpu=None dgpu=None vram_free_mb=0 posture=drm_present_vram_unknown suggest_ngl=0 (CUDA llama only; NOSD_LLAMA_NGL overrides)
+[2m2026-11-02T02:58:27.590369Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m engine=cpu-echo (no gguf in /var/tmp/anvil-b/models)
+Sgdb open: 0 docs reindexados (ART/BQ) em 0 ms
+[2m2026-11-02T02:58:27.591838Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m nsgdb doctrine seeded path=/var/tmp/anvil-b/memory/nsgdb/store
+[2m2026-11-02T02:58:27.591868Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m memory open backend=Neural neural=true path=/var/tmp/anvil-b/memory/nsgdb
+[2m2026-11-02T02:58:27.592096Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m memory cold_start {"api_version":"1","backend":"Neural","doctrine_hits":1,"era":{"embedder_note":"demo_trigram_not_cosine","indexed_models":[],"telepathy":"ready","view":"era"},"memory_ok":true,"pref_hits":0}
+[2m2026-11-02T02:58:27.592191Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m orb state=connecting pattern=sphere particles=120
+[2m2026-11-02T02:58:27.592202Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m ui open id=1 kind=Info source=Hermes escalate=false
+[2m2026-11-02T02:58:27.592224Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m orb state=idle pattern=sphere particles=80
+[2m2026-11-02T02:58:27.592237Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m landlock status=Disabled
+[2m2026-11-02T02:58:27.595114Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m crdt log "/var/tmp/anvil-b/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+[2m2026-11-02T02:58:27.595157Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m NOSD_SCORE phase=ready sev=Ok hub=0 mem=1 peers=0 s1=absent llama=absent+engine=boot ll=Disabled | nosd scaffold up
+[2m2026-11-02T02:58:27.595187Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m skill quota signed=false (chave do no via NOSD_MESH_KEY/NOSD_MESH_REQUIRE_SIG)
+[2m2026-11-02T02:58:27.595258Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh udp bind=0.0.0.0:19011 broadcast=127.0.0.1:19999 targets=2 peers=1
+[2m2026-11-02T02:58:27.595297Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh targets: broadcast=127.0.0.1:19999 seeds=1 total=2
+[2m2026-11-02T02:58:27.595305Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh udp ON bind=0.0.0.0:19011 broadcast=127.0.0.1:19999 (Wi‑Fi notes + wired AMD na mesma LAN)
+[2m2026-11-02T02:58:27.595316Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m hermes continuous tick every 1s (NOSD_HERMES_TICK_SECS)
+[2m2026-11-02T02:58:27.595322Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m listen tcp 127.0.0.1:7801
+[2m2026-11-02T02:58:27.837453Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true
+[2m2026-11-02T02:58:27.837560Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=14407 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:27.933442Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m hermes runtime tick=1 peers=1 payload={"agency_agents":4,"bei_budget":9999,"chat_iterations_left":256,"engine":"cpu-echo","hub_loaded":0,"latent_tag":null,"orb_level":0.0,"orb_state":"idle","pending_skills":0,"persona_emotion":"Neutral","persona_heartbeat_due":false,"s2_pending":0,"sleep_phase":"REPLAY","sleep_phases":["REPLAY","DREAM","CONSOLIDATE","PRUNE","REFLECT"],"ui_windows":1}
+[2m2026-11-02T02:58:28.841543Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true
+[2m2026-11-02T02:58:29.843394Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true
+[2m2026-11-02T02:58:31.393599Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true
+[2m2026-11-02T02:58:32.338311Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true
+[2m2026-11-02T02:58:33.341407Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true
+[2m2026-11-02T02:58:33.341662Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=14407 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T02:58:34.734212Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true
+[2m2026-11-02T02:58:35.519206Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=14407 pk=true

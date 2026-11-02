@@ -1,0 +1,47 @@
+[2m2026-11-02T03:20:37.115820Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m ipc token file /var/tmp/anvil-dup-b/ipc.token (token never logged)
+[2m2026-11-02T03:20:37.115854Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test
+[2m2026-11-02T03:20:37.116061Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m capacity ram_avail_mb=7192 vendor=cpu cards=["card0"] render=["renderD128"] igpu=None dgpu=None vram_free_mb=0 posture=drm_present_vram_unknown suggest_ngl=0 (CUDA llama only; NOSD_LLAMA_NGL overrides)
+[2m2026-11-02T03:20:37.116088Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m node_id derived from machine-id/hostname → 14407
+[2m2026-11-02T03:20:37.116161Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m engine=cpu-echo (no gguf in /var/tmp/anvil-dup-b/models)
+Sgdb open: 0 docs reindexados (ART/BQ) em 0 ms
+[2m2026-11-02T03:20:37.117712Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m nsgdb doctrine seeded path=/var/tmp/anvil-dup-b/memory/nsgdb/store
+[2m2026-11-02T03:20:37.117732Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m memory open backend=Neural neural=true path=/var/tmp/anvil-dup-b/memory/nsgdb
+[2m2026-11-02T03:20:37.117897Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m memory cold_start {"api_version":"1","backend":"Neural","doctrine_hits":1,"era":{"embedder_note":"demo_trigram_not_cosine","indexed_models":[],"telepathy":"ready","view":"era"},"memory_ok":true,"pref_hits":0}
+[2m2026-11-02T03:20:37.117986Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m orb state=connecting pattern=sphere particles=120
+[2m2026-11-02T03:20:37.117994Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m ui open id=1 kind=Info source=Hermes escalate=false
+[2m2026-11-02T03:20:37.118010Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m orb state=idle pattern=sphere particles=80
+[2m2026-11-02T03:20:37.118020Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m landlock status=Disabled
+[2m2026-11-02T03:20:37.120072Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh identity id=3115996639 require_sig=true allow=0
+[2m2026-11-02T03:20:37.127601Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m crdt log "/var/tmp/anvil-dup-b/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+[2m2026-11-02T03:20:37.127678Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m NOSD_SCORE phase=ready sev=Ok hub=0 mem=1 peers=0 s1=absent llama=absent+engine=boot ll=Disabled | nosd scaffold up
+[2m2026-11-02T03:20:37.127730Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m skill quota signed=true (chave do no via NOSD_MESH_KEY/NOSD_MESH_REQUIRE_SIG)
+[2m2026-11-02T03:20:37.127868Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh udp bind=0.0.0.0:19021 broadcast=127.0.0.2:19020 targets=2 peers=1
+[2m2026-11-02T03:20:37.127925Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh targets: broadcast=127.0.0.2:19020 seeds=1 total=2
+[2m2026-11-02T03:20:37.127936Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh udp ON bind=0.0.0.0:19021 broadcast=127.0.0.2:19020 (Wi‑Fi notes + wired AMD na mesma LAN)
+[2m2026-11-02T03:20:37.127950Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m hermes continuous tick every 1s (NOSD_HERMES_TICK_SECS)
+[2m2026-11-02T03:20:37.127957Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m listen tcp 127.0.0.1:7804
+[2m2026-11-02T03:20:37.212964Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:37.213347Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:37.213362Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=1112432182 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T03:20:37.213369Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=1112432182 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T03:20:37.220893Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m hermes runtime tick=1 peers=1 payload={"agency_agents":4,"bei_budget":9999,"chat_iterations_left":256,"engine":"cpu-echo","hub_loaded":0,"latent_tag":null,"orb_level":0.0,"orb_state":"idle","pending_skills":0,"persona_emotion":"Neutral","persona_heartbeat_due":false,"s2_pending":0,"sleep_phase":"REPLAY","sleep_phases":["REPLAY","DREAM","CONSOLIDATE","PRUNE","REFLECT"],"ui_windows":1}
+[2m2026-11-02T03:20:38.215229Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:38.215543Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:39.214354Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:39.214714Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:40.260114Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:40.260395Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:41.253006Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:41.253276Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:42.255248Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:42.255533Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:42.255561Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=1112432182 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T03:20:42.255567Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh LayaIntent peer=1112432182 arm=1 fnv=e8130093679f47c9
+[2m2026-11-02T03:20:43.299558Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:43.299829Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:44.297483Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:44.297765Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:45.300071Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:45.300353Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado
+[2m2026-11-02T03:20:46.356023Z[0m [32m INFO[0m [2mnosd[0m[2m:[0m mesh HB peer=1112432182 pk=true
+[2m2026-11-02T03:20:46.356359Z[0m [34mDEBUG[0m [2mnosd[0m[2m:[0m mesh HB id=1112432182 duplicado

@@ -1360,7 +1360,8 @@ fn crdt_backend_migrates_jsonl_to_nsgdb() {
     let _ = child.wait();
     assert!(dir.path().join("crdt.jsonl").exists(), "legado por migrar");
 
-    // 2) Default (nsgdb): migra e o estado continua la.
+    // 2) Default (mesh-crdt / NSGC): migra e o estado continua lá.
+    // F5: frota em `mesh-crdt/`, não em `nsgdb/crdt/` (memória cognitiva).
     let port = free_port();
     let mut child = spawn_nosd_env(dir.path(), port, token, Stdio::null(), &[]);
     wait_listen(&mut child, port);
@@ -1377,8 +1378,8 @@ fn crdt_backend_migrates_jsonl_to_nsgdb() {
     assert_eq!(got["ok"], true, "{got}");
     assert_eq!(got["result"]["value"], "v4", "{got}");
 
-    let seg = std::fs::read(dir.path().join("nsgdb").join("crdt").join("seg.bin")).unwrap();
-    assert!(seg.starts_with(b"NSGC"), "magic do segmento nsgdb");
+    let seg = std::fs::read(dir.path().join("mesh-crdt").join("seg.bin")).unwrap();
+    assert!(seg.starts_with(b"NSGC"), "magic do segmento mesh-crdt");
     assert!(!dir.path().join("crdt.jsonl").exists(), "legado renomeado");
     assert!(
         dir.path().join("crdt.jsonl.migrated").exists(),

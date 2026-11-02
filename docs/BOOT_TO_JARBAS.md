@@ -194,7 +194,7 @@ Estágios honesty: `mic → vad → wake → stt → handle → tts → out` (Pi
 
 **Units:** `nosd` · `nosd-early-score` · `nosd-hotswap-aios` · `jarbas-cage` · `jarbas-hub` · `seatd`
 
-**Env:** `NOSD_SOCKET` · `NOSD_DATA_DIR` · `NOSD_S1_BACKEND` · `NOSD_S1_BLOB` · `NOSD_LANDLOCK` · `NOSD_LLAMA_CLI` · `NOSD_LLAMA_NGL` · `NOSD_HERMES_TICK_SECS` · `NOSD_MESH_BIND` · `NOSD_ORB_LAB` · `NOSD_AUTOLEARN` · `NOSD_MEMORY_BACKEND` · `NOSD_LOCALE`
+**Env:** `NOSD_SOCKET` · `NOSD_DATA_DIR` · `NOSD_S1_BACKEND` · `NOSD_S1_BLOB` · `NOSD_LANDLOCK` · `NOSD_LLAMA_CLI` · `NOSD_LLAMA_NGL` · `NOSD_HERMES_TICK_SECS` · `NOSD_MESH_BIND` · `NOSD_MESH_PEERS` · `NOSD_ORB_LAB` · `NOSD_AUTOLEARN` · `NOSD_MEMORY_BACKEND` · `NOSD_LOCALE`
 
 ---
 

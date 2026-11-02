@@ -170,7 +170,13 @@ fn bootstrap_file_ok(path: &Path, supplied: &str, daemon_uid: u32) -> bool {
 /// emitido por `ui.action` sobre uma janela aberta pelo servidor (kind-bound,
 /// single-use, TTL). `hitl_confirmed` do cliente é **ignorado** — nem root o
 /// transforma em consentimento (root já tem NIX_WRITE, mas não HITL).
+///
+/// Lab (`NOSD_HITL_LAB=1` / `NOSD_ENV=dev|test|lab`): grant auto-ok (sem
+/// nonce). ISO/prod sem env = fail-closed.
 fn hitl_grant_ok(state: &AppState, req: &Request, kind: &str) -> bool {
+    if nos_core::hitl_lab_from_env() {
+        return true;
+    }
     match req.params.get("confirm_id").and_then(|v| v.as_str()) {
         Some(id) => state.hitl.consume(id, kind),
         None => false,
@@ -552,6 +558,26 @@ fn method_domain(method: &str) -> Option<ActDomain> {
     })
 }
 
+/// F4: handlers bloqueiam (piper/aplay/whisper/thread joins). Correr o
+/// `dispatch` no pool de blocking para não prender um worker async — no kiosk
+/// a ligação é keep-alive e um TTS de 20 s congelava o ORB.
+pub(crate) async fn dispatch_blocking(
+    state: Arc<AppState>,
+    auth: AuthContext,
+    req: Request,
+) -> Response {
+    let id = req.id;
+    match tokio::task::spawn_blocking(move || dispatch(&state, &auth, req)).await {
+        Ok(resp) => resp,
+        Err(e) => Response {
+            id,
+            ok: false,
+            error: Some(format!("rpc task failed: {e}")),
+            result: serde_json::Value::Null,
+        },
+    }
+}
+
 async fn handle_stream<S>(
     mut sock: S,
     state: Arc<AppState>,
@@ -571,7 +597,7 @@ where
         while let Some((body, consumed)) = take_frame(&acc)? {
             acc.drain(..consumed);
             let req: Request = decode_body(&body)?;
-            let resp = dispatch(&state, &auth, req);
+            let resp = dispatch_blocking(state.clone(), auth, req).await;
             sock.write_all(&encode(&resp)?).await?;
         }
     }
@@ -631,7 +657,13 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
     let quota_peer = quota_peer_key(auth, auth_gen);
     let current_gen = state.ipc_generation();
     let gate = state.caps.gate_for(profile, auth_gen);
-    let need = req.required_cap();
+    let hitl_lab = nos_core::hitl_lab_from_env();
+    // Lab: CapGate não exige o bit HITL (ainda exige MEMORY/FS/NET/…).
+    let need = if hitl_lab {
+        req.required_cap().without_hitl()
+    } else {
+        req.required_cap()
+    };
     if need.0 != 0 {
         if let Err(e) = gate.allow(need, current_gen) {
             note_capgate_deny(profile, &req.method, e);
@@ -688,8 +720,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
             } else {
                 grant_kind_for(dom)
             };
+            // Lab HITL soft OU NOSD_NIX_AUTO_SWITCH (só NixSwitch legado).
             if !hitl_grant_ok(state, &req, want_kind)
-                && !(lab && matches!(dom, ActDomain::NixSwitch))
+                && !(hitl_lab || (lab && matches!(dom, ActDomain::NixSwitch)))
             {
                 return Response {
                     id: req.id,

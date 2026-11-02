@@ -111,12 +111,31 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("query")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            match state.hermes.recall_context(q) {
-                Ok(texts) => Response {
+            let k = req.params.get("k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+            let scope = req.params.get("scope").and_then(|v| v.as_str());
+            let mode = nos_memory::RecallMode::parse(
+                req.params
+                    .get("mode")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("lexical"),
+            );
+            match state.hermes.memory.recall_governed(nos_memory::RecallReq {
+                query: q,
+                k,
+                scope,
+                entities: &[],
+                mode,
+                embedding: None,
+                path: None,
+            }) {
+                Ok(hits) => Response {
                     id: req.id,
                     ok: true,
                     error: None,
-                    result: json!(texts),
+                    result: json!({
+                        "api_version": nos_memory::MEMORY_API_VERSION,
+                        "hits": hits,
+                    }),
                 },
                 Err(e) => Response {
                     id: req.id,
@@ -124,6 +143,255 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     error: Some(nos_core::trim_diagnostic(&e.to_string(), true)),
                     result: json!(null),
                 },
+            }
+        }
+        "memory.health" => {
+            let view = req
+                .params
+                .get("view")
+                .and_then(|v| v.as_str())
+                .unwrap_or("era");
+            let ok = state.hermes.memory.health();
+            let detail = state.hermes.memory.health_view(view).ok();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "memory_ok": ok,
+                    "backend": format!("{:?}", state.hermes.memory.backend()),
+                    "api_version": nos_memory::MEMORY_API_VERSION,
+                    "view": detail,
+                }),
+            }
+        }
+        "memory.remember" => {
+            let text = req
+                .params
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if text.is_empty() {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("text required".into()),
+                    result: json!(null),
+                });
+            }
+            let scope = req
+                .params
+                .get("scope")
+                .and_then(|v| v.as_str())
+                .unwrap_or("aios/user")
+                .to_string();
+            let entities: Vec<String> = req
+                .params
+                .get("entities")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_else(|| vec!["mom/fact".into()]);
+            let key = req
+                .params
+                .get("key")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("md/L3/user/{}", uuid::Uuid::new_v4()));
+            // Two-pass: recall gather no mesmo turno antes do remember_user.
+            let mut tok = state.hermes.memory.begin_turn();
+            let _ = state.hermes.memory.recall_gov(
+                &mut tok,
+                nos_memory::RecallReq {
+                    query: text,
+                    k: 3,
+                    scope: Some(scope.as_str()),
+                    entities: &[],
+                    mode: nos_memory::RecallMode::Lexical,
+                    embedding: None,
+                    path: None,
+                },
+            );
+            match state.hermes.memory.remember_user(
+                &tok,
+                nos_memory::MemoryRecord {
+                    key,
+                    text: text.into(),
+                    scope,
+                    entities,
+                },
+            ) {
+                Ok(sk) => Response {
+                    id: req.id,
+                    ok: true,
+                    error: None,
+                    result: json!({ "key": sk }),
+                },
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(nos_core::trim_diagnostic(&e.to_string(), true)),
+                    result: json!(null),
+                },
+            }
+        }
+        "memory.curate" => {
+            let op = req.params.get("op").and_then(|v| v.as_str()).unwrap_or("");
+            let key = req.params.get("key").and_then(|v| v.as_str());
+            match state.hermes.memory.curate(op, key) {
+                Ok(v) => Response {
+                    id: req.id,
+                    ok: true,
+                    error: None,
+                    result: v,
+                },
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(nos_core::trim_diagnostic(&e.to_string(), true)),
+                    result: json!(null),
+                },
+            }
+        }
+        "memory.decide" => Response {
+            id: req.id,
+            ok: false,
+            error: Some("unsupported: decide (host chooses; Hit != order)".into()),
+            result: json!({ "unsupported": true }),
+        },
+        "memory.sync" => {
+            let addr = req
+                .params
+                .get("addr")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if addr.is_empty() {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("memory.sync requer addr (peer mesh JOB_BIND)".into()),
+                    result: json!(null),
+                });
+            }
+            if !state.hermes.memory.telepathy_ready() {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("telepathy unavailable".into()),
+                    result: json!({ "telepathy": "unsupported" }),
+                });
+            }
+            let Some(identity) = state.mesh.identity() else {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("sem identidade de no (mesh)".into()),
+                    result: json!({ "need": "identity" }),
+                });
+            };
+            let max = req.params.get("max").and_then(|v| v.as_u64()).unwrap_or(64) as usize;
+            let local_export = match state.hermes.memory.telepathy_export(max) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Some(Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some(e.to_string()),
+                        result: json!(null),
+                    })
+                }
+            };
+            let payload = json!({
+                "op": "exchange",
+                "records_b64": local_export,
+                "max": max,
+            })
+            .to_string();
+            let pinned = state.mesh.pinned();
+            let id1 = identity.clone();
+            let pin1 = pinned.clone();
+            let a1 = addr.clone();
+            let exchange = std::thread::spawn(move || -> Result<String, String> {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())?;
+                rt.block_on(async move {
+                    let r =
+                        nos_mesh::job::submit_memory(&a1, &id1, &pin1, &payload, 60_000).await?;
+                    if !r.ok {
+                        return Err(r.error.unwrap_or_else(|| "memory.sync peer failed".into()));
+                    }
+                    Ok(r.text)
+                })
+            });
+            let peer_text = match exchange.join() {
+                Ok(Ok(t)) => t,
+                Ok(Err(e)) => {
+                    return Some(Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some(format!("memory.sync: {e}")),
+                        result: json!({ "verified": false }),
+                    })
+                }
+                Err(_) => {
+                    return Some(Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some("memory.sync panic".into()),
+                        result: json!(null),
+                    })
+                }
+            };
+            let peer: serde_json::Value = match serde_json::from_str(&peer_text) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Some(Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some(format!("memory.sync json: {e}")),
+                        result: json!(null),
+                    })
+                }
+            };
+            let inbound: Vec<String> = peer
+                .get("records_b64")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let import = match state.hermes.memory.telepathy_import(&inbound) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Some(Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some(e.to_string()),
+                        result: json!({ "peer": peer }),
+                    })
+                }
+            };
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "telepathy": true,
+                    "addr": addr,
+                    "sent": local_export.len(),
+                    "received": inbound.len(),
+                    "import": import,
+                    "peer_import": peer.get("import").cloned().unwrap_or(json!(null)),
+                    "api_version": nos_memory::MEMORY_API_VERSION,
+                }),
             }
         }
 

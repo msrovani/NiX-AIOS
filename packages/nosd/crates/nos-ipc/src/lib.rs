@@ -74,7 +74,9 @@ impl Request {
             "transmute.run" => CapBits::NET.union(CapBits::FS).union(CapBits::NIX_WRITE),
             "agent.spawn" | "factory.promote" | "factory.seek" | "factory.synthesize"
             | "store.install" | "store.search" | "store.index" => CapBits::AGENT_SPAWN,
-            "memory.remember" | "memory.recall" | "memory.curate" => CapBits::MEMORY,
+            "memory.recall" | "memory.health" => CapBits::NONE,
+            "memory.remember" | "memory.sync" => CapBits::MEMORY,
+            "memory.curate" | "memory.decide" => CapBits::MEMORY.union(CapBits::HITL),
             "nix.propose" | "nix.apply" | "nix.rollback" | "nix.confirm" => CapBits::NIX_WRITE,
             "hw.act" | "audio.act" | "audio.volume" | "gpu.plan" | "observe.snapshot"
             | "policy.matrix" | "device.recipe" => CapBits::OBSERVE,

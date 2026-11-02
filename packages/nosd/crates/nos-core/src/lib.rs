@@ -43,8 +43,8 @@ pub use model_slot::ModelSlot;
 pub use net_util::{broadcast_from_cidr, default_iface_broadcast};
 pub use orb::{OrbPattern, OrbSense, OrbSnapshot, OrbState};
 pub use policy::{
-    disposition, lab_auto_switch_from_env, policy_matrix_prod, with_abstain, ActDisposition,
-    ActDomain,
+    disposition, hitl_lab_from_env, lab_auto_switch_from_env, policy_matrix_prod, with_abstain,
+    ActDisposition, ActDomain,
 };
 pub use proc::{first_existing, nvidia_smi_candidates, nvidia_smi_path, NVIDIA_SMI_NIXOS};
 pub use reported::{reported_rate, ReportedRate, BASIS_NONE, BASIS_OBSERVED};

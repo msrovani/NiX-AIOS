@@ -18,6 +18,23 @@
         "type": "github"
       }
     },
+    "neural-sgdb": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793046827,
+        "narHash": "sha256-9jgTyaNgy+0IPysC/hdmkgxnOYm2hrRiW1MEvyD/LU4=",
+        "owner": "msrovani",
+        "repo": "neural-sgdb",
+        "rev": "ce5a5c70e1cfa50eb73af68f36d856c8a6f2bbf1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "msrovani",
+        "repo": "neural-sgdb",
+        "rev": "ce5a5c70e1cfa50eb73af68f36d856c8a6f2bbf1",
+        "type": "github"
+      }
+    },
     "nixlib": {
       "locked": {
         "lastModified": 1736643958,
@@ -73,6 +90,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "neural-sgdb": "neural-sgdb",
         "nixos-generators": "nixos-generators",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay"

@@ -177,7 +177,7 @@ pub(crate) fn diag_lines(state: &AppState) -> Vec<String> {
     } else if s2_attached {
         format!("PORTA {port} · down · fallback S1")
     } else {
-        format!("PORTA {port} · down · fallback S1")
+        format!("PORTA {port} · down · S2 ausente")
     };
     let soul = std::env::var("NOSD_SOUL_PATH").unwrap_or_else(|_| "/etc/nosd/SOUL.md".into());
     vec![
@@ -220,6 +220,14 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     "mesh": state.mesh.health_json(),
                     "mesh_nodes": state.mesh.topology(),
                     "mesh_peers": state.mesh.peer_count(),
+                    // Seeds unicast configuradas (ADR 0118-mesh-unicast-seeds);
+                    // distinto de mesh_peers (= peers vivos no motor).
+                    "mesh_seeds": std::env::var("NOSD_MESH_PEERS")
+                        .unwrap_or_default()
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>(),
                     "mesh_pinned": state.mesh.pinned_peers(),
                     "mesh_node_id": state.mesh.identity_id(),
                     "fleet_verdict": fleet_verdict.map(|v| v.as_str()),
@@ -492,6 +500,13 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     "landlock": format!("{:?}", crate::landlock::applied_status()),
                     "hermes_tick_secs": std::env::var("NOSD_HERMES_TICK_SECS").unwrap_or_default(),
                     "mesh_bind": std::env::var("NOSD_MESH_BIND").unwrap_or_default(),
+                    "mesh_peers": std::env::var("NOSD_MESH_PEERS").unwrap_or_default(),
+                    "mesh_seeds": std::env::var("NOSD_MESH_PEERS")
+                        .unwrap_or_default()
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>(),
                     "nix_ring_armed": state.nix_ring_armed,
                     "lab_auto_switch": lab_auto_switch_from_env(),
                     "score_weights": weights,

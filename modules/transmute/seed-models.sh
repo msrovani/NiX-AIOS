@@ -19,11 +19,15 @@ if [ ! -w "$DEST" ]; then
   exit 0
 fi
 found=0
-for src in "$MNT"/models/*.gguf "$MNT"/*.gguf; do
+# GGUF (chat) + ggml-*.bin (whisper STT) + piper *.onnx(+json) — offline.
+for src in "$MNT"/models/*.gguf "$MNT"/*.gguf \
+           "$MNT"/models/ggml-*.bin "$MNT"/ggml-*.bin \
+           "$MNT"/models/*.onnx "$MNT"/*.onnx \
+           "$MNT"/models/*.onnx.json "$MNT"/*.onnx.json; do
   [ -f "$src" ] || continue
   name=$(basename "$src")
   case "$name" in
-    *.gguf) ;;
+    *.gguf|ggml-*.bin|*.onnx|*.onnx.json) ;;
     *) continue ;;
   esac
   found=1

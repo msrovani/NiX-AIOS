@@ -136,6 +136,9 @@ pub enum PinError {
     KeyChanged,
     /// seq não monotónico (replay ou reordenação antiga).
     Replay,
+    /// Mesmo seq já aceite: HB duplicado por dois caminhos (broadcast+semente
+    /// unicast). Não é ataque — recusa sem alarme de replay.
+    Duplicate,
     /// Id não corresponde à chave pública.
     IdMismatch,
 }
@@ -232,7 +235,10 @@ impl Pinned {
                 if pin.pk != pk {
                     return Err(PinError::KeyChanged);
                 }
-                if seq <= pin.last_seq {
+                if seq == pin.last_seq {
+                    return Err(PinError::Duplicate);
+                }
+                if seq < pin.last_seq {
                     return Err(PinError::Replay);
                 }
                 pin.last_seq = seq;
@@ -358,7 +364,7 @@ mod tests {
         let p = Pinned::new();
         assert_eq!(p.check(id, &pk, 10), Ok(()));
         assert_eq!(p.check(id, &pk, 11), Ok(()));
-        assert_eq!(p.check(id, &pk, 11), Err(PinError::Replay));
+        assert_eq!(p.check(id, &pk, 11), Err(PinError::Duplicate));
         assert_eq!(p.check(id, &pk, 9), Err(PinError::Replay));
 
         // O id e derivado da chave: outra chave com o mesmo id e impossivel
@@ -399,8 +405,8 @@ mod tests {
         assert_eq!(p2.peer_count(), 1, "pin sobreviveu ao restart");
         assert_eq!(
             p2.check(id, &pk, 11),
-            Err(PinError::Replay),
-            "seq persistido: replay continua a ser recusado"
+            Err(PinError::Duplicate),
+            "seq persistido: mesmo HB visto duas vezes e duplicado, nao replay"
         );
         // Ficheiro forjado com pk que não derive do id: linha ignorada.
         let evil = ident(9);

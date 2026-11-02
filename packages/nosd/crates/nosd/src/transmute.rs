@@ -453,7 +453,9 @@ pub fn execute_transmute(
     // 5. Smoke test de voz (TTS saudação no idioma selecionado)
     let voice_pipe = VoicePipeline::with_models_dir(models_dir.clone());
     let tts_greeting_played = if opts.speak_greeting {
-        voice_pipe.synthesize_wav(&loc.greeting, true).is_ok()
+        voice_pipe
+            .synthesize_wav(&loc.greeting, true)
+            .is_ok_and(|(b, _)| !b.is_empty())
     } else {
         false
     };

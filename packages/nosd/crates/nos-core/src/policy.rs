@@ -88,6 +88,34 @@ pub fn lab_auto_switch_from_env() -> bool {
     }
 }
 
+/// Lab/dev/test: HITL menos rígido (grant auto-ok + bit HITL não exigido no CapGate).
+///
+/// Opt-in explícito — **nunca** default em ISO/prod:
+/// - `NOSD_HITL_LAB=1|true`
+/// - ou `NOSD_ENV=dev|test|lab`
+///
+/// Não remove NIX_WRITE / ring / CapGate de FS|NET. `hitl_confirmed` do
+/// cliente continua ignorado; só o servidor relaxa a exigência de `confirm_id`.
+pub fn hitl_lab_from_env() -> bool {
+    if env_truthy("NOSD_HITL_LAB") {
+        return true;
+    }
+    match std::env::var("NOSD_ENV") {
+        Ok(v) => {
+            let v = v.to_ascii_lowercase();
+            matches!(v.as_str(), "dev" | "test" | "lab")
+        }
+        Err(_) => false,
+    }
+}
+
+fn env_truthy(key: &str) -> bool {
+    match std::env::var(key) {
+        Ok(v) => v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes"),
+        Err(_) => false,
+    }
+}
+
 /// Matriz canónica (domínio → disposition em prod, lab_auto_switch=false).
 pub fn policy_matrix_prod() -> Vec<(ActDomain, ActDisposition)> {
     use ActDomain::*;
@@ -141,6 +169,31 @@ mod tests {
             disposition(ActDomain::NixSwitch, true),
             ActDisposition::Auto
         );
+    }
+
+    #[test]
+    fn hitl_lab_env_opt_in() {
+        // Isolamento: limpar e restaurar.
+        let prev_lab = std::env::var("NOSD_HITL_LAB").ok();
+        let prev_env = std::env::var("NOSD_ENV").ok();
+        std::env::remove_var("NOSD_HITL_LAB");
+        std::env::remove_var("NOSD_ENV");
+        assert!(!hitl_lab_from_env());
+        std::env::set_var("NOSD_HITL_LAB", "1");
+        assert!(hitl_lab_from_env());
+        std::env::remove_var("NOSD_HITL_LAB");
+        std::env::set_var("NOSD_ENV", "dev");
+        assert!(hitl_lab_from_env());
+        std::env::set_var("NOSD_ENV", "prod");
+        assert!(!hitl_lab_from_env());
+        match prev_lab {
+            Some(v) => std::env::set_var("NOSD_HITL_LAB", v),
+            None => std::env::remove_var("NOSD_HITL_LAB"),
+        }
+        match prev_env {
+            Some(v) => std::env::set_var("NOSD_ENV", v),
+            None => std::env::remove_var("NOSD_ENV"),
+        }
     }
 
     #[test]

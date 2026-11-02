@@ -8,9 +8,12 @@
     flake-utils.url = "github:numtide/flake-utils";
     nixos-generators.url = "github:nix-community/nixos-generators";
     nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
+    # F0c: pin neural-sgdb (ver docs/NSGDB_VERSION.md)
+    neural-sgdb.url = "github:msrovani/neural-sgdb/ce5a5c70e1cfa50eb73af68f36d856c8a6f2bbf1";
+    neural-sgdb.flake = false;
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, nixos-generators, ... }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, nixos-generators, neural-sgdb, ... }:
     let
       systems = [ "x86_64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -28,17 +31,23 @@
           };
           nosdPkg = pkgs.rustPlatform.buildRustPackage {
             pname = "nosd";
-            version = "0.7.0-alpha.4";
+            version = "0.7.0-alpha.5";
             # Sem filtro, `cargo test` no host deixa packages/nosd/target/
             # (GBs) e o Nix copia-o read-only para a store; o build seguinte
             # rebenta com "cp: ... target/...: Read-only file system".
-            src = builtins.path {
-              path = ./packages/nosd;
-              name = "nosd-src";
-              filter = path: _type:
-                let n = builtins.baseNameOf path; in
-                n != "target" && n != ".direnv" && n != "result";
-            };
+            # F0: inject neural-sgdb pin into vendor/ before cargo build.
+            src = pkgs.runCommand "nosd-src" { } ''
+              mkdir -p $out
+              cp -r ${builtins.path {
+                path = ./packages/nosd;
+                name = "nosd-tree";
+                filter = path: _type:
+                  let n = builtins.baseNameOf path; in
+                  n != "target" && n != ".direnv" && n != "result" && n != "vendor";
+              }}/* $out/
+              mkdir -p $out/vendor
+              cp -r ${neural-sgdb} $out/vendor/neural-sgdb
+            '';
             cargoLock.lockFile = ./packages/nosd/Cargo.lock;
             # Onda 5: JARBAS Slint no binário ISO (cage --ui).
             # nixpkgs 26.11 removeu cargoExtraArgs (era ignorado em silêncio →
@@ -135,6 +144,41 @@
           qwen35-9b-q4km = pkgs.fetchurl {
             url = "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf";
             hash = "sha256-A7dHJ6hgpWM44ELEQguz8Esv7Fc0F19MufqFPa9St+g=";
+          };
+          # STT offline (whisper.cpp): sem isto o cinematic entra em
+          # listening e falha no voice.stt (ModelAbsent ggml-base).
+          ggml-tiny = pkgs.fetchurl {
+            url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin";
+            hash = "sha256-vgfgSOHlma1GNByNKhNWRQl6U4IhZ4t6zdGxkZxuGyE=";
+          };
+          # TTS offline (piper): voz pt_BR-faber-medium; binário = pkgs.piper-tts.
+          # Sem onnx o nos-voice cai em espeak-ng (robótico) ou EngineAbsent.
+          piper-pt-br-faber-medium-onnx = pkgs.fetchurl {
+            url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx";
+            hash = "sha256-hYVV46BkIJxXCI/mvXDEw9xU0D6qAMRdXsr0OjP5Wqc=";
+          };
+          piper-pt-br-faber-medium-json = pkgs.fetchurl {
+            url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json";
+            hash = "sha256-fmlN4ZWuP8Nt1zLEResE+0m2SYVIk8tVBrl48NUKHW8=";
+          };
+          # Binário rhasspy/piper release (libs+espeak-data). Evita pkgs.piper-tts
+          # (dep pyopenjtalk-plus falha no check em nixpkgs actual).
+          piper-standalone = pkgs.stdenvNoCC.mkDerivation {
+            pname = "piper-standalone";
+            version = "2023.11.14-2";
+            src = pkgs.fetchurl {
+              url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz";
+              hash = "sha256-pQy0XzVbevH211jBs2BxeHe6CjmMyMvm0qejom4iWZI=";
+            };
+            dontConfigure = true;
+            dontBuild = true;
+            dontFixup = true;
+            installPhase = ''
+              mkdir -p $out
+              # unpackPhase já entra em sourceRoot=piper/; conteúdo → $out
+              # (L+ /var/lib/nosd/models/piper → $out/piper)
+              cp -a . "$out/"
+            '';
           };
         } // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           # Convenience: nix build .#iso (from WSL/Linux)
@@ -412,6 +456,40 @@ PY
               fi
               if ! ${pkgs.gnugrep}/bin/grep -Fq 'install -d -m 0700 -o nosd -g nosd /run/nosd/user' <<<"$PRE"; then
                 echo "missing root install of /run/nosd/user in ExecStartPre: $PRE" >&2; exit 1
+              fi
+              touch $out
+            '';
+
+          # Cinematic: Chromium/PipeWire correm no unit jarbas-cage. Sem
+          # char-alsa o getUserMedia e o WebAudio (TTS no browser) morrem
+          # com DevicePolicy=closed — sintoma "MIC OFF / sem som".
+          jarbas-cage-alsa-deviceallow =
+            let
+              cfg = nixpkgs.lib.nixosSystem {
+                system = "x86_64-linux";
+                modules = [
+                  self.nixosModules.neural-os
+                  self.nixosModules.jarbas-cage
+                  (_: {
+                    services.nosd.enable = true;
+                    services.jarbasCage = {
+                      enable = true;
+                      uiMode = "cinematic";
+                      autoStart = false;
+                    };
+                  })
+                ];
+              };
+            in
+            pkgs.runCommand "test-jarbas-cage-alsa-deviceallow" {
+              nativeBuildInputs = [ pkgs.gnugrep ];
+              DA = builtins.toJSON cfg.config.systemd.services.jarbas-cage.serviceConfig.DeviceAllow;
+            } ''
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-alsa rw"' <<<"$DA"; then
+                echo "missing char-alsa rw in jarbas-cage DeviceAllow (mic/TTS browser): $DA" >&2; exit 1
+              fi
+              if ! ${pkgs.gnugrep}/bin/grep -Fq '"char-video4linux rw"' <<<"$DA"; then
+                echo "missing char-video4linux rw in jarbas-cage DeviceAllow: $DA" >&2; exit 1
               fi
               touch $out
             '';

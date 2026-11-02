@@ -466,3 +466,15 @@ Verified; ring desarmado por omissao mantem a assertion negativa. Evidencia:
 `docs/evidence/G1_VM_REPROOF_0.6.0-alpha.13.md` (drv fixado). Soma: nixaios-ring
 OBSERVED. VM externo (Q-03 = GitHub) pendente de combinar repeticião,
 VERIFIED = 3x.
+
+
+**Mesh unicast seeds (2026-11-02):** `--mesh-peer` / `NOSD_MESH_PEERS` /
+`services.nosd.meshPeers` (ADR `0118-mesh-unicast-seeds`). HB, extras de tick,
+FRAG e FRACK passam a ir para broadcast + N sementes (dedupe); semente inválida
+aborta o arranque (fail-closed). OBSERVED em host: duas instâncias reais com o
+broadcast numa porta fechada, `targets=2 peers=1`, `mesh_seeds` populado e
+`pk_bound=true`; teste loopback passa em Linux (943 testes) e Windows MSVC
+(nos-mesh, 57). `nixaios-iso.extendModules` avalia `ExecStart` + env corretos;
+sem sementes o unit fica byte-idêntico. Not-tested: nix build da ISO/unidade,
+QEMU `mesh-*`, metal, Wi-Fi com AP isolation real. Evidência:
+`docs/evidence/MESH_UNICAST_SEEDS_0.7.0-alpha.5.md`.
