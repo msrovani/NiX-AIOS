@@ -1,0 +1,20 @@
+a # [    5.619330] systemd[1]: Queued start job for default target Initrd Default Target.
+b # [    5.635096] systemd[1]: Queued start job for default target Initrd Default Target.
+a # [   12.884739] ehci-pci 0000:00:1d.7: new USB bus registered, assigned bus number 1
+b # [   12.910163] ehci-pci 0000:00:1d.7: new USB bus registered, assigned bus number 1
+a # [   12.959813] uhci_hcd 0000:00:1d.0: new USB bus registered, assigned bus number 2
+b # [   13.006055] uhci_hcd 0000:00:1d.0: new USB bus registered, assigned bus number 2
+a # [   13.017106] uhci_hcd 0000:00:1d.1: new USB bus registered, assigned bus number 3
+b # [   13.080287] uhci_hcd 0000:00:1d.1: new USB bus registered, assigned bus number 3
+a # [   13.088884] uhci_hcd 0000:00:1d.2: new USB bus registered, assigned bus number 4
+b # [   13.134868] uhci_hcd 0000:00:1d.2: new USB bus registered, assigned bus number 4
+b # [   29.408832] systemd[1]: systemd-journald.service: Scheduled restart job, restart counter is at 1.
+a # [   29.410859] systemd[1]: systemd-journald.service: Scheduled restart job, restart counter is at 1.
+a # [   33.251806] systemd[1]: Queued start job for default target Multi-User System.
+b # [   33.463787] systemd[1]: Queued start job for default target Multi-User System.
+a # [   46.290570] nosd[446]: 2026-11-02T06:09:56.830757Z  INFO nosd: crdt log "/var/lib/nosd/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+a # [   46.322193] nosd[446]: 2026-11-02T06:09:56.834997Z  INFO nosd: NOSD_SCORE phase=ready sev=Ok hub=0 mem=1 peers=0 s1=keyword llama=absent+engine=boot ll=Verified | nosd scaffold up
+b # [   46.364488] nosd[451]: 2026-11-02T06:09:56.893504Z  INFO nosd: crdt log "/var/lib/nosd/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+a # [   46.399596] nosd[446]: 2026-11-02T06:09:56.843507Z  INFO nosd: skill quota signed=true (chave do no via NOSD_MESH_KEY/NOSD_MESH_REQUIRE_SIG)
+b # [   46.387799] nosd[451]: 2026-11-02T06:09:56.898388Z  INFO nosd: NOSD_SCORE phase=ready sev=Ok hub=0 mem=1 peers=0 s1=keyword llama=absent+engine=boot ll=Verified | nosd scaffold up
+a # [   46.431427] nosd[446]: 2026-11-02T06:09:56.853320Z  INFO nosd: mesh udp bind=0.0.0.0:19000 broadcast=192.168.50.255:19000 targets=1 peers=0

@@ -147,11 +147,14 @@ impl NeuralStore {
                 db.forget(key).map_err(|e| GovError::Store(e.to_string()))?;
                 Ok(serde_json::json!({ "ok": true, "op": "forget", "key": key }))
             }
+            // N1: estas ops não correm no daemon — ok:false + performed:false
+            // (ADR-0113: não reportar sucesso de trabalho não feito).
             "expire_old" | "decay" | "consolidate_recurrences" => Ok(serde_json::json!({
-                "ok": true,
+                "ok": false,
+                "performed": false,
                 "op": op,
                 "key": key,
-                "note": "scheduled_host_side"
+                "note": "host_side_not_executed"
             })),
             _ => Err(GovError::Unsupported("curate op")),
         }
@@ -192,22 +195,42 @@ impl NeuralStore {
     }
 
     /// Import records remotos via `merge_remote` (conflitos preservados).
-    pub fn import_records_b64(&self, items: &[String]) -> Result<(usize, usize, usize), GovError> {
+    /// Retorno: `(applied, conflict, rejected, duplicate)` — Duplicate não
+    /// inflaciona `applied` (N2 / ADR-0113).
+    pub fn import_records_b64(
+        &self,
+        items: &[String],
+    ) -> Result<(usize, usize, usize, usize), GovError> {
         use neural_sgdb::{MemoryRecord as NsgRec, MergeVerdict};
+        if items.len() > crate::TELEPATHY_MAX_INBOUND {
+            return Err(GovError::Store(format!(
+                "telepathy: {} records inbound > {}",
+                items.len(),
+                crate::TELEPATHY_MAX_INBOUND
+            )));
+        }
         let mut db = self.db.lock();
         let mut applied = 0usize;
         let mut conflict = 0usize;
         let mut rejected = 0usize;
+        let mut duplicate = 0usize;
         for b64 in items {
             let bytes = B64
                 .decode(b64.trim())
                 .map_err(|e| GovError::Store(format!("b64: {e}")))?;
             let rec = NsgRec::decode(&bytes).map_err(|e| GovError::Store(e.into()))?;
+            // Paridade com `export_records_b64`: a doutrina de cada nó não
+            // viaja (um peer não a pode substituir).
+            if rec.doc.key.contains("nsgdb/doctrine") {
+                rejected += 1;
+                continue;
+            }
             match db
                 .merge_remote(rec)
                 .map_err(|e| GovError::Store(e.to_string()))?
             {
-                MergeVerdict::Applied | MergeVerdict::Duplicate => applied += 1,
+                MergeVerdict::Applied => applied += 1,
+                MergeVerdict::Duplicate => duplicate += 1,
                 MergeVerdict::Conflict => conflict += 1,
                 MergeVerdict::Rejected
                 | MergeVerdict::Stale
@@ -215,7 +238,7 @@ impl NeuralStore {
                 | MergeVerdict::RejectedByAuthority => rejected += 1,
             }
         }
-        Ok((applied, conflict, rejected))
+        Ok((applied, conflict, rejected, duplicate))
     }
 }
 

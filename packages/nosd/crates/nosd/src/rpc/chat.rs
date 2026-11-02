@@ -242,12 +242,26 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
             let op = req.params.get("op").and_then(|v| v.as_str()).unwrap_or("");
             let key = req.params.get("key").and_then(|v| v.as_str());
             match state.hermes.memory.curate(op, key) {
-                Ok(v) => Response {
-                    id: req.id,
-                    ok: true,
-                    error: None,
-                    result: v,
-                },
+                // N1: espelhar result.ok — expire/decay/consolidate devolvem
+                // ok:false+performed:false sem fingir sucesso no nosctl.
+                Ok(v) => {
+                    let ok = v.get("ok").and_then(|x| x.as_bool()).unwrap_or(true);
+                    Response {
+                        id: req.id,
+                        ok,
+                        error: if ok {
+                            None
+                        } else {
+                            Some(
+                                v.get("note")
+                                    .and_then(|n| n.as_str())
+                                    .unwrap_or("curate not performed")
+                                    .into(),
+                            )
+                        },
+                        result: v,
+                    }
+                }
                 Err(e) => Response {
                     id: req.id,
                     ok: false,

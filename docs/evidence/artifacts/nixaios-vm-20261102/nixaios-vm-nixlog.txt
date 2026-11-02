@@ -1,0 +1,13 @@
+machine # [  119.285888] nosd[546]: 2026-11-02T05:58:06.053093Z  INFO nosd: infer engine=llama-server-http latency_ms=49812 ok=true
+machine # [  173.151494] nosd[546]: 2026-11-02T05:58:59.929731Z  INFO nosd: infer engine=llama-server-http latency_ms=48283 ok=true
+machine: must succeed: /nix/store/ipfaack1wl4y5gv75pzvldwzqgw75293-nosd-0.7.0-alpha.5/bin/nosctl --socket /run/nosd/nosd.sock voice-status | grep -q Ready
+machine: (finished: must succeed: /nix/store/ipfaack1wl4y5gv75pzvldwzqgw75293-nosd-0.7.0-alpha.5/bin/nosctl --socket /run/nosd/nosd.sock voice-status | grep -q Ready, in 0.37 seconds)
+machine: waiting for file '/var/lib/nosd/mesh-crdt/seg.anchor'
+machine: (finished: waiting for file '/var/lib/nosd/mesh-crdt/seg.anchor', in 0.25 seconds)
+machine: must succeed: test "$(wc -w < /var/lib/nosd/mesh-crdt/seg.anchor)" = 3
+machine: (finished: must succeed: test "$(wc -w < /var/lib/nosd/mesh-crdt/seg.anchor)" = 3, in 0.26 seconds)
+machine: must succeed: test -e /var/lib/nosd/keys/pins.dat
+machine: (finished: must succeed: test -e /var/lib/nosd/keys/pins.dat, in 0.18 seconds)
+machine: must succeed: test -s /var/lib/nosd/keys/hb.seq
+machine: (finished: must succeed: test -s /var/lib/nosd/keys/hb.seq, in 0.19 seconds)
+test script finished in 184.08s

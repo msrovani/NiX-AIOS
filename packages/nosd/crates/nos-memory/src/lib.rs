@@ -460,18 +460,26 @@ impl NosMemory {
     /// F7 telepathy: import bundle do peer (merge).
     pub fn telepathy_import(&self, items: &[String]) -> Result<serde_json::Value, GovError> {
         let _g = self.lock.lock();
+        if items.len() > TELEPATHY_MAX_INBOUND {
+            return Err(GovError::Store(format!(
+                "telepathy: {} records inbound > {TELEPATHY_MAX_INBOUND}",
+                items.len()
+            )));
+        }
         match self.storage.as_ref() {
             Storage::Neural(n) => {
-                let (applied, conflict, rejected) = n.import_records_b64(items)?;
+                let (applied, conflict, rejected, duplicate) = n.import_records_b64(items)?;
                 Ok(serde_json::json!({
                     "applied": applied,
                     "conflict": conflict,
                     "rejected": rejected,
+                    "duplicate": duplicate,
                     "backend": "neural",
                 }))
             }
             Storage::Legacy(store) => {
                 let mut applied = 0usize;
+                let mut rejected = 0usize;
                 for b64 in items {
                     let bytes = base64::Engine::decode(
                         &base64::engine::general_purpose::STANDARD,
@@ -480,6 +488,10 @@ impl NosMemory {
                     .map_err(|e| GovError::Store(format!("b64: {e}")))?;
                     let rec: MemoryRecord = serde_json::from_slice(&bytes)
                         .map_err(|e| GovError::Store(e.to_string()))?;
+                    if !inbound_allowed(&rec) {
+                        rejected += 1;
+                        continue;
+                    }
                     store
                         .remember(rec)
                         .map_err(|e| GovError::Io(e.to_string()))?;
@@ -488,12 +500,14 @@ impl NosMemory {
                 Ok(serde_json::json!({
                     "applied": applied,
                     "conflict": 0,
-                    "rejected": 0,
+                    "rejected": rejected,
+                    "duplicate": 0,
                     "backend": "nsgdb_legacy",
                 }))
             }
             Storage::Jsonl(path) => {
                 let mut applied = 0usize;
+                let mut rejected = 0usize;
                 let mut f = OpenOptions::new()
                     .append(true)
                     .open(path)
@@ -506,6 +520,10 @@ impl NosMemory {
                     .map_err(|e| GovError::Store(format!("b64: {e}")))?;
                     let rec: MemoryRecord = serde_json::from_slice(&bytes)
                         .map_err(|e| GovError::Store(e.to_string()))?;
+                    if !inbound_allowed(&rec) {
+                        rejected += 1;
+                        continue;
+                    }
                     let line =
                         serde_json::to_string(&rec).map_err(|e| GovError::Store(e.to_string()))?;
                     writeln!(f, "{line}").map_err(|e| GovError::Io(e.to_string()))?;
@@ -514,7 +532,8 @@ impl NosMemory {
                 Ok(serde_json::json!({
                     "applied": applied,
                     "conflict": 0,
-                    "rejected": 0,
+                    "rejected": rejected,
+                    "duplicate": 0,
                     "backend": "jsonl",
                 }))
             }
@@ -528,18 +547,28 @@ impl NosMemory {
         max_export: usize,
     ) -> Result<serde_json::Value, GovError> {
         let _g = self.lock.lock();
+        // Fail-closed: o export tem teto 256; o import também. Sem isto um
+        // peer podia mandar um lote arbitrario num único payload.
+        if inbound_b64.len() > TELEPATHY_MAX_INBOUND {
+            return Err(GovError::Store(format!(
+                "telepathy: {} records inbound > {TELEPATHY_MAX_INBOUND}",
+                inbound_b64.len()
+            )));
+        }
         let import = match self.storage.as_ref() {
             Storage::Neural(n) => {
-                let (applied, conflict, rejected) = n.import_records_b64(inbound_b64)?;
+                let (applied, conflict, rejected, duplicate) = n.import_records_b64(inbound_b64)?;
                 serde_json::json!({
                     "applied": applied,
                     "conflict": conflict,
                     "rejected": rejected,
+                    "duplicate": duplicate,
                     "backend": "neural",
                 })
             }
             Storage::Legacy(store) => {
                 let mut applied = 0usize;
+                let mut rejected = 0usize;
                 for b64 in inbound_b64 {
                     let bytes = base64::Engine::decode(
                         &base64::engine::general_purpose::STANDARD,
@@ -548,6 +577,10 @@ impl NosMemory {
                     .map_err(|e| GovError::Store(format!("b64: {e}")))?;
                     let rec: MemoryRecord = serde_json::from_slice(&bytes)
                         .map_err(|e| GovError::Store(e.to_string()))?;
+                    if !inbound_allowed(&rec) {
+                        rejected += 1;
+                        continue;
+                    }
                     store
                         .remember(rec)
                         .map_err(|e| GovError::Io(e.to_string()))?;
@@ -556,12 +589,14 @@ impl NosMemory {
                 serde_json::json!({
                     "applied": applied,
                     "conflict": 0,
-                    "rejected": 0,
+                    "rejected": rejected,
+                    "duplicate": 0,
                     "backend": "nsgdb_legacy",
                 })
             }
             Storage::Jsonl(path) => {
                 let mut applied = 0usize;
+                let mut rejected = 0usize;
                 let mut f = OpenOptions::new()
                     .append(true)
                     .open(path)
@@ -574,6 +609,10 @@ impl NosMemory {
                     .map_err(|e| GovError::Store(format!("b64: {e}")))?;
                     let rec: MemoryRecord = serde_json::from_slice(&bytes)
                         .map_err(|e| GovError::Store(e.to_string()))?;
+                    if !inbound_allowed(&rec) {
+                        rejected += 1;
+                        continue;
+                    }
                     let line =
                         serde_json::to_string(&rec).map_err(|e| GovError::Store(e.to_string()))?;
                     writeln!(f, "{line}").map_err(|e| GovError::Io(e.to_string()))?;
@@ -582,7 +621,8 @@ impl NosMemory {
                 serde_json::json!({
                     "applied": applied,
                     "conflict": 0,
-                    "rejected": 0,
+                    "rejected": rejected,
+                    "duplicate": 0,
                     "backend": "jsonl",
                 })
             }
@@ -658,6 +698,14 @@ impl NosMemory {
             "memory_ok": self.health(),
         }))
     }
+}
+
+/// Teto de records por mensagem de telepathy (paridade com o export).
+pub(crate) const TELEPATHY_MAX_INBOUND: usize = 256;
+
+/// Doutrina não viaja entre nós (paridade com o filtro do export).
+fn inbound_allowed(rec: &MemoryRecord) -> bool {
+    !rec.key.contains("nsgdb/doctrine")
 }
 
 fn filter_scope(records: Vec<MemoryRecord>, scope: Option<&str>) -> Vec<MemoryRecord> {
@@ -848,6 +896,93 @@ mod tests {
         assert_eq!(scoped.len(), 1);
     }
 
+    fn b64_rec(rec: &MemoryRecord) -> String {
+        let j = serde_json::to_vec(rec).unwrap();
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, j)
+    }
+
+    #[test]
+    fn telepathy_rejects_doctrine_on_import() {
+        for kind in [Kind::NsgdbLegacy, Kind::Jsonl] {
+            let d = tempdir().unwrap();
+            let m = NosMemory::open_with_backend(d.path(), kind).unwrap();
+            let rec = MemoryRecord {
+                key: "md/L4/nsgdb/doctrine".into(),
+                text: "doutrina falsa".into(),
+                scope: "nsgdb/doctrine".into(),
+                entities: vec!["mom/doctrine".into()],
+            };
+            let out = m.telepathy_exchange(&[b64_rec(&rec)], 0).unwrap();
+            assert_eq!(out["import"]["rejected"], 1, "{kind:?}");
+            assert_eq!(out["import"]["applied"], 0, "{kind:?}");
+            let direct = m.telepathy_import(&[b64_rec(&rec)]).unwrap();
+            assert_eq!(direct["rejected"], 1, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn telepathy_rejects_oversize_inbound() {
+        let d = tempdir().unwrap();
+        let m = NosMemory::open_with_backend(d.path(), Kind::Jsonl).unwrap();
+        let items = vec!["e30=".to_string(); TELEPATHY_MAX_INBOUND + 1];
+        assert!(matches!(
+            m.telepathy_exchange(&items, 0),
+            Err(GovError::Store(_))
+        ));
+        assert!(matches!(m.telepathy_import(&items), Err(GovError::Store(_))));
+    }
+
+    /// N1: expire/decay/consolidate não fingem sucesso (performed:false).
+    #[test]
+    fn curate_host_side_ops_not_performed() {
+        let d = tempdir().unwrap();
+        let m = NosMemory::open_with_backend(d.path(), Kind::Neural).unwrap();
+        for op in ["expire_old", "decay", "consolidate_recurrences"] {
+            let v = m.curate(op, Some("md/L3/any")).unwrap();
+            assert_eq!(v["ok"], false, "{op}");
+            assert_eq!(v["performed"], false, "{op}");
+        }
+        // forget continua ok:true (op real).
+        let forget = m.curate("forget", Some("md/L3/missing-key-ok"));
+        // chave ausente pode Err ou ok conforme backend; se Ok, ok=true.
+        if let Ok(v) = forget {
+            assert_eq!(v["ok"], true);
+        }
+    }
+
+    /// N2: Duplicate não conta como applied.
+    #[test]
+    fn telepathy_duplicate_not_counted_as_applied() {
+        let a = tempdir().unwrap();
+        let b = tempdir().unwrap();
+        let ma = NosMemory::open_with_backend(a.path(), Kind::Neural).unwrap();
+        let mb = NosMemory::open_with_backend(b.path(), Kind::Neural).unwrap();
+        ma.remember_system(MemoryRecord {
+            key: "fleet/dup-probe".into(),
+            text: "ssid lab-dup na frota".into(),
+            scope: "aios/fleet".into(),
+            entities: vec!["mom/fact".into()],
+        })
+        .unwrap();
+        let exp = ma.telepathy_export(32).unwrap();
+        assert!(!exp.is_empty());
+        let first = mb.telepathy_import(&exp).unwrap();
+        assert!(
+            first["applied"].as_u64().unwrap_or(0) >= 1,
+            "first import applies: {first}"
+        );
+        let second = mb.telepathy_import(&exp).unwrap();
+        assert_eq!(
+            second["applied"].as_u64().unwrap_or(1),
+            0,
+            "re-import must not inflate applied: {second}"
+        );
+        assert!(
+            second["duplicate"].as_u64().unwrap_or(0) >= 1,
+            "re-import must count duplicate: {second}"
+        );
+    }
+
     #[test]
     fn fifo_evict_jsonl() {
         let d = tempdir().unwrap();
@@ -1013,5 +1148,25 @@ mod tests {
         assert!(!scoped.is_empty(), "scoped neural deve ver facto");
         let cs = m.cold_start().unwrap();
         assert_eq!(cs["api_version"], MEMORY_API_VERSION);
+    }
+
+
+    /// Cap 256: lote oversized recusado antes de escrever.
+    #[test]
+    fn telepathy_rejects_inbound_over_cap() {
+        let d = tempdir().unwrap();
+        let m = NosMemory::open_with_backend(d.path(), Kind::NsgdbLegacy).unwrap();
+        let one = b64_rec(&MemoryRecord {
+            key: "ok/fact".into(),
+            text: "scoped".into(),
+            scope: "aios/fleet".into(),
+            entities: vec!["mom/fact".into()],
+        });
+        let lot = vec![one; TELEPATHY_MAX_INBOUND + 1];
+        let err = m.telepathy_import(&lot).unwrap_err();
+        assert!(
+            matches!(err, GovError::Store(ref s) if s.contains("inbound")),
+            "expected inbound cap Store, got {err:?}"
+        );
     }
 }

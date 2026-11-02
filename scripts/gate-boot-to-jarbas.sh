@@ -239,6 +239,91 @@ if want M3f || want M3; then
   fi
 fi
 
+# --- M3b-audio (opt-in; FORA de REQUIRED_STAGES) ---
+# ANVIL-0023 / ADR-0128: prova real de som/MIC. Sem NIXAIOS_GATE_AUDIO=1 (ou
+# --stage M3b-audio) este bloco não corre — o gate default/MQEMU não muda.
+# Sem as 4 provas → SKIP AWAITING_HW, nunca PASS (ADR-0113).
+# NÃO usar `want` aqui: STAGE=ALL faria este bloco correr em todo gate default.
+if [[ "${NIXAIOS_GATE_AUDIO:-}" == "1" ]] || [[ "$STAGE" == "M3b-audio" ]]; then
+  audio_ok=1
+  detail_parts=()
+  if command -v aplay >/dev/null 2>&1 && aplay -l 2>/dev/null | grep -q 'card [0-9]'; then
+    detail_parts+=("aplay_card")
+  else
+    audio_ok=0
+    detail_parts+=("aplay_card_absent")
+  fi
+  if out="$(rpc voice-tts 'gate-audio-probe' 2>/dev/null)"; then
+    play_ok="$(echo "$out" | python3 -c "
+import sys, json
+raw = sys.stdin.read()
+try:
+  j = json.loads(raw)
+except Exception:
+  print('absent'); raise SystemExit(0)
+r = j.get('result') if isinstance(j, dict) else None
+if not isinstance(r, dict):
+  r = j if isinstance(j, dict) else {}
+v = r.get('play_ok')
+print('true' if v is True else ('false' if v is False else 'absent'))
+" 2>/dev/null || echo absent)"
+    if [[ "$play_ok" == "true" ]]; then
+      detail_parts+=("tts_play_ok")
+    else
+      audio_ok=0
+      detail_parts+=("tts_play_ok=${play_ok}")
+    fi
+  else
+    audio_ok=0
+    detail_parts+=("tts_unreachable")
+  fi
+  if out="$(rpc voice-turn --prompt 'gate-audio-stt' 2>/dev/null)"; then
+    stt_text="$(echo "$out" | python3 -c "
+import sys, json
+raw = sys.stdin.read()
+try:
+  j = json.loads(raw)
+except Exception:
+  print(''); raise SystemExit(0)
+r = j.get('result') if isinstance(j, dict) else None
+if not isinstance(r, dict):
+  r = j if isinstance(j, dict) else {}
+for k in ('text', 'transcript', 'stt', 'reply'):
+  v = r.get(k)
+  if isinstance(v, str) and v.strip():
+    print(v.strip()[:80]); raise SystemExit(0)
+print('')
+" 2>/dev/null || true)"
+    if [[ -n "${stt_text:-}" ]]; then
+      detail_parts+=("stt_nonempty")
+    else
+      audio_ok=0
+      detail_parts+=("stt_empty")
+    fi
+  else
+    audio_ok=0
+    detail_parts+=("voice_turn_unreachable")
+  fi
+  snd_denied=0
+  if command -v journalctl >/dev/null 2>&1; then
+    snd_denied="$(journalctl -b -u nosd --no-pager 2>/dev/null \
+      | grep -cE 'Permission denied.*(/dev/)?snd' || printf '%s' 0)"
+    case "$snd_denied" in ''|*[!0-9]*) snd_denied=0 ;; esac
+  fi
+  if [[ "${snd_denied}" -gt 0 ]]; then
+    audio_ok=0
+    detail_parts+=("snd_denied=${snd_denied}")
+  else
+    detail_parts+=("snd_denied=0")
+  fi
+  detail_joined=$(IFS=,; echo "${detail_parts[*]}")
+  if [[ "$audio_ok" -eq 1 ]]; then
+    gate_pass M3b-audio Ring3_Linux_metal ADAPT OBSERVED "$detail_joined"
+  else
+    emit M3b-audio Ring3_Linux_metal ADAPT AWAITING_HW SKIP "$detail_joined"
+  fi
+fi
+
 # --- M4 metal markers ---
 if want M4; then
   if [[ -f "$DATA/firstboot.done" ]] && command -v systemctl >/dev/null 2>&1 \

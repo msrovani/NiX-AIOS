@@ -1,0 +1,20 @@
+a # [   45.814894] nosd[444]: 2026-11-02T06:04:08.386537Z  INFO nosd: crdt log "/var/lib/nosd/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+b # [   46.317606] nosd[443]: 2026-11-02T06:04:08.921678Z  INFO nosd: crdt log "/var/lib/nosd/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+b # [   60.176705] nosd[443]: 2026-11-02T06:04:22.975949Z  INFO nosd: mesh HB peer=2383655538 pk=true
+a # [   60.739515] nosd[444]: 2026-11-02T06:04:23.539322Z  INFO nosd: mesh HB peer=2758747785 pk=true
+b # [   61.290390] nosd[443]: 2026-11-02T06:04:24.087735Z  INFO nosd: mesh HB peer=2383655538 pk=true
+a # [   61.882415] nosd[444]: 2026-11-02T06:04:24.678611Z  INFO nosd: mesh HB peer=2758747785 pk=true
+b # [   62.277778] nosd[443]: 2026-11-02T06:04:25.084370Z  INFO nosd: mesh HB peer=2383655538 pk=true
+a: must succeed: [ "$(head -c 4 /var/lib/nosd/mesh-crdt/seg.bin)" = NSGC ]
+a # [   62.866404] nosd[444]: 2026-11-02T06:04:25.672844Z  INFO nosd: mesh HB peer=2758747785 pk=true
+a: (finished: must succeed: [ "$(head -c 4 /var/lib/nosd/mesh-crdt/seg.bin)" = NSGC ], in 0.36 seconds)
+b: must succeed: [ "$(head -c 4 /var/lib/nosd/mesh-crdt/seg.bin)" = NSGC ]
+b: (finished: must succeed: [ "$(head -c 4 /var/lib/nosd/mesh-crdt/seg.bin)" = NSGC ], in 0.33 seconds)
+b # [   63.283677] nosd[443]: 2026-11-02T06:04:26.089039Z  INFO nosd: mesh HB peer=2383655538 pk=true
+a # [   63.882392] nosd[444]: 2026-11-02T06:04:26.638676Z  INFO nosd: mesh HB peer=2758747785 pk=true
+a: must succeed: /nix/store/ipfaack1wl4y5gv75pzvldwzqgw75293-nosd-0.7.0-alpha.5/bin/nosctl --socket /run/nosd/nosd.sock crdt-sync 192.168.50.2:19001
+b # [   64.475378] nosd[443]: 2026-11-02T06:04:27.279145Z  INFO nosd: mesh HB peer=2383655538 pk=true
+a # [   65.030994] nosd[444]: 2026-11-02T06:04:27.785873Z  INFO nosd: mesh HB peer=2758747785 pk=true
+a: (finished: must succeed: /nix/store/ipfaack1wl4y5gv75pzvldwzqgw75293-nosd-0.7.0-alpha.5/bin/nosctl --socket /run/nosd/nosd.sock crdt-sync 192.168.50.2:19001, in 1.03 seconds)
+b # [   65.483347] nosd[443]: 2026-11-02T06:04:28.280897Z  INFO nosd: mesh HB peer=2383655538 pk=true
+a # [   66.037034] nosd[444]: 2026-11-02T06:04:28.791905Z  INFO nosd: mesh HB peer=2758747785 pk=true

@@ -88,8 +88,9 @@ cage/HUD/áudio (ISO mínima, sem GGUF) nem `meshPeers` configurado.
 
 ## Testes automatizados
 
-- `cargo test --workspace` → **rc=0**, 38 suites, **945 passed**, 0 failed,
-  0 ignored, 0 panics (943 no corte só-mesh; +F1 +F5).
+- `cargo test --workspace` → **rc=0**, 38 suites, **945 passed** no commit
+  `d61c22f`; **948** no tree com M1 (telepathy doutrina+cap, ainda por commitar),
+  0 failed, 0 ignored, 0 panics.
 - Teste novo: `unicast_seed_delivers_hb_without_broadcast` (loopback A/B,
   broadcast numa porta fechada) + 3 testes de `destinations()` (dedupe, lixo
   rejeitado, literal IPv6).
@@ -108,6 +109,27 @@ cage/HUD/áudio (ISO mínima, sem GGUF) nem `meshPeers` configurado.
   `nosd --help` mostra `--mesh-peer`; `nosctl --help` rc=0 (lição 29).
 - O `scripts/smoke-mesh-unicast.sh` corrido contra os binários da store →
   `SMOKE_MESH_OK targets=2 peers=1` (o artefacto Nix, não o debug).
+- **`checks.x86_64-linux.mesh-2vm`** (NixOS, 2 VMs, broadcast na VLAN
+  `192.168.50.255`): **PASS** em 71.72 s; `mesh HB peer=12/11 pk=true` nos dois
+  nós, `mesh_peers: 1` e eleição 11 Master / 12 Worker. Prova de que o caminho
+  broadcast-only não regrediu com o multi-destino. Artefacto:
+  [`artifacts/mesh-unicast-20261102/mesh-2vm-nixlog.txt`](artifacts/mesh-unicast-20261102/mesh-2vm-nixlog.txt).
+- **`checks.x86_64-linux.mesh-2vm-crdt`**: **PASS** — `crdt log
+  "/var/lib/nosd/mesh-crdt/seg.bin"` nos dois nós, `NSGC` em A/B e
+  `crdt-sync 192.168.50.2:19001` em 1.03 s. Artefacto:
+  [`artifacts/nixaios-vm-20261102/mesh-2vm-crdt-nixlog.txt`](artifacts/nixaios-vm-20261102/mesh-2vm-crdt-nixlog.txt).
+- **`checks.x86_64-linux.mesh-2vm-jobs`**: **PASS** — o log do guest mostra
+  `mesh udp bind=0.0.0.0:19000 broadcast=192.168.50.255:19000 targets=1`
+  (o código multi-destino está no sistema) e `skill quota signed=true`; job
+  assinado/TOFU no HEAD. Artefacto:
+  [`artifacts/nixaios-vm-20261102/mesh-2vm-jobs-nixlog.txt`](artifacts/nixaios-vm-20261102/mesh-2vm-jobs-nixlog.txt).
+- **`checks.x86_64-linux.nixaios-vm`** (NixOS, 1 VM): **PASS** em 184.08 s —
+  `nosd.service` + chat `llama-server-http` (49.8 s TCG, `ok=true`), `voice-status
+  Ready`, ring desarmado a recusar o apply, e após restart a âncora
+  `mesh-crdt/seg.anchor` com 3 palavras + `keys/pins.dat` + `keys/hb.seq`.
+  Exigiu dois ajustes de fixture: SOUL vazio (o tiny GGUF tem `n_ctx_train=128`)
+  e o path `mesh-crdt/` (migração F5 da alpha.5). Artefacto:
+  [`artifacts/nixaios-vm-20261102/nixaios-vm-nixlog.txt`](artifacts/nixaios-vm-20261102/nixaios-vm-nixlog.txt).
 - **ISO de release**: `nix build .#iso --cores 4` → **EXIT=0** a partir do
   commit `d61c22f`; out
   `/nix/store/11b6wzrxii7g007bbivhk2a625iqrn5a-nixos-minimal-…iso`,
@@ -137,10 +159,12 @@ mostrar `mesh_peers=1`/seed.
 
 ## Not-tested
 
-- QEMU `mesh-2vm`/`mesh-3vm-faults` e metal (Core 7 / i5 / 7700G). A ISO de
-  release arrancou com `nosd` (MQEMU PASS), mas a `iso-hw-cuda` (12 GB) não
-  foi construída nem arrancada.
-- Wi‑Fi com AP isolation real, NAT, segmentos roteados, IPv6 link-local.
+- QEMU `mesh-3vm-faults` e metal (Core 7 / i5 / 7700G). A ISO de release
+  arrancou com `nosd` (MQEMU PASS), mas a `iso-hw-cuda` (12 GB) não foi
+  construída nem arrancada.
+- Wi‑Fi com AP isolation real (a VLAN virtual do `mesh-2vm` não é AP
+  isolation), NAT, segmentos roteados, IPv6 link-local.
 - FRAG/FRACK por semente (o código envia para todos os destinos; não foi
   exercitado ponta-a-ponta).
-- Regressão de broadcast puro (lista vazia) além dos testes existentes.
+- Broadcast em Wi-Fi/eth físico (o `mesh-2vm` valida broadcast numa VLAN
+  virtual; o lab de regressão valida `targets=1`).

@@ -553,8 +553,15 @@ PY
                 hermesTickSecs = 0;
               };
               # JFK é EN; fixa o locale de voz no teste.
+              # alpha.5: o prompt com SOUL completo (~467 tokens) excede o
+              # n_ctx_train=128 do tiny GGUF do fixture (llama.cpp capa o slot
+              # a 128). Persona vazia aqui; a persona é coberta pelos unit
+              # tests do cognitive_bridge. Nao aumentar a memoria da VM: o
+              # limite é o modelo, nao a RAM.
+              environment.etc."nixaios-empty-soul.md".text = "";
               systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
                 "NOSD_LOCALE=en_US.UTF-8"
+                "NOSD_SOUL_PATH=/etc/nixaios-empty-soul.md"
                 # G1 (T1.1-T1.3): identidade do mesh no VM — âncora CRDT
                 # assinada + pins/seq do HB persistidos ao lado da chave.
                 "NOSD_MESH_KEY=/var/lib/nosd/keys/mesh.key"
@@ -610,7 +617,7 @@ PY
               machine.succeed("systemctl restart nosd.service")
               machine.wait_for_file("/run/nosd/nosd.sock")
               machine.succeed(nosctl + " health")
-              anchor = "/var/lib/nosd/nsgdb/crdt/seg.anchor"
+              anchor = "/var/lib/nosd/mesh-crdt/seg.anchor"
               machine.wait_for_file(anchor)
               machine.succeed("test \"$(wc -w < " + anchor + ")\" = 3")
               machine.succeed("test -e /var/lib/nosd/keys/pins.dat")
@@ -916,8 +923,8 @@ PY
               a.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
               b.wait_until_succeeds(ca + " health | grep -q '\"mesh_pinned\": 1'", timeout=90)
               # M8.1d: o CRDT usa o segmento nsgdb (NSGC), nao JSONL.
-              a.succeed("[ \"$(head -c 4 /var/lib/nosd/nsgdb/crdt/seg.bin)\" = NSGC ]")
-              b.succeed("[ \"$(head -c 4 /var/lib/nosd/nsgdb/crdt/seg.bin)\" = NSGC ]")
+              a.succeed("[ \"$(head -c 4 /var/lib/nosd/mesh-crdt/seg.bin)\" = NSGC ]")
+              b.succeed("[ \"$(head -c 4 /var/lib/nosd/mesh-crdt/seg.bin)\" = NSGC ]")
               a.succeed("test ! -e /var/lib/nosd/crdt.jsonl")
               b.succeed("test ! -e /var/lib/nosd/crdt.jsonl")
               # A escreve e sincroniza -> B ve
