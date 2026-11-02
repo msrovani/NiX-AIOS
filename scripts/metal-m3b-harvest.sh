@@ -58,9 +58,16 @@ else
 fi
 
 echo "--- A5/A6 nosctl voice ---"
+# F7: voice-turn exige --prompt; A6 TTS = voice-tts (não positional em voice-turn).
 if command -v "$NOSCTL" >/dev/null 2>&1; then
   "$NOSCTL" voice-status >"$OUT/a5-voice-status.json" 2>"$OUT/a5-voice-status.err" || true
-  "$NOSCTL" voice-turn "teste de audio" >"$OUT/a6-voice-turn.json" 2>"$OUT/a6-voice-turn.err" || true
+  "$NOSCTL" voice-tts "teste de audio" >"$OUT/a6-voice-tts.json" 2>"$OUT/a6-voice-tts.err" || true
+  if [ -f "$OUT/a4-mic.wav" ]; then
+    "$NOSCTL" voice-stt --wav-path "$OUT/a4-mic.wav" \
+      >"$OUT/a5-voice-stt.json" 2>"$OUT/a5-voice-stt.err" || true
+  fi
+  "$NOSCTL" voice-turn --prompt "teste de audio" \
+    >"$OUT/a6-voice-turn.json" 2>"$OUT/a6-voice-turn.err" || true
 else
   echo "nosctl absent — A5/A6 skipped" | tee "$OUT/a5-skipped.txt"
 fi

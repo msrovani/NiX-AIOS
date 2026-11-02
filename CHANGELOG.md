@@ -12,6 +12,13 @@ Versionamento [SemVer](https://semver.org/).
 - F5: CRDT path `mesh-crdt/` (migração one-shot desde `nsgdb/crdt/`).
 - CI: `scripts/nsgdb-pin-check.sh` + `scripts/smoke-nsgdb-memory.sh`.
 - Evidência: `docs/evidence/NSGDB_MEMORY_GOV_0.7.0-alpha.5.md`.
+- Mesh frota: `--mesh-peer` / `NOSD_MESH_PEERS` / `services.nosd.meshPeers`
+  (broadcast ∪ sementes, parse fail-closed); `PinError::Duplicate` distingue
+  HB duplicado de replay; `scripts/smoke-mesh-unicast.sh`.
+- Voz: WAV TTS único por chamada (`tempfile::TempPath`); `dispatch_blocking`
+  tira handlers bloqueantes do worker async (parcial: keep-alive do ORB fica
+  para a ADR `0118-voice-async-playback`).
+- Memória: `validate_system_record` exige `scope` não-vazio (`ScopeRequired`).
 - Tested: `cargo test -p nos-memory` (incl. neural scoped); hermes cognitive_bridge/OPAR; ipc/kiosk.
 - **F7 telepathy usável entre peers mesh:** `memory.sync` / `nosctl memory-sync`
   via `KIND_MEMORY` no link Noise (`NOSD_JOB_BIND`); two-db `merge_remote`.

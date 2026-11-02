@@ -149,7 +149,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let args = Args::parse();
+    let mut args = Args::parse();
+    // `NOSD_MESH_PEERS=` (vazio, como o unit NixOS define) não é uma semente:
+    // sem isto o log diria seeds=1 e o health mesh_seeds=[] (mentira operacional).
+    args.mesh_peers.retain(|p| !p.trim().is_empty());
     // Fonte unica das sementes unicast: `--mesh-peer` passa a env para que
     // health/config.show (que so leem ambiente) mostrem o que o runtime usa.
     if !args.mesh_peers.is_empty() {

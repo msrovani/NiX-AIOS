@@ -3,8 +3,9 @@
 **Data:** 2026-11-02 (03:00 UTC)  
 **Âmbito:** `--mesh-peer` / `NOSD_MESH_PEERS` / `services.nosd.meshPeers`
 (ADR [`0118-mesh-unicast-seeds`](../adr-addenda/0118-mesh-unicast-seeds.md)).  
-**Tree:** `a0b239d` + tranche alpha.5 (staged, sem commit) + diff de mesh ANVIL
-(sem commit). Ver `forum.ndjson` ids `ANVIL-0002..0014`.
+**Tree:** tranche `0.7.0-alpha.5` commitada em `d61c22f` (mesh ANVIL +
+memória/voz FORGE + verificação). Provas de host antes do commit; `nix build`
+depois. Ver `forum.ndjson` ids `ANVIL-0002..0026`.
 
 ## O que foi provado
 
@@ -72,10 +73,23 @@ semente apontam ao mesmo socket (loopback `127.0.0.2` e `127.0.0.1`). O
 Sem esta distinção, cada HB duplicado gerava um WARN a cada tick (journal
 spam que escondia replays reais).
 
+## QEMU — boot da ISO de release (d61c22f)
+
+Boot da ISO `11b6wzrx…` (sha256 `60eeff6f…`) em QEMU **TCG** (sem KVM),
+serial em [`artifacts/qemu-iso-20261102/qemu-serial.log`](artifacts/qemu-iso-20261102/qemu-serial.log):
+
+- `Started Neural-OS Daemon` e `Reached target Multi-User System`.
+- `gate-boot-to-jarbas.sh --stage MQEMU` →
+  `result=PASS` (kernel markers + `nosd_start_ok_in_qemu_log`), `fails=0`.
+- Único unit falhado: `Virtual Console Setup` (sem VT no serial; não afecta).
+
+Prova: o sistema arranca e o `nosd` sobe a partir do artefacto. **Não** prova
+cage/HUD/áudio (ISO mínima, sem GGUF) nem `meshPeers` configurado.
+
 ## Testes automatizados
 
-- `cargo test --workspace` → **rc=0**, 38 suites, **943 passed**, 0 failed,
-  0 ignored, 0 panics.
+- `cargo test --workspace` → **rc=0**, 38 suites, **945 passed**, 0 failed,
+  0 ignored, 0 panics (943 no corte só-mesh; +F1 +F5).
 - Teste novo: `unicast_seed_delivers_hb_without_broadcast` (loopback A/B,
   broadcast numa porta fechada) + 3 testes de `destinations()` (dedupe, lixo
   rejeitado, literal IPv6).
@@ -86,6 +100,20 @@ spam que escondia replays reais).
   8.71 s por corrida.
 - Windows MSVC: `cargo test -p nos-mesh` → 57 passed, 0 failed (inclui o teste
   de semente unicast).
+- `nix build .#nosd --cores 4` → **EXIT=0**; `doCheck = true`, portanto o
+  `checkPhase` correu a suite na derivação Linux (`checkPhase completed in 1m33s`,
+  sem FAILED). A árvore copiada para a store foi a do working tree no arranque
+  do build (inclui mesh + F1..F5; edições posteriores ficam de fora).
+- Binário empacotado: `/nix/store/h9m34jdcp4y2m861d8vsfwi1a5a5y883-nosd-0.7.0-alpha.5/bin/{nosd,nosctl}`;
+  `nosd --help` mostra `--mesh-peer`; `nosctl --help` rc=0 (lição 29).
+- O `scripts/smoke-mesh-unicast.sh` corrido contra os binários da store →
+  `SMOKE_MESH_OK targets=2 peers=1` (o artefacto Nix, não o debug).
+- **ISO de release**: `nix build .#iso --cores 4` → **EXIT=0** a partir do
+  commit `d61c22f`; out
+  `/nix/store/11b6wzrxii7g007bbivhk2a625iqrn5a-nixos-minimal-…iso`,
+  2.7 GB, sha256 `60eeff6fb3d0844e7ee1dabfabc4c438b6261f6eff4dad11004ed3fa725d147d`.
+  É a ISO mínima de release (sem GGUF); prova que o sistema/unit/nosd
+  construem, **não** que `meshPeers` está configurado (default vazio).
 
 ## Reproduzir
 
@@ -109,10 +137,9 @@ mostrar `mesh_peers=1`/seed.
 
 ## Not-tested
 
-- Build da ISO/unidade: o eval de `nixaios-iso.extendModules` passou (ExecStart
-  e Environment corretos), mas a derivação da unidade e a ISO não foram
-  construídas.
-- QEMU `mesh-2vm`/`mesh-3vm-faults` e metal (Core 7 / i5 / 7700G).
+- QEMU `mesh-2vm`/`mesh-3vm-faults` e metal (Core 7 / i5 / 7700G). A ISO de
+  release arrancou com `nosd` (MQEMU PASS), mas a `iso-hw-cuda` (12 GB) não
+  foi construída nem arrancada.
 - Wi‑Fi com AP isolation real, NAT, segmentos roteados, IPv6 link-local.
 - FRAG/FRACK por semente (o código envia para todos os destinos; não foi
   exercitado ponta-a-ponta).
