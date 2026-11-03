@@ -518,6 +518,28 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
             }
         }
 
+        // ORB Fase 1: ligação primária (sysfs/NM; sem PSK nem Mbps inventado).
+        "observe.net" => {
+            let view = nos_observe::collect_net_view();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: serde_json::to_value(view).unwrap_or(json!(null)),
+            }
+        }
+
+        // PipeWire/wpctl: volume + sinks/sources (best-effort; absent no Windows).
+        "observe.audio" => {
+            let view = crate::actuators::collect_audio_view();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: serde_json::to_value(view).unwrap_or(json!(null)),
+            }
+        }
+
         // V1 (plano vampiro): energia medida/estimada + custo local acumulado.
         "observe.energy" => {
             let delta = state.energy.lock().sample();

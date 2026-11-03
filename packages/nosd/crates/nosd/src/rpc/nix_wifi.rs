@@ -1,6 +1,6 @@
 //! RPC handlers — fatia 0.5.2.
 use super::*;
-use nos_core::CapGate;
+use nos_core::{CapBits, CapGate};
 use nos_ipc::{Request, Response};
 use serde_json::json;
 
@@ -196,18 +196,71 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 },
             }
         }
+        "audio.devices" => {
+            let view = actuators::collect_audio_view();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "sinks": view.sinks,
+                    "sources": view.sources,
+                    "source_status": view.source_status,
+                }),
+            }
+        }
+        "audio.device" => {
+            let kind = req
+                .params
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let id = req
+                .params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            match actuators::pipewire_set_default(kind, id) {
+                Ok(()) => Response {
+                    id: req.id,
+                    ok: true,
+                    error: None,
+                    result: json!({
+                        "kind": kind,
+                        "id": id,
+                        "applied": true,
+                    }),
+                },
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(e.to_string()),
+                    result: json!(null),
+                },
+            }
+        }
         "audio.volume" => {
             let pct = req
                 .params
                 .get("percent")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(50) as u32;
+            let mute_param = req.params.get("muted").and_then(|v| v.as_bool());
             // T0.3: `hitl_confirmed` do cliente é ignorado (regra 2 do
             // AGENTS.md); a autorização vem da identidade (cap HITL) no plan.
+            // HUD: debounce no cliente — wpctl é barato mas rajadas de sliders
+            // geram muitos RPC; agrupar ~150–300 ms antes de enviar.
             match actuators::pipewire_volume_plan(gate, state.ipc_generation(), pct) {
                 Ok(plan) => {
                     let applied = if plan.would_run {
                         actuators::pipewire_volume_apply(&plan).is_ok()
+                    } else {
+                        false
+                    };
+                    let mute_applied = if plan.would_run {
+                        mute_param
+                            .map(|m| actuators::pipewire_mute_apply(m).is_ok())
+                            .unwrap_or(false)
                     } else {
                         false
                     };
@@ -217,9 +270,118 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                         error: None,
                         result: json!({
                             "percent": plan.percent,
+                            "muted": mute_param,
                             "would_run": plan.would_run,
                             "applied": applied,
+                            "mute_applied": mute_applied,
                             "note": plan.note,
+                        }),
+                    }
+                }
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(e.to_string()),
+                    result: json!(null),
+                },
+            }
+        }
+        "display.blank" => {
+            let blank = req
+                .params
+                .get("blank")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            match actuators::display_blank(blank) {
+                Ok(note) => Response {
+                    id: req.id,
+                    ok: true,
+                    error: None,
+                    result: json!({ "blank": blank, "note": note }),
+                },
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(e.to_string()),
+                    result: json!(null),
+                },
+            }
+        }
+        "system.suspend" => {
+            let hitl = gate.allow(CapBits::HITL, state.ipc_generation()).is_ok()
+                && super::hitl_grant_ok(state, &req, "system.suspend");
+            let apply = req
+                .params
+                .get("apply")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            match actuators::system_suspend_plan(hitl) {
+                Ok(note) => {
+                    let applied = if apply && hitl {
+                        actuators::system_suspend_apply(true).is_ok()
+                    } else {
+                        false
+                    };
+                    Response {
+                        id: req.id,
+                        ok: true,
+                        error: None,
+                        result: json!({
+                            "note": note,
+                            "would_run": hitl,
+                            "applied": applied,
+                            "honesty": "never auto; HITL grant system.suspend only",
+                        }),
+                    }
+                }
+                Err(e) => Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some(e.to_string()),
+                    result: json!(null),
+                },
+            }
+        }
+        "system.hibernate" => {
+            let (can, cap_note) = actuators::hibernate_capability();
+            let hitl = gate.allow(CapBits::HITL, state.ipc_generation()).is_ok()
+                && super::hitl_grant_ok(state, &req, "system.hibernate");
+            let apply = req
+                .params
+                .get("apply")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !can {
+                return Some(Response {
+                    id: req.id,
+                    ok: true,
+                    error: None,
+                    result: json!({
+                        "absent": true,
+                        "note": cap_note,
+                        "would_run": false,
+                        "applied": false,
+                        "honesty": "hibernate opt-in NOSD_HIBERNATE=1 + CanHibernate",
+                    }),
+                });
+            }
+            match actuators::system_hibernate_plan(hitl) {
+                Ok(note) => {
+                    let applied = if apply && hitl {
+                        actuators::system_hibernate_apply(true).is_ok()
+                    } else {
+                        false
+                    };
+                    Response {
+                        id: req.id,
+                        ok: true,
+                        error: None,
+                        result: json!({
+                            "note": note,
+                            "capability": cap_note,
+                            "would_run": hitl,
+                            "applied": applied,
+                            "honesty": "never auto; HITL grant system.hibernate only",
                         }),
                     }
                 }

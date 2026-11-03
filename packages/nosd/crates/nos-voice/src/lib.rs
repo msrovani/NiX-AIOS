@@ -269,6 +269,14 @@ pub fn find_espeak_cli() -> Option<PathBuf> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoiceModelInfo {
+    pub path: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceStatus {
     pub locale: LocaleVoiceSpec,
     pub whisper_cli: Option<String>,
@@ -281,6 +289,19 @@ pub struct VoiceStatus {
     pub pipeline_stages: Vec<String>,
     /// Ready = STT+TTS; Absent = engines em falta (OK honesty, não capability).
     pub posture: String,
+    /// Engines TTS disponíveis localmente (sem URLs).
+    #[serde(default)]
+    pub engines: Vec<String>,
+    /// Modelos Piper .onnx sob models_dir (basename paths).
+    #[serde(default)]
+    pub models: Vec<VoiceModelInfo>,
+    #[serde(default)]
+    pub selected_engine: Option<String>,
+    #[serde(default)]
+    pub selected_model: Option<String>,
+    /// Rótulo curto para HUD: piper|espeak|absent.
+    #[serde(default)]
+    pub tts_engine: String,
 }
 
 #[derive(Clone)]
@@ -302,15 +323,48 @@ impl VoicePipeline {
     }
 
     pub fn status(&self) -> VoiceStatus {
+        self.status_with_prefs(None, None)
+    }
+
+    /// `selected_engine` / `selected_model` vêm de ui_prefs (basename .onnx).
+    pub fn status_with_prefs(
+        &self,
+        selected_engine: Option<&str>,
+        selected_model: Option<&str>,
+    ) -> VoiceStatus {
         let locale = LocaleVoiceSpec::detect();
         let w_cli = find_whisper_cli();
-        let p_cli = find_piper_cli().or_else(find_espeak_cli);
+        let piper_cli = find_piper_cli();
+        let espeak_cli = find_espeak_cli();
+        let p_cli = piper_cli.clone().or_else(|| espeak_cli.clone());
         let w_model = self.find_whisper_model(&locale);
         let p_model = self.find_piper_model(&locale);
+        let models = self.list_piper_models();
+        let mut engines = Vec::new();
+        if piper_cli.is_some() && (p_model.is_some() || !models.is_empty()) {
+            engines.push("piper".into());
+        }
+        if espeak_cli.is_some() {
+            engines.push("espeak".into());
+        }
+        let sel_eng = selected_engine
+            .map(|s| s.to_ascii_lowercase())
+            .filter(|s| engines.iter().any(|e| e == s));
+        let sel_model = selected_model
+            .map(|s| s.to_string())
+            .filter(|b| models.iter().any(|m| m.label == *b || m.path.ends_with(b)));
+        let piper_ready = piper_cli.is_some() && (p_model.is_some() || sel_model.is_some());
         let stt_ready = w_cli.is_some() && w_model.is_some();
-        let tts_ready =
-            (find_piper_cli().is_some() && p_model.is_some()) || find_espeak_cli().is_some();
-        // Labels estáveis p/ gate M3f (não Debug enum).
+        let tts_ready = piper_ready || espeak_cli.is_some();
+        let tts_engine: String = if sel_eng.as_deref() == Some("espeak") && espeak_cli.is_some() {
+            "espeak".into()
+        } else if piper_ready {
+            "piper".into()
+        } else if espeak_cli.is_some() {
+            "espeak".into()
+        } else {
+            "absent".into()
+        };
         let posture = if stt_ready && tts_ready {
             "Ready".into()
         } else {
@@ -323,13 +377,70 @@ impl VoicePipeline {
             whisper_cli: w_cli.map(|p| p.display().to_string()),
             whisper_model: w_model.map(|p| p.display().to_string()),
             piper_cli: p_cli.map(|p| p.display().to_string()),
-            piper_model: p_model.map(|p| p.display().to_string()),
+            piper_model: p_model.as_ref().map(|p| p.display().to_string()),
             pipeline_stages: ["mic", "vad", "wake", "stt", "handle", "tts", "out"]
                 .into_iter()
                 .map(str::to_string)
                 .collect(),
             posture,
+            engines,
+            models,
+            selected_engine: sel_eng.or_else(|| {
+                if tts_engine == "absent" {
+                    None
+                } else {
+                    Some(tts_engine.clone())
+                }
+            }),
+            selected_model: sel_model.or_else(|| {
+                p_model
+                    .as_ref()
+                    .and_then(|p| p.file_name().map(|f| f.to_string_lossy().into_owned()))
+            }),
+            tts_engine,
         }
+    }
+
+    /// Lista `*.onnx` em models_dir (não recursivo profundo além de 1 nível).
+    pub fn list_piper_models(&self) -> Vec<VoiceModelInfo> {
+        let mut out = Vec::new();
+        let mut push_file = |p: PathBuf| {
+            if p.extension().and_then(|e| e.to_str()) != Some("onnx") {
+                return;
+            }
+            let label = p
+                .file_name()
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            if label.is_empty() {
+                return;
+            }
+            out.push(VoiceModelInfo {
+                path: p.display().to_string(),
+                label,
+                sha256: None,
+            });
+        };
+        if let Ok(rd) = fs::read_dir(&self.models_dir) {
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.is_file() {
+                    push_file(p);
+                } else if p.is_dir() {
+                    if let Ok(sub) = fs::read_dir(&p) {
+                        for s in sub.flatten() {
+                            let sp = s.path();
+                            if sp.is_file() {
+                                push_file(sp);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out.sort_by(|a, b| a.label.cmp(&b.label));
+        out.dedup_by(|a, b| a.label == b.label);
+        out
     }
 
     fn find_whisper_model(&self, loc: &LocaleVoiceSpec) -> Option<PathBuf> {

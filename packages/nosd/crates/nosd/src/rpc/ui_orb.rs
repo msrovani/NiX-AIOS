@@ -188,15 +188,69 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 action,
                 values: values.clone(),
             };
-            // Detectar wifi antes do broker fechar a janela
+            // Detectar wifi / skill.install antes do broker fechar a janela.
+            let windows_snap = state.hermes.ui_list();
             let wifi_submit = action == nos_core::WindowActionKind::Submit
-                && state
-                    .hermes
-                    .ui_list()
+                && windows_snap
                     .iter()
                     .any(|w| w.id == wid && w.kind == nos_core::WindowKind::HitlWifi);
+            let skill_template = windows_snap.iter().find_map(|w| {
+                if w.id == wid
+                    && action == nos_core::WindowActionKind::Submit
+                    && w.grant_kind == "skill.install"
+                {
+                    w.title
+                        .strip_prefix("Skill factory — ")
+                        .or_else(|| w.title.strip_prefix("Skill factory - "))
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .or_else(|| Some("net.monitor".into()))
+                } else {
+                    None
+                }
+            });
+            let deny_meta = windows_snap.iter().find_map(|w| {
+                if w.id == wid
+                    && matches!(
+                        action,
+                        nos_core::WindowActionKind::Cancel | nos_core::WindowActionKind::Dismiss
+                    )
+                    && !w.grant_kind.is_empty()
+                {
+                    Some((w.grant_kind.clone(), w.title.clone(), w.body.clone()))
+                } else {
+                    None
+                }
+            });
             match state.hermes.ui_action(gate, act) {
                 Ok(mut v) => {
+                    if let Some((grant_kind, title, body)) = deny_meta {
+                        let proposal = nos_hermes::ImprovePropose {
+                            kind: grant_kind.clone(),
+                            title: title.clone(),
+                            reason: body.chars().take(400).collect(),
+                            importance: "medium".into(),
+                            current: "denied".into(),
+                            candidate: grant_kind.clone(),
+                            evidence: vec!["ui.action cancel/dismiss".into()],
+                            alternatives: vec!["usar painel NET nativo".into()],
+                            grant_kind: grant_kind.clone(),
+                            accept_effect: String::new(),
+                            fingerprint: String::new(),
+                        };
+                        let plan = nos_hermes::correct_plan_on_deny(&proposal, "user_denied");
+                        let _ = state.hermes.record_opar(
+                            "improve",
+                            &format!("deny grant={grant_kind}"),
+                            "correct_plan",
+                            &title,
+                            "user_denied",
+                        );
+                        if let Some(obj) = v.as_object_mut() {
+                            obj.insert("correct_plan".into(), plan);
+                            obj.insert("denied".into(), json!(true));
+                        }
+                    }
                     // S-04: Submit de janela HITL emite grant single-use.
                     if action == nos_core::WindowActionKind::Submit {
                         let kind = v
@@ -210,6 +264,49 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                                 obj.insert("confirm_id".into(), json!(confirm_id));
                                 obj.insert("confirm_expires_ms".into(), json!(expires_ms));
                                 obj.insert("grant_kind".into(), json!(kind));
+                            }
+                        }
+                    }
+                    if let Some(template_id) = skill_template.as_deref() {
+                        let plan = nos_factory::factory_plan(template_id, None);
+                        let draft = nos_factory::draft_from_plan(&plan);
+                        let caps: Vec<String> = plan.caps.clone();
+                        let name = draft.name.clone();
+                        let spec = crate::rpc::skills::InstallRequest {
+                            name: name.as_str(),
+                            focus: template_id,
+                            version: "0.1.0",
+                            caps: &caps,
+                            publisher: None,
+                            sig: None,
+                            expect_hash: Some(plan.content_id.as_str()),
+                            allow_downgrade: false,
+                            unsigned_provenance: "factory.template",
+                            profile: "frugal",
+                        };
+                        match crate::rpc::skills::install(state, &spec, &draft.wasm) {
+                            Ok(out) => {
+                                let smoke = crate::rpc::skills::run_net_monitor_smoke(
+                                    state,
+                                    out.name.as_str(),
+                                );
+                                if let Some(obj) = v.as_object_mut() {
+                                    obj.insert("applied".into(), json!(true));
+                                    obj.insert("skill".into(), json!(out.name));
+                                    obj.insert("hash".into(), json!(out.content_id));
+                                    obj.insert("template_id".into(), json!(template_id));
+                                    obj.insert("run_after_install".into(), json!(true));
+                                    if let Some(s) = smoke {
+                                        obj.insert("smoke_run".into(), s);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                if let Some(obj) = v.as_object_mut() {
+                                    obj.insert("applied".into(), json!(false));
+                                    obj.insert("reason".into(), json!(e));
+                                    obj.insert("template_id".into(), json!(template_id));
+                                }
                             }
                         }
                     }

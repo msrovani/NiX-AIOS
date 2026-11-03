@@ -6,6 +6,39 @@ use serde_json::json;
 
 pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option<Response> {
     Some(match req.method.as_str() {
+        "factory.plan" => {
+            let intent = req
+                .params
+                .get("intent")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if intent.is_empty() {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("params.intent required".into()),
+                    result: json!(null),
+                });
+            }
+            let need = nos_factory::SkillNeed {
+                goal: intent.into(),
+                capabilities: vec![],
+                frugal_budget: true,
+            };
+            let seek = state.hermes.seek_before_spawn(&need);
+            let seek_note = if seek.hit.is_some() {
+                Some(nos_factory::seek_audit_line(&seek))
+            } else {
+                None
+            };
+            let plan = nos_factory::factory_plan(intent, seek_note.as_deref());
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: serde_json::to_value(&plan).unwrap_or(json!(null)),
+            }
+        }
         "factory.seek" | "store.search" => {
             let goal = req
                 .params

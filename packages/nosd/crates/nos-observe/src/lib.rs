@@ -73,6 +73,225 @@ pub struct NmHint {
     pub primary: Option<String>,
 }
 
+/// Vista read-only da ligação primária (ORB Fase 1). Sem PSK/secrets; sem throughput inventado.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetView {
+    pub up: bool,
+    #[serde(rename = "type")]
+    pub net_type: String,
+    pub device: Option<String>,
+    pub link_mbps: Option<i64>,
+    pub ssid: Option<String>,
+    pub operstate: Option<String>,
+    pub source: String,
+}
+
+pub fn collect_net_view() -> NetView {
+    #[cfg(unix)]
+    {
+        collect_net_view_unix()
+    }
+    #[cfg(not(unix))]
+    {
+        NetView {
+            up: false,
+            net_type: "none".into(),
+            device: None,
+            link_mbps: None,
+            ssid: None,
+            operstate: None,
+            source: "absent_platform".into(),
+        }
+    }
+}
+
+/// Linha `nmcli -t -f DEVICE,TYPE,STATE d` → (device, type, state).
+pub fn parse_nmcli_device_line(line: &str) -> Option<(String, String, String)> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let mut parts = line.splitn(3, ':');
+    let device = parts.next()?.trim().to_string();
+    let net_type = parts.next()?.trim().to_string();
+    let state = parts.next()?.trim().to_string();
+    if device.is_empty() {
+        return None;
+    }
+    Some((device, net_type, state))
+}
+
+/// Primeira linha NM com estado connected (DEVICE, TYPE).
+pub fn pick_nmcli_connected_device(lines: &str) -> Option<(String, String)> {
+    for line in lines.lines() {
+        let Some((dev, ty, state)) = parse_nmcli_device_line(line) else {
+            continue;
+        };
+        if state == "connected" || state.ends_with(":connected") || state.contains(":connected") {
+            return Some((dev, ty));
+        }
+    }
+    None
+}
+
+/// `/sys/class/net/<dev>/speed`: valores negativos (ex.: -1) → None.
+pub fn parse_sysfs_link_mbps(raw: &str) -> Option<i64> {
+    let v = raw.trim().parse::<i64>().ok()?;
+    (v >= 0).then_some(v)
+}
+
+/// TYPE do nmcli → wifi|ethernet|other.
+pub fn normalize_nmcli_type(ty: &str) -> String {
+    match ty.trim().to_ascii_lowercase().as_str() {
+        "wifi" | "802-11-wireless" => "wifi".into(),
+        "ethernet" | "802-3-ethernet" | "wired" => "ethernet".into(),
+        _ => "other".into(),
+    }
+}
+
+/// Linha `nmcli -t -f ACTIVE,SSID d wifi` com ACTIVE=yes.
+pub fn parse_active_wifi_ssid_line(line: &str) -> Option<String> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let mut parts = line.splitn(2, ':');
+    let active = parts.next()?.trim();
+    let ssid = parts.next()?.trim();
+    if !active.eq_ignore_ascii_case("yes") || ssid.is_empty() {
+        return None;
+    }
+    Some(ssid.to_string())
+}
+
+#[cfg(unix)]
+fn collect_net_view_unix() -> NetView {
+    let mut source = "sysfs".to_string();
+    let nmcli_dev = Command::new("nmcli")
+        .args(["-t", "-f", "DEVICE,TYPE,STATE", "d"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned());
+
+    let (device, type_hint) = if let Some(ref text) = nmcli_dev {
+        if let Some((dev, ty)) = pick_nmcli_connected_device(text) {
+            source = "nmcli".into();
+            (Some(dev), Some(ty))
+        } else {
+            (pick_first_operstate_up_device(), None)
+        }
+    } else {
+        (pick_first_operstate_up_device(), None)
+    };
+
+    let Some(dev) = device else {
+        return NetView {
+            up: false,
+            net_type: "none".into(),
+            device: None,
+            link_mbps: None,
+            ssid: None,
+            operstate: None,
+            source,
+        };
+    };
+
+    let operstate = read_iface_operstate(&dev);
+    let up = operstate.as_deref() == Some("up");
+    let link_mbps = read_iface_link_mbps(&dev);
+    let net_type = type_hint
+        .as_deref()
+        .map(normalize_nmcli_type)
+        .unwrap_or_else(|| detect_net_type_sysfs(&dev));
+    let ssid = if net_type == "wifi" {
+        read_active_wifi_ssid()
+    } else {
+        None
+    };
+
+    NetView {
+        up,
+        net_type,
+        device: Some(dev),
+        link_mbps,
+        ssid,
+        operstate,
+        source,
+    }
+}
+
+#[cfg(unix)]
+fn pick_first_operstate_up_device() -> Option<String> {
+    let root = Path::new("/sys/class/net");
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return None;
+    };
+    for ent in entries.flatten() {
+        let name = ent.file_name().to_string_lossy().into_owned();
+        if name == "lo" {
+            continue;
+        }
+        if read_iface_operstate(&name).as_deref() == Some("up") {
+            return Some(name);
+        }
+    }
+    None
+}
+
+#[cfg(unix)]
+fn read_iface_operstate(dev: &str) -> Option<String> {
+    let path = Path::new("/sys/class/net").join(dev).join("operstate");
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+#[cfg(unix)]
+fn read_iface_link_mbps(dev: &str) -> Option<i64> {
+    let path = Path::new("/sys/class/net").join(dev).join("speed");
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| parse_sysfs_link_mbps(&s))
+}
+
+#[cfg(unix)]
+fn detect_net_type_sysfs(dev: &str) -> String {
+    let base = Path::new("/sys/class/net").join(dev);
+    if base.join("wireless").exists() {
+        return "wifi".into();
+    }
+    if let Ok(raw) = std::fs::read_to_string(base.join("type")) {
+        if let Ok(t) = raw.trim().parse::<u32>() {
+            return match t {
+                1 => "ethernet".into(),
+                772 => "wifi".into(),
+                _ => "other".into(),
+            };
+        }
+    }
+    "other".into()
+}
+
+#[cfg(unix)]
+fn read_active_wifi_ssid() -> Option<String> {
+    let out = Command::new("nmcli")
+        .args(["-t", "-f", "ACTIVE,SSID", "d", "wifi"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    for line in text.lines() {
+        if let Some(ssid) = parse_active_wifi_ssid_line(line) {
+            return Some(ssid);
+        }
+    }
+    None
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObserveSnapshot {
     pub ts_secs: u64,
@@ -435,5 +654,57 @@ mod tests {
         let v = snapshot_bus_payload(&s);
         assert!(v.get("presence").is_some());
         assert!(v.get("suggest_ngl_cap").is_some());
+    }
+
+    #[test]
+    fn collect_net_view_smoke() {
+        let v = collect_net_view();
+        assert!(!v.source.is_empty());
+        #[cfg(not(unix))]
+        {
+            assert!(!v.up);
+            assert_eq!(v.net_type, "none");
+            assert_eq!(v.source, "absent_platform");
+        }
+    }
+
+    #[test]
+    fn parse_nmcli_device_line_ok() {
+        let (d, t, s) = parse_nmcli_device_line("wlan0:wifi:connected").unwrap();
+        assert_eq!(d, "wlan0");
+        assert_eq!(t, "wifi");
+        assert_eq!(s, "connected");
+    }
+
+    #[test]
+    fn pick_nmcli_connected_skips_disconnected() {
+        let text = "eth0:ethernet:disconnected\nwlan0:wifi:connected\n";
+        let (d, t) = pick_nmcli_connected_device(text).unwrap();
+        assert_eq!(d, "wlan0");
+        assert_eq!(t, "wifi");
+    }
+
+    #[test]
+    fn parse_sysfs_link_mbps_honest() {
+        assert_eq!(parse_sysfs_link_mbps("1000"), Some(1000));
+        assert_eq!(parse_sysfs_link_mbps("-1"), None);
+        assert_eq!(parse_sysfs_link_mbps("bogus"), None);
+    }
+
+    #[test]
+    fn normalize_nmcli_type_maps() {
+        assert_eq!(normalize_nmcli_type("802-11-wireless"), "wifi");
+        assert_eq!(normalize_nmcli_type("802-3-ethernet"), "ethernet");
+        assert_eq!(normalize_nmcli_type("bridge"), "other");
+    }
+
+    #[test]
+    fn parse_active_wifi_ssid_line_active_only() {
+        assert_eq!(
+            parse_active_wifi_ssid_line("yes:MyNet"),
+            Some("MyNet".into())
+        );
+        assert_eq!(parse_active_wifi_ssid_line("no:Hidden"), None);
+        assert_eq!(parse_active_wifi_ssid_line("yes:"), None);
     }
 }

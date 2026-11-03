@@ -83,10 +83,30 @@ nós são pesquisas/memória; os bursts de pesquisa vêm de `cognitive.trace`
 - `ui.list` / `ui.pending` — janelas e tiers; `ui.action` é a única mutação.
 - `cognitive.trace` — últimos actos OPAR **sem notas/PII** (domínio + lengths).
 - `observe.energy` — joules/watts/source/scope (absent = não medido).
+- `observe.net` — vista projectada kiosk-safe (`up`, `type`, `device`,
+  `link_mbps` = capacidade sysfs, `ssid` sem secrets). Não é
+  `observe.snapshot` completo.
+- `observe.audio` / `audio.volume` / `audio.device` — inventário PipeWire e
+  VOL de sistema (debounce no HUD); mute SND ≠ MIC OFF.
+- `voice.status` — `TTS:piper|espeak|absent` honesty.
+- `display.blank` — tier idle 2 (DPMS best-effort); suspend só via HITL
+  `system.suspend` (fora do kiosk).
 - `orb.get` / `orb.sense` — estado e nível/movimento.
 
-`cognitive.trace` foi adicionado à `KIOSK_METHODS` (cap NONE) com o teste de
-contrato existente; `health.mesh_nodes` não abre método novo.
+`cognitive.trace` / `observe.net` / áudio / `voice.status` / `display.blank`
+estão em `KIOSK_METHODS` com teste de contrato; `wifi.connect`,
+`skill.install`, `observe.snapshot` e `system.suspend` **não**.
+
+Mic: default **PTT** (AUTO opt-in); estados OFF / LISTEN / TURN. Chat
+“criar app monitor de rede” abre card HITL `skill.install` (template
+`net.monitor`) em vez de deny seco — ver
+`docs/evidence/ORB_CHJ_FACTORY_20261102.md` +
+`docs/evidence/ORB_CHJ_CLOSEOUT100_20261102.md`.
+
+Prefs: `prefs.get`/`prefs.set` → `<data-dir>/ui_prefs.json` (allowlist).
+TTS: selects engine/voz a partir de `voice.status.models` (só .onnx locais).
+Idle: blank → `display.blank`; DIAG **PROPOR SUSPEND** → HITL (nunca
+`systemctl` directo no kiosk). Deny HITL → CorrectPlan no OPAR (`improve`).
 
 ## Atalhos
 

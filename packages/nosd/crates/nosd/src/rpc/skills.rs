@@ -20,6 +20,48 @@ pub fn skills_dir(state: &AppState) -> std::path::PathBuf {
     state.data_dir.join("skills")
 }
 
+fn is_net_monitor_skill(name: &str, meta: Option<&serde_json::Value>) -> bool {
+    let n = name.to_ascii_lowercase();
+    if n == "net-monitor" || n == "net.monitor" || n.contains("net-monitor") {
+        return true;
+    }
+    if let Some(m) = meta {
+        let focus = m.get("focus").and_then(|v| v.as_str()).unwrap_or("");
+        let f = focus.to_ascii_lowercase();
+        if f == "net.monitor" || f.contains("net.monitor") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Smoke pós-install: executa skill e injeta observe.net se for net.monitor.
+pub fn run_net_monitor_smoke(state: &AppState, name: &str) -> Option<serde_json::Value> {
+    let key = format!("skill/{name}/active");
+    let entry = state.mesh.crdt_get(&key)?;
+    let meta = state
+        .mesh
+        .crdt_get(&format!("skill/{name}/meta"))
+        .and_then(|e| serde_json::from_str::<serde_json::Value>(&e.value).ok());
+    let path = skills_dir(state).join(format!("{}.wasm", entry.value));
+    let bytes = std::fs::read(&path).ok()?;
+    let (rt, _) = runtime_for("frugal");
+    let outcome = rt.execute(&bytes, Grants::NONE, 1, 0).ok()?;
+    let mut result = json!({
+        "name": name,
+        "fuel_used": outcome.fuel_used,
+        "value": outcome.value,
+    });
+    if is_net_monitor_skill(name, meta.as_ref()) {
+        let net = nos_observe::collect_net_view();
+        result["result"] = serde_json::to_value(&net).unwrap_or(json!(null));
+        result["host_inject"] = json!("observe.net");
+    } else if let Some(text) = outcome.result_text() {
+        result["result"] = json!(text);
+    }
+    Some(result)
+}
+
 /// S1: commitment BLAKE3 (64 hex). FNV ficou como fingerprint, não integridade.
 fn content_id(bytes: &[u8]) -> String {
     nos_mesh::content_hash(bytes)
@@ -1328,6 +1370,13 @@ pub(crate) fn dispatch(state: &AppState, req: Request, peer: &str) -> Option<Res
                             json!(base64::engine::general_purpose::STANDARD.encode(bytes));
                     }
                     result["result_truncated"] = json!(r.result_truncated);
+                    // Host bridge: net.monitor / net-monitor → inject observe.net
+                    // (sem socket no wasm).
+                    if is_net_monitor_skill(name, meta.as_ref()) {
+                        let net = nos_observe::collect_net_view();
+                        result["result"] = serde_json::to_value(&net).unwrap_or(json!(null));
+                        result["host_inject"] = json!("observe.net");
+                    }
                     Response {
                         id: req.id,
                         ok: true,

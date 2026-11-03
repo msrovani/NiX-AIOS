@@ -3224,6 +3224,7 @@ dependencies = [
 name = "nos-hermes"
 version = "0.7.0-alpha.5"
 dependencies = [
+ "blake3",
  "nos-bei",
  "nos-bus",
  "nos-core",

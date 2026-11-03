@@ -6,6 +6,7 @@ mod agency;
 mod autolearn;
 mod blob_deliberate;
 pub mod brain_upgrade;
+pub mod improve_propose;
 mod card;
 mod cognitive_act;
 mod cognitive_bridge;
@@ -23,6 +24,10 @@ pub use autolearn::{plan_from_seek, plan_learn, LearnAction, LearnPlan};
 pub use blob_deliberate::{
     deliberate_blob_fetch, gate_allows_fetch, iso_must_not_ship_blobs, note_persona_download,
     remember_deliberation, BlobDeliberation, BlobKind, BlobNeed,
+};
+pub use improve_propose::{
+    correct_plan_on_deny, fingerprint_of, from_brain_proposal, propose as improve_propose_open,
+    card_body as improve_card_body, ImprovePropose, ProposeOutcome, DEFAULT_FP_TTL_MS,
 };
 pub use brain_upgrade::{
     accept, card_body, pick_adapt_tier, pick_reachable_tier, plan, sha256_file, AcceptError,
@@ -57,7 +62,7 @@ use nos_factory::{
 use nos_memory::{MemoryRecord, NosMemory};
 use parking_lot::Mutex;
 use serde_json::json;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 use tracing::{info, warn};
@@ -107,6 +112,8 @@ pub struct HermesEngine {
     pub idle_ticks: AtomicU64,
     /// V3 (plano vampiro): ring buffer OPAR para a UI — só metadados.
     pub opar_trace: Mutex<VecDeque<(u64, CognitiveAct)>>,
+    /// CHJ: dedupe de cards improve por fingerprint (TTL in-memory).
+    pub improve_fp: Mutex<HashMap<String, u64>>,
 }
 
 /// Config de boot do composition root (hub scan + hotswap + S2 + brokers).
@@ -234,6 +241,7 @@ impl HermesEngine {
             persona: Mutex::new(PersonaState::default()),
             idle_ticks: AtomicU64::new(0),
             opar_trace: Mutex::new(VecDeque::new()),
+            improve_fp: Mutex::new(HashMap::new()),
         };
         eng.seed_cinematic_boot();
         Ok(eng)
@@ -300,6 +308,85 @@ impl HermesEngine {
         info!(target: "nosd", "{}", snap.slog_line);
     }
 
+    /// Chat intent: criar skill/app de monitor de rede → factory.plan + card HITL.
+    fn try_chat_factory_skill_improve(
+        &self,
+        _gate: &CapGate,
+        prompt: &str,
+    ) -> Result<Option<String>, HermesError> {
+        let Some(intent) = nos_factory::match_skill_create_network_intent(prompt) else {
+            return Ok(None);
+        };
+        let need = SkillNeed {
+            goal: intent.clone(),
+            capabilities: vec![],
+            frugal_budget: true,
+        };
+        let seek = self.seek_before_spawn(&need);
+        let seek_note = if seek.hit.is_some() {
+            Some(seek_audit_line(&seek))
+        } else {
+            None
+        };
+        let plan = nos_factory::factory_plan(&intent, seek_note.as_deref());
+        let candidate = json!({
+            "label": plan.template_id,
+            "version": "1",
+            "content_id": plan.content_id,
+        })
+        .to_string();
+        let proposal = ImprovePropose {
+            kind: "skill".into(),
+            title: format!("Skill factory — {}", plan.template_id),
+            reason: format!(
+                "Pedido no chat encaixa template `{}`. {}",
+                plan.template_id, plan.note
+            ),
+            importance: "medium".into(),
+            current: "sem skill instalada".into(),
+            candidate,
+            evidence: vec![format!("intent={intent}")],
+            alternatives: vec!["skill.import declarativo (SKILL.md)".into()],
+            grant_kind: "skill.install".into(),
+            accept_effect: "Instala WASM template após grant skill.install; ring Nix \
+                             desarmado — sem nixos-rebuild automático"
+                .into(),
+            fingerprint: String::new(),
+        };
+        let gate_hitl = CapGate::new(CapBits::HITL, self.cap_gen.max(1));
+        let out = improve_propose_open(
+            &self.windows,
+            &gate_hitl,
+            self.cap_gen,
+            proposal,
+            &self.improve_fp,
+            DEFAULT_FP_TTL_MS,
+        )
+        .map_err(HermesError::Ui)?;
+        let reply = if out.opened {
+            format!(
+                "[improve] Abri card HITL (janela {}) para instalar `{}`. \
+                 Confirme no HUD ou `nosctl consent skill.install`. {}",
+                out.window_id, plan.template_id, plan.note
+            )
+        } else if out.skipped_ttl {
+            format!(
+                "[improve] Card já mostrada recentemente (fingerprint TTL) — template `{}`.",
+                plan.template_id
+            )
+        } else {
+            format!("[improve] Proposta registada para `{}`.", plan.template_id)
+        };
+        let _ = self.record_opar(
+            "chat",
+            &format!("factory_intent len={}", prompt.len()),
+            &format!("template={}", plan.template_id),
+            &format!("window={} opened={}", out.window_id, out.opened),
+            "hitl_card",
+        );
+        Ok(Some(reply))
+    }
+
     /// Ciclo cognitivo chat com roteamento MoE.
     pub fn chat(&self, gate: &CapGate, prompt: &str) -> Result<String, HermesError> {
         gate.allow(CapBits::INFER, self.cap_gen)
@@ -322,6 +409,9 @@ impl HermesEngine {
                 "window_opened",
             );
             return Ok(format!("[card] {body}"));
+        }
+        if let Some(reply) = self.try_chat_factory_skill_improve(gate, prompt)? {
+            return Ok(reply);
         }
         let bei_budget = self.bei.tick().map(|s| s.budget_remaining).unwrap_or(0);
         let decision = route_intent(prompt);
@@ -483,6 +573,13 @@ impl HermesEngine {
     ) -> Result<serde_json::Value, HermesError> {
         gate.allow(CapBits::INFER, self.cap_gen)
             .map_err(HermesError::Cap)?;
+        if let Some(text) = self.try_chat_factory_skill_improve(gate, prompt)? {
+            return Ok(json!({
+                "text": text,
+                "ready": true,
+                "factory_route": true,
+            }));
+        }
         let decision = route_intent(prompt);
         let slot = self.plan_slot(decision);
         let model_prompt = self.build_model_prompt(prompt);
@@ -1146,6 +1243,7 @@ mod tests {
             persona: Mutex::new(PersonaState::default()),
             idle_ticks: AtomicU64::new(0),
             opar_trace: Mutex::new(VecDeque::new()),
+            improve_fp: Mutex::new(HashMap::new()),
         };
         TestEng { _dir: dir, eng }
     }
@@ -1156,6 +1254,22 @@ mod tests {
         let g = CapGate::new(CapBits::FULL, 1);
         let r = t.eng.chat(&g, "oi").unwrap();
         assert!(!r.is_empty());
+    }
+
+    #[test]
+    fn chat_factory_network_intent_opens_hitl() {
+        let t = eng();
+        let g = CapGate::new(CapBits::FULL, 1);
+        let r = t
+            .eng
+            .chat(&g, "Crie uma skill para monitorar a rede")
+            .unwrap();
+        assert!(r.contains("[improve]"), "{r}");
+        assert!(r.contains("net.monitor"));
+        let wins = t.eng.ui_list();
+        assert_eq!(wins.len(), 1);
+        assert_eq!(wins[0].kind, WindowKind::HitlConfirm);
+        assert_eq!(wins[0].grant_kind, "skill.install");
     }
 
     #[test]

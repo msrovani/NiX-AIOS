@@ -727,6 +727,19 @@ button{cursor:pointer}
         <div class="kv" data-optional><span>SCORE</span><b id="kvScore" title="">—</b></div>
       </section>
 
+
+      <section class="panel" id="netPanel">
+        <header class="panel-head"><span class="idx">02b</span><h2>REDE</h2><span class="rule"></span><span class="tag" id="netTag">—</span></header>
+        <div class="kv"><span>ESTADO</span><b id="netUp">—</b></div>
+        <div class="kv"><span>TIPO</span><b id="netType">—</b></div>
+        <div class="kv"><span>DEVICE</span><b id="netDev">—</b></div>
+        <div class="kv"><span>LINK</span><b id="netMbps" title="Capacidade do link (sysfs), não throughput">—</b></div>
+        <div class="kv"><span>SSID</span><b id="netSsid">—</b></div>
+        <div class="kv"><span>TTS</span><b id="ttsEngineLbl" title="voice.status">—</b></div>
+        <div class="kv"><span>ENGINE</span><select id="ttsEngine" class="btn ghost" style="max-width:9rem" aria-label="Engine TTS"></select></div>
+        <div class="kv"><span>VOZ</span><select id="ttsModel" class="btn ghost" style="max-width:9rem" aria-label="Modelo Piper"></select></div>
+        <button id="suspendProposeBtn" class="mini" type="button" title="Propor suspensão (HITL)">PROPOR SUSPEND</button>
+      </section>
       <section class="panel" id="energyPanel">
         <header class="panel-head"><span class="idx">03</span><h2>ENERGIA</h2><span class="rule"></span><span class="tag" id="energyTag">—</span></header>
         <div class="energy-split">
@@ -810,7 +823,9 @@ button{cursor:pointer}
           <button id="sendBtn" class="btn primary" type="button" title="Transmitir (Enter)">ENVIAR</button>
         </div>
         <button id="txtBtn" class="btn ghost" type="button" title="Alternar modo texto">TXT</button>
-        <button id="autoBtn" class="btn toggle" type="button" title="Loop de voz contínuo">AUTO</button>
+        <button id="micMuteBtn" class="btn ghost" type="button" title="Cortar tracks do microfone (≠ mute SND)">MIC</button>
+        <button id="autoBtn" class="btn toggle" type="button" title="Loop de voz contínuo (opt-in; default PTT)">AUTO</button>
+        <select id="sinkSelect" class="btn ghost" title="Sink PipeWire" aria-label="Dispositivo de saída" style="max-width:9rem"></select>
         <div class="dock-vol">
           <button id="volDown" class="btn icon" type="button" title="Volume do HUD −">−</button>
           <span id="volLabel">55</span>
@@ -997,6 +1012,11 @@ button{cursor:pointer}
     source: null,
     videoOn: false,
     audioOn: false,
+    micMode: "off", // off | listen | turn
+    volTimer: null,
+    net: null,
+    audioSys: null,
+    voiceStatus: null,
     audioStream: null,
     videoStream: null,
     voice: { stt: null, tts: null, lastTurn: 0 },
@@ -2566,6 +2586,7 @@ button{cursor:pointer}
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       ui.audioOn = true;
+      if (ui.micMode !== "off") setMicMode("listen");
       const ctx = ensureAudio();
       if (ctx) {
         const src = ctx.createMediaStreamSource(ui.audioStream);
@@ -2791,13 +2812,19 @@ button{cursor:pointer}
       if (ui.busy) return;
       setOrb("idle");
       setActivity("AGUARDANDO DIRECTIVA");
-      if (ui.auto && ui.voice.tts !== false) setTimeout(() => { if (!ui.busy) voiceTurn(); }, 700);
+      if (ui.auto && ui.voice.tts !== false) setTimeout(async () => {
+        if (ui.busy) return;
+        const ok = await waitForSpeechOrPtt(5000);
+        if (!ok) { setActivity("AUTO · VAD silêncio → PTT"); ui.auto = false; if ($("autoBtn")) $("autoBtn").textContent = "AUTO"; toast("VOZ", "VAD sem fala — AUTO desarmado (PTT).", "warn"); savePrefs({ auto_voice: false }); return; }
+        voiceTurn();
+      }, 700);
     }, 450);
   }
 
   async function micPressed() {
     if (ui.busy) return;
     ensureAudio();
+    setMicMode(ui.micMode === "off" ? "off" : "turn");
     if (!ui.audioOn) {
       const ok = await startAudio();
       if (!ok) {
@@ -2896,8 +2923,173 @@ button{cursor:pointer}
       if (ui.busy) return;
       setOrb("idle");
       setActivity("AGUARDANDO DIRECTIVA");
-      if (ui.auto && ui.voice.tts !== false) setTimeout(() => { if (!ui.busy) voiceTurn(); }, 700);
+      if (ui.auto && ui.voice.tts !== false) setTimeout(async () => {
+        if (ui.busy) return;
+        const ok = await waitForSpeechOrPtt(5000);
+        if (!ok) { setActivity("AUTO · VAD silêncio → PTT"); ui.auto = false; if ($("autoBtn")) $("autoBtn").textContent = "AUTO"; toast("VOZ", "VAD sem fala — AUTO desarmado (PTT).", "warn"); savePrefs({ auto_voice: false }); return; }
+        voiceTurn();
+      }, 700);
     }, 450);
+  }
+
+
+/* ================= ORB_CHJ_HOOKS ================= */
+  function renderNet(n) {
+    if (!n) return;
+    ui.net = n;
+    const up = !!n.up;
+    setKv("netUp", up ? "UP" : "DOWN", up ? "ok" : "warn");
+    setKv("netType", n.type || "none");
+    setKv("netDev", n.device || "—");
+    const mbps = n.link_mbps;
+    setKv("netMbps", mbps == null ? "—" : `${mbps} Mbps (link)`, mbps != null ? "ok" : "",
+      "capacidade do link (sysfs), não throughput medido");
+    setKv("netSsid", n.ssid || "—");
+    const tag = $("netTag");
+    if (tag) { tag.textContent = up ? String(n.type || "UP").toUpperCase() : "DOWN"; tag.className = "tag " + (up ? "live" : "warn"); }
+    if (up) {
+      $("linkBadge").classList.add("ok");
+      const tip = [n.type, n.device, mbps != null ? (mbps + "M") : null, n.ssid].filter(Boolean).join(" · ");
+      $("linkText").textContent = tip || "LINK UP";
+    }
+  }
+
+  function renderVoiceStatus(vs) {
+    ui.voiceStatus = vs || null;
+    if (!vs) { setKv("ttsEngineLbl", "—"); return; }
+    const eng = vs.tts_engine || vs.selected_engine || "absent";
+    setKv("ttsEngineLbl", eng, eng === "piper" ? "ok" : "warn",
+      JSON.stringify({ tts_ready: vs.tts_ready, stt_ready: vs.stt_ready, eng }));
+    const engSel = $("ttsEngine");
+    const modSel = $("ttsModel");
+    if (engSel) {
+      const engines = vs.engines || [];
+      const cur = vs.selected_engine || eng;
+      engSel.innerHTML = "";
+      for (const e of (engines.length ? engines : ["espeak"])) {
+        const o = document.createElement("option");
+        o.value = e; o.textContent = e;
+        if (e === cur) o.selected = true;
+        engSel.appendChild(o);
+      }
+    }
+    if (modSel) {
+      const models = vs.models || [];
+      const curM = vs.selected_model || "";
+      modSel.innerHTML = "";
+      const z = document.createElement("option");
+      z.value = ""; z.textContent = models.length ? "modelo…" : "sem onnx";
+      modSel.appendChild(z);
+      for (const m of models) {
+        const o = document.createElement("option");
+        o.value = m.label || m.path;
+        o.textContent = m.label || m.path;
+        if ((m.label || "") === curM) o.selected = true;
+        modSel.appendChild(o);
+      }
+    }
+  }
+
+  async function savePrefs(patch) {
+    try {
+      await rpc("prefs.set", patch);
+      try {
+        for (const [k, v] of Object.entries(patch)) {
+          if (k === "volume") localStorage.setItem("jarbas.volume", String(v));
+          if (k === "muted") localStorage.setItem("jarbas.muted", v ? "1" : "0");
+          if (k === "vad_thr") localStorage.setItem("jarbas.vad_thr", String(v));
+          if (k === "idle_ms") localStorage.setItem("jarbas.idle_ms", String(v));
+          if (k === "dpms_ms") localStorage.setItem("jarbas.dpms_ms", String(v));
+        }
+      } catch (_) {}
+    } catch (_) {}
+  }
+
+  async function loadPrefsIntoUi() {
+    try {
+      const res = await rpc("prefs.get", {});
+      if (!res || !res.ok || !res.result) return;
+      const p = res.result;
+      if (typeof p.volume === "number") { ui.volume = clamp(p.volume, 0, 100); setVolume(ui.volume); }
+      if (typeof p.muted === "boolean") {
+        ui.muted = p.muted;
+        $("muteBtn").textContent = ui.muted ? "MUTE" : "SND";
+        $("muteBtn").style.color = ui.muted ? "var(--red)" : "";
+      }
+      if (typeof p.auto_voice === "boolean") {
+        ui.auto = p.auto_voice;
+        if ($("autoBtn")) $("autoBtn").textContent = ui.auto ? "AUTO ON" : "AUTO";
+      }
+      if (typeof p.vad_thr === "number") localStorage.setItem("jarbas.vad_thr", String(p.vad_thr));
+      if (typeof p.idle_ms === "number") localStorage.setItem("jarbas.idle_ms", String(p.idle_ms));
+      if (typeof p.dpms_ms === "number") localStorage.setItem("jarbas.dpms_ms", String(p.dpms_ms));
+      if (p.mic_default_on) setMicMode("listen");
+    } catch (_) {}
+  }
+
+
+  function renderAudioSys(a) {
+    ui.audioSys = a || null;
+    const sel = $("sinkSelect");
+    if (!sel || !a) return;
+    const sinks = a.sinks || [];
+    const cur = sel.value;
+    sel.innerHTML = "";
+    const opt0 = document.createElement("option");
+    opt0.value = ""; opt0.textContent = a.source_status === "absent" ? "áudio absent" : "sink…";
+    sel.appendChild(opt0);
+    for (const s of sinks) {
+      const o = document.createElement("option");
+      o.value = s.id;
+      o.textContent = (s.is_default ? "★ " : "") + (s.name || s.id);
+      if (s.is_default) o.selected = true;
+      sel.appendChild(o);
+    }
+    if (cur) sel.value = cur;
+    if (typeof a.volume_percent === "number" && !ui.volDragging) {
+      // sync label only when not actively scrubbing
+    }
+  }
+
+  function pushSystemVolume(pct, muted) {
+    if (ui.volTimer) clearTimeout(ui.volTimer);
+    ui.volTimer = setTimeout(async () => {
+      try {
+        const body = { percent: pct };
+        if (muted != null) body.muted = muted;
+        await rpc("audio.volume", body);
+      } catch (_) {}
+    }, 180);
+  }
+
+  const _setVolumeOrig = typeof setVolume === "function" ? setVolume : null;
+  // wrap after setVolume defined — applied in init patch
+
+  /** VAD browser (RMS via analyser): em AUTO só dispara turno se houver energia; senão fica em PTT. */
+  async function waitForSpeechOrPtt(maxMs) {
+    const deadline = Date.now() + (maxMs || 4000);
+    const thr = Number(localStorage.getItem("jarbas.vad_thr")) || 0.04;
+    while (Date.now() < deadline) {
+      if (!ui.auto) return false;
+      const s = sampleAudio ? sampleAudio() : { level: 0 };
+      if ((s.level || 0) >= thr) return true;
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    return false;
+  }
+
+  function setMicMode(mode) {
+    ui.micMode = mode;
+    const btn = $("micMuteBtn");
+    if (mode === "off") {
+      if (ui.audioStream) ui.audioStream.getAudioTracks().forEach((tr) => { tr.enabled = false; });
+      if (btn) { btn.textContent = "MIC OFF"; btn.style.color = "var(--red)"; }
+      setKv("micState", "OFF", "warn");
+    } else {
+      if (ui.audioStream) ui.audioStream.getAudioTracks().forEach((tr) => { tr.enabled = true; });
+      if (btn) { btn.textContent = mode === "turn" ? "MIC TURN" : "MIC ON"; btn.style.color = mode === "turn" ? "var(--amber)" : "var(--green)"; }
+      setKv("micState", mode === "turn" ? "TURN" : "LISTEN", mode === "turn" ? "warn" : "ok");
+    }
   }
 
   /* ================= poll ================= */
@@ -2905,7 +3097,7 @@ button{cursor:pointer}
     if (!ui.ready || ui.polling) return;
     ui.polling = true;
     try {
-      const [health, score, tick, orb, wins, pending, energy, trace] = await Promise.all([
+      const [health, score, tick, orb, wins, pending, energy, trace, net, audioSys, vstat] = await Promise.all([
         rpc("health", {}),
         rpc("score", {}),
         rpc("cognitive.tick", {}),
@@ -2914,6 +3106,9 @@ button{cursor:pointer}
         rpc("ui.pending", {}),
         rpc("observe.energy", {}),
         rpc("cognitive.trace", { last: 8 }),
+        rpc("observe.net", {}),
+        rpc("observe.audio", {}),
+        rpc("voice.status", {}),
       ]);
       if (health && health.ok) {
         ui.failures = 0;
@@ -2938,6 +3133,9 @@ button{cursor:pointer}
         renderAuthList();
       }
       if (energy && energy.ok) renderEnergy(energy.result);
+      if (net && net.ok) renderNet(net.result);
+      if (audioSys && audioSys.ok) renderAudioSys(audioSys.result);
+      if (vstat && vstat.ok) renderVoiceStatus(vstat.result);
       if (trace && trace.ok && trace.result && Array.isArray(trace.result.acts)) {
         mergeTrace(trace.result.acts);
       }
@@ -2955,6 +3153,11 @@ button{cursor:pointer}
     for (const a of fresh) {
       ui.traceSeen.add(a.ts_ms);
       const domain = String(a.domain || "opar");
+      if (domain === "improve" || domain === "correct_plan") {
+        pushAction("IMPROVE", domain, truncate(JSON.stringify(a.phases || a), 80), "warn");
+        ui.traceSeen.add(a.ts_ms);
+        continue;
+      }
       if (OPAR_NOISE.has(domain)) continue;
       if (shown >= 2) continue;
       const ph = a.phases || {};
@@ -3672,19 +3875,31 @@ button{cursor:pointer}
   }
 
   function armIdleShield() {
-    const IDLE_MS = 5 * 60 * 1000;
+    const IDLE_MS = Number(localStorage.getItem("jarbas.idle_ms")) || (5 * 60 * 1000);
+    const DPMS_MS = Number(localStorage.getItem("jarbas.dpms_ms")) || (10 * 60 * 1000);
     let last = Date.now();
+    let dpmsOn = false;
     const shield = $("idleShield");
     const poke = () => {
       last = Date.now();
       if (shield) shield.classList.remove("on");
+      if (dpmsOn) {
+        dpmsOn = false;
+        rpc("display.blank", { blank: false }).catch(() => {});
+      }
     };
     ["pointerdown", "keydown", "mousemove", "touchstart", "wheel"].forEach((ev) => {
       window.addEventListener(ev, poke, { passive: true });
     });
     if (shield) shield.addEventListener("pointerdown", poke);
+    // pending HITL continua a ser polled (pollNow no intervalo global)
     setInterval(() => {
-      if (Date.now() - last > IDLE_MS && shield) shield.classList.add("on");
+      const idleFor = Date.now() - last;
+      if (idleFor > IDLE_MS && shield) shield.classList.add("on");
+      if (idleFor > DPMS_MS && !dpmsOn) {
+        dpmsOn = true;
+        rpc("display.blank", { blank: true }).catch(() => {});
+      }
     }, 5000);
   }
 
@@ -3702,6 +3917,43 @@ button{cursor:pointer}
     scaleFs();
     window.addEventListener("resize", scaleFs);
     armIdleShield();
+    loadPrefsIntoUi();
+    const te = $("ttsEngine");
+    if (te) te.addEventListener("change", () => savePrefs({ voice_engine: te.value }));
+    const tm = $("ttsModel");
+    if (tm) tm.addEventListener("change", () => { if (tm.value) savePrefs({ voice_model: tm.value }); });
+    const sp = $("suspendProposeBtn");
+    if (sp) sp.addEventListener("click", async () => {
+      try {
+        const r = await rpc("improve.propose", { kind: "system.suspend" });
+        if (r && r.ok) toast("SUSPEND", "Card HITL (ou TTL)", "warn");
+        else toast("SUSPEND", (r && r.error) || "falhou", "err");
+        pollNow();
+      } catch (e) { toast("SUSPEND", String(e), "err"); }
+    });
+
+    const micBtn = $("micMuteBtn");
+    if (micBtn) micBtn.addEventListener("click", () => {
+      setMicMode(ui.micMode === "off" ? "listen" : "off");
+    });
+    const sinkSel = $("sinkSelect");
+    if (sinkSel) sinkSel.addEventListener("change", async () => {
+      if (!sinkSel.value) return;
+      try {
+        await rpc("audio.device", { kind: "sink", id: sinkSel.value });
+        savePrefs({ sink_id: sinkSel.value });
+      } catch (_) {}
+    });
+    // Volume do HUD também empurra sink do sistema (debounce) + prefs
+    const _sv = setVolume;
+    window.__setVolumeWrapped = true;
+    setVolume = function(v) {
+      _sv(v);
+      pushSystemVolume(ui.volume, ui.muted ? true : null);
+      savePrefs({ volume: ui.volume, muted: ui.muted });
+    };
+    if ($("autoBtn")) $("autoBtn").textContent = ui.auto ? "AUTO ON" : "AUTO";
+
 
     bind();
     applyAccent();

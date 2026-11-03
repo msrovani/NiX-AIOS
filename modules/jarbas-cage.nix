@@ -244,15 +244,42 @@ let
     # Probe ALSA cedo (journal): sem card = sem som mesmo com TTS ok.
     ${pkgs.alsa-utils}/bin/aplay -l >"$XDG_RUNTIME_DIR/alsa-cards.txt" 2>&1 || true
     echo "jarbas: alsa cards:"; cat "$XDG_RUNTIME_DIR/alsa-cards.txt" 2>/dev/null || true
-    if command -v ${pkgs.espeak-ng}/bin/espeak-ng >/dev/null 2>&1; then
-      (
-        sleep 5
+    # Greeting: Piper (timeout 3s) se modelo+CLI existem; senão espeak. Não bloqueia HUD.
+    (
+      sleep 5
+      GREET="Olá. JARBAS online. Aguardando directiva."
+      PIPER_BIN="/var/lib/nosd/models/piper/piper"
+      PIPER_ONNX="/var/lib/nosd/models/pt_BR-faber-medium.onnx"
+      if [ -x "$PIPER_BIN" ] && [ -f "$PIPER_ONNX" ]; then
+        piper_ok=0
+        if command -v timeout >/dev/null 2>&1; then
+          if printf '%s' "$GREET" | timeout 3s "$PIPER_BIN" --model "$PIPER_ONNX" \
+              --output_file "$XDG_RUNTIME_DIR/jarbas-greet.wav" \
+              2>>"$XDG_RUNTIME_DIR/piper-greeting.log"; then
+            piper_ok=1
+          fi
+        else
+          if printf '%s' "$GREET" | "$PIPER_BIN" --model "$PIPER_ONNX" \
+              --output_file "$XDG_RUNTIME_DIR/jarbas-greet.wav" \
+              2>>"$XDG_RUNTIME_DIR/piper-greeting.log"; then
+            piper_ok=1
+          fi
+        fi
+        if [ "$piper_ok" = 1 ] \
+          && ${pkgs.alsa-utils}/bin/aplay -q "$XDG_RUNTIME_DIR/jarbas-greet.wav" \
+            2>>"$XDG_RUNTIME_DIR/piper-greeting.log"; then
+          echo "jarbas: piper greeting ok"
+          exit 0
+        fi
+        echo "jarbas: piper greeting FAILED/timeout — fallback espeak" >&2
+      fi
+      if command -v ${pkgs.espeak-ng}/bin/espeak-ng >/dev/null 2>&1; then
         ${pkgs.espeak-ng}/bin/espeak-ng -v pt-br -s 140 \
-          "Olá. JARBAS online. Aguardando directiva." 2>>"$XDG_RUNTIME_DIR/espeak-greeting.log" \
+          "$GREET" 2>>"$XDG_RUNTIME_DIR/espeak-greeting.log" \
           || echo "jarbas: espeak greeting FAILED" >&2
-      ) &
-      echo "jarbas: espeak greeting scheduled"
-    fi
+      fi
+    ) &
+    echo "jarbas: greeting scheduled (piper-then-espeak)"
 
     fail_over_to_slint() {
       echo "jarbas-chromium: $1; fail over para Slint (tenta GL iGPU antes de pixman)" >&2

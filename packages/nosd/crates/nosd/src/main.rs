@@ -773,30 +773,17 @@ async fn hermes_runtime_loop(
                     })
                     .unwrap_or(false);
                 if !skip {
-                    // Card no HUD do kiosk (server-side window; o grant é
-                    // server-authored no Submit — o cliente nunca autoriza).
-                    let wid = state.hermes.windows.alloc_id();
-                    let title = format!("Brain upgrade — tier {} ({})", pr.tier, pr.candidate.name);
-                    let body = format!(
-                        "{}\n\nAceitar: `nosctl consent brain.upgrade` + \
-                         `nosctl brain-accept {} --confirm-id <id>`",
-                        nos_hermes::brain_upgrade::card_body(&plan),
-                        pr.tier
-                    );
-                    let mut spec = nos_core::WindowSpec::hitl_confirm(
-                        wid,
-                        title,
-                        body,
-                        nos_core::UiSource::Hermes,
-                    );
-                    spec.grant_kind = "brain.upgrade".to_string();
+                    let proposal = nos_hermes::from_brain_proposal(&plan, pr);
                     let gate = nos_core::CapGate::new(nos_core::CapBits::HITL, 1);
-                    match state
-                        .hermes
-                        .windows
-                        .open(&gate, state.ipc_generation(), spec)
-                    {
-                        Ok(_) => {
+                    match nos_hermes::improve_propose_open(
+                        &state.hermes.windows,
+                        &gate,
+                        state.ipc_generation(),
+                        proposal,
+                        &state.hermes.improve_fp,
+                        nos_hermes::DEFAULT_FP_TTL_MS,
+                    ) {
+                        Ok(out) if out.opened || out.skipped_ttl => {
                             state.mesh.crdt_put(
                                 state.mesh.local_id(),
                                 "brain/upgrade/last",

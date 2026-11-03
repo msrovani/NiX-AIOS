@@ -33,6 +33,16 @@ const KIOSK_METHODS: &[&str] = &[
     "chat",
     "voice.turn",
     "observe.energy",
+    "observe.net",
+    "observe.audio",
+    "audio.devices",
+    "audio.volume",
+    "audio.device",
+    "voice.status",
+    "prefs.get",
+    "prefs.set",
+    "display.blank",
+    "improve.propose",
     // V10: feed de acções (OPAR) no HUD. Metadados apenas (domain+lengths),
     // sem notas/PII; required_cap = NONE.
     "cognitive.trace",
@@ -396,15 +406,30 @@ mod tests {
                 params: serde_json::json!({}),
             };
             let need = req.required_cap();
-            // Só INFER (chat/voz), HITL (ui.action) ou NONE. Nunca FS/NET/
-            // NIX_WRITE/AGENT_SPAWN/MEMORY — o perfil Jarbas tem-nos.
+            // Só INFER (chat/voz), HITL (ui.action), NONE ou OBSERVE nos
+            // métodos de áudio listados. Nunca FS/NET/NIX_WRITE/AGENT_SPAWN/
+            // MEMORY — o perfil Jarbas tem-nos.
+            let observe_kiosk = matches!(*m, "audio.volume" | "audio.device" | "display.blank");
             assert!(
-                need == CapBits::NONE || need == CapBits::INFER || need == CapBits::HITL,
+                need == CapBits::NONE
+                    || need == CapBits::INFER
+                    || need == CapBits::HITL
+                    || (observe_kiosk && need == CapBits::OBSERVE),
                 "{m} exige {need:?}: fora do âmbito do kiosk"
             );
         }
         for m in [
             "observe.energy",
+            "observe.net",
+            "observe.audio",
+            "audio.devices",
+            "audio.volume",
+            "audio.device",
+            "voice.status",
+            "prefs.get",
+            "prefs.set",
+            "display.blank",
+            "improve.propose",
             "ui.pending",
             "cognitive.trace",
             "memory.recall",
@@ -425,6 +450,9 @@ mod tests {
             "wifi.connect",
             "security.rotate",
             "systemctl.scoped",
+            "system.suspend",
+            "system.hibernate",
+            "observe.snapshot",
             "self.heal.evaluate",
             "mcp.call",
             "crdt.put",

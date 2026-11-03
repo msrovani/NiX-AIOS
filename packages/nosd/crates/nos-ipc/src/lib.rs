@@ -60,7 +60,9 @@ impl Request {
             // Plano vampiro V0/V1/V3/V4/V5: leitura pura (sem PII, sem nonces).
             // `mcp.call` aplica as caps DA TOOL no handler (o registry é
             // server-authored); o piso IPC é NONE para permitir tools NONE.
-            "config.show" | "observe.energy" | "cognitive.trace" | "ui.pending" | "mcp.list"
+            "config.show" | "observe.energy" | "observe.net" | "observe.audio"
+            | "audio.devices" | "prefs.get" | "prefs.set"
+            | "cognitive.trace" | "ui.pending" | "mcp.list"
             | "mcp.call" | "dag.plan" => CapBits::NONE,
             "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
             | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
@@ -78,8 +80,11 @@ impl Request {
             "memory.remember" | "memory.sync" => CapBits::MEMORY,
             "memory.curate" | "memory.decide" => CapBits::MEMORY.union(CapBits::HITL),
             "nix.propose" | "nix.apply" | "nix.rollback" | "nix.confirm" => CapBits::NIX_WRITE,
-            "hw.act" | "audio.act" | "audio.volume" | "gpu.plan" | "observe.snapshot"
-            | "policy.matrix" | "device.recipe" => CapBits::OBSERVE,
+            "hw.act" | "audio.act" | "audio.volume" | "audio.device" | "gpu.plan"
+            | "observe.snapshot" | "policy.matrix" | "device.recipe" | "display.blank" => {
+                CapBits::OBSERVE
+            }
+            "system.suspend" | "system.hibernate" => CapBits::HITL,
             "self.heal.evaluate" => CapBits::NIX_WRITE.union(CapBits::HITL),
             // Rotação de token TCP/HTTP: só admin (LocalAdmin).
             "security.rotate" => CapBits::NIX_WRITE.union(CapBits::HITL),
@@ -93,6 +98,8 @@ impl Request {
             // plan = Observe puro; accept = NET+FS+HITL (grant server-authored).
             "brain.plan" => CapBits::NONE,
             "brain.accept" => CapBits::NET.union(CapBits::FS).union(CapBits::HITL),
+            "improve.check" | "factory.plan" => CapBits::NONE,
+            "improve.propose" => CapBits::NONE,
             _ => CapBits::DENY_UNKNOWN,
         }
     }

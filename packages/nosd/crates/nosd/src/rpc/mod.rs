@@ -3,12 +3,14 @@ mod brain;
 mod chat;
 mod dag;
 mod factory_store;
+mod improve;
 mod health;
 mod http_lab;
 mod job;
 mod mcp;
 mod model;
 mod nix_wifi;
+mod prefs_rpc;
 mod security;
 mod skill_md;
 pub mod skills;
@@ -20,8 +22,7 @@ pub use http_lab::serve_orb_lab;
 use crate::{actuators, nix_managed, transmute, wifi_nm};
 use nos_core::{
     disposition, lab_auto_switch_from_env, note_violation, s1_backend_label, ActDisposition,
-    ActDomain, CapBits, CapRegistry, NosScore, PeerProfile, SafetyViolation, Sev, UiSource,
-    WindowSpec,
+    ActDomain, CapRegistry, NosScore, PeerProfile, SafetyViolation, Sev, UiSource, WindowSpec,
 };
 use nos_cortex::CapacityProber;
 use nos_factory::{ImportMeta, ImportProvenance, PackageStore, SandboxStatus, StoreError};
@@ -744,6 +745,12 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         return r;
     }
     if let Some(r) = brain::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = improve::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = prefs_rpc::dispatch(state, &gate, req.clone()) {
         return r;
     }
     if let Some(r) = chat::dispatch(state, &gate, req.clone()) {

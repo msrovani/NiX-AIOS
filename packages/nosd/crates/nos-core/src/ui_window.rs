@@ -118,10 +118,10 @@ impl HitlTier {
 pub fn tier_for_grant_kind(kind: &str) -> HitlTier {
     match kind.trim() {
         "" | "hitl.confirm" | "act" => HitlTier::Trivial,
-        "blob.fetch" | "firmware.fetch" | "factory.install" => HitlTier::Low,
-        "wifi.connect" | "mesh.skill" | "pipewire.volume" => HitlTier::Medium,
+        "blob.fetch" | "firmware.fetch" | "factory.install" | "skill.install" => HitlTier::Low,
+        "wifi.connect" | "mesh.skill" | "pipewire.volume" | "system.suspend" => HitlTier::Medium,
         "nix.apply" | "nix.build_vm" | "self.heal" | "brain.upgrade" | "repartition"
-        | "gpu.power" | "systemctl" | "security.rotate" => HitlTier::High,
+        | "gpu.power" | "systemctl" | "security.rotate" | "system.hibernate" => HitlTier::High,
         _ => HitlTier::Medium,
     }
 }

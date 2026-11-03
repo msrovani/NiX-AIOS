@@ -9,11 +9,16 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
         "voice.status" => {
             let (models_dir, _, _) = transmute::resolve_models_dir(&state.data_dir);
             let vp = nos_voice::VoicePipeline::with_models_dir(models_dir);
+            let prefs = crate::prefs::load(&state.data_dir);
             Response {
                 id: req.id,
                 ok: true,
                 error: None,
-                result: serde_json::to_value(vp.status()).unwrap_or(json!(null)),
+                result: serde_json::to_value(vp.status_with_prefs(
+                    prefs.voice_engine.as_deref(),
+                    prefs.voice_model.as_deref(),
+                ))
+                .unwrap_or(json!(null)),
             }
         }
         "voice.stt" => {
