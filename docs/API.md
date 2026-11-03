@@ -140,7 +140,7 @@ valores são `services.nosd.skillQuota{Runs,Fuel,WindowSecs}`.
 
 `mcp.call` tem piso IPC `NONE` de propósito: o registry é server-authored e a
 autorização é por tool (`nos-mcp`). O transporte **stdio** é servido pelo bin
-`nosmcp` (read-only: `nsd.health|score|energy|pending|trace`); HTTP/SSE e
+`nosmcp` (read-only: `nsd.health|score|energy|pending|trace` + `nsd.nix_status|nix_ask`); HTTP/SSE e
 `resources/*`/`prompts/*` **não** implementados.
 
 ### MCP por stdio (`nosmcp`)
@@ -152,6 +152,21 @@ nosmcp [--socket /run/nosd/nosd.sock] [--tcp 127.0.0.1:7700 --token-file …]
 Fala JSON-RPC 2.0 linha a linha em stdin/stdout (`initialize`, `tools/list`,
 `tools/call`, `ping`; `-32700` com `id:null` em JSON inválido). **Não** expõe
 escrita — para agir usa-se `nosctl` (com grant HITL onde aplicável).
+
+### Domínio Nix (leitura) e fábrica de apps
+
+| Comando | Método | Caps | Notas |
+|---------|--------|------|-------|
+| `nix-status` | `nix.status` | NONE | factos vivos: versão, closure, flake, gerações, ring |
+| `nix-ask <pergunta>` | `nix.ask` | NONE | lições do `AGENTS.md` que casam + factos |
+| `symbiosis` | `orb.symbiosis` | NONE | o mesmo JSON que o painel `02c SIMBIOSE` do HUD |
+| `factory-scaffold <intent> [--lang]` | `factory.scaffold` | NONE | plano Rust/Python com ficheiros; **não escreve** |
+| `factory-build <intent> [--lang]` | `factory.build` | AGENT_SPAWN\|FS | escreve no data-dir, compila e executa (`status: ok` só com exit 0) |
+
+`factory.build` grava OPAR e devolve `status` ∈ `ok`/`build_failed`/`run_failed`/
+`engine_absent`/`timeout`. Sem toolchain (`cargo`/`rustc`/`python3`) o resultado é
+`engine_absent` — nunca um sucesso fictício. O kiosk expõe só `nix.status`,
+`nix.ask`, `factory.scaffold` e `orb.symbiosis` (todos NONE).
 
 ### Nix / Wi‑Fi / transmute
 

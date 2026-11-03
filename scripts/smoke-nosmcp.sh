@@ -36,15 +36,23 @@ out="$(
 has '"protocolVersion"' "$out"
 has 'nsd.health' "$out"
 has 'nsd.energy' "$out"
+# Simbiose: o domínio Nix também é visível a agentes externos (leitura).
+has 'nsd.nix_status' "$out"
+has 'nsd.nix_ask' "$out"
 has 'engine' "$out"
 has '"id":4' "$out"
 
 echo "== read-only: nenhuma tool de escrita =="
-for bad in write apply spawn set_transmute nix. shell; do
-  if grep -q -- "$bad" <<<"$out"; then
-    fail "tools/list expôs '$bad' (tem de ser read-only)"
+# Comparar NOMES de tool, não a prosa: a descrição de `memory_recall` diz
+# "nunca write" e um grep do texto corrido dava falso positivo.
+names="$(grep -o '"name": *"nsd\.[a-z_]*"' <<<"$out" | sed -E 's/.*"(nsd\.[a-z_]*)"/\1/' | sort -u)"
+echo "tools: $(tr '\n' ' ' <<<"$names")"
+for bad in write apply spawn transmute shell confirm rollback; do
+  if grep -Eq "(^|\.)[a-z_]*${bad}" <<<"$names"; then
+    fail "tools/list expôs uma tool de escrita ('$bad') em: $names"
   fi
 done
+[ -n "$names" ] || fail "tools/list sem nomes (parse do contrato)"
 
 echo "== parse error (-32700, id null) =="
 out="$(printf 'nao-e-json\n{"jsonrpc":"2.0","id":9,"method":"ping"}\n' | "$NOSMCP" "${ARGS[@]}")"

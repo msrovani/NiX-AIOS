@@ -118,6 +118,11 @@ impl ToolExecutor for IpcExecutor {
                     "k": args.get("k").and_then(|v| v.as_u64()).unwrap_or(5),
                 }),
             ),
+            "nsd.nix_status" => ("nix.status", json!({})),
+            "nsd.nix_ask" => (
+                "nix.ask",
+                json!({ "question": args.get("question").and_then(|v| v.as_str()).unwrap_or("") }),
+            ),
             other => return Err(format!("unknown tool: {other}")),
         };
         self.rpc(method, params)
@@ -146,6 +151,14 @@ fn registry() -> Registry {
         (
             "nsd.memory_recall",
             "recall lexical governado (leitura; null-scope; nunca write)",
+        ),
+        (
+            "nsd.nix_status",
+            "factos Nix da máquina: versão, geração, flake, ring (leitura)",
+        ),
+        (
+            "nsd.nix_ask",
+            "lições Nix que casam com a pergunta + factos vivos (leitura)",
         ),
     ] {
         let _ = reg.register(ToolSpec::new(name, desc, CapBits::NONE));
