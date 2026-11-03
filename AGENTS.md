@@ -270,7 +270,10 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `qwen35-08b-q4km-base` (unsloth sem edito) também PASS. Commit
   `eba69c2`. Residual: edito sobreviver à Q4_K_M / `--reasoning off`,
   boot engine QEMU/metal OBSERVED pendentes. Evidência
-  `docs/evidence/S1_ASTRA_EDIT_2026-11-04.md`.
+  `docs/evidence/S1_ASTRA_EDIT_2026-11-04.md`. **ISO `iso-hw-cuda`
+  construída 2026-11-04 (host OBSERVED): 8 323 596 288 B, sha
+  `c2da2cfd…`; S1 Astra + S2 4B Q6_K no squashfs — ver
+  `docs/evidence/ISO_HW_CUDA_S1ASTRA_2026-11-04.md`**; metal AWAITING_HW.
 - **Tranche simbiose 2026-11-03 (in-tree)**: fábrica de apps **real** em Rust e
   Python (`nos-factory::scaffold`; RPC `factory.scaffold|factory.build`; CLI
   `factory-scaffold|factory-build`; cada app nasce com `flake.nix`), domínio

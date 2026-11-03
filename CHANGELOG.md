@@ -16,7 +16,9 @@ Versionamento [SemVer](https://semver.org/).
   `qwen35-08b-q4km-base` (unsloth sem edito, idem PASS).
   **Not-tested:** edito sobreviver à quantização Q4_K_M; ganhos com
   `--reasoning off`/ctx curto; engine boot em QEMU/metal. Ver
-  `docs/HW_TEST.md` §Modelo de arranque.
+  `docs/HW_TEST.md` §Modelo de arranque. ISO `iso-hw-cuda` com S1+Q6_S2
+  construída 2026-11-04 (8 323 596 288 B, sha `c2da2cfd…`;
+  `docs/evidence/ISO_HW_CUDA_S1ASTRA_2026-11-04.md`).
 
 - **Autoconhecimento + web (2026-11-03, in-tree)**: `nos-core::self_model`
   (catálogo de ~95 métodos com caps, domínios, efeitos; factos vivos;
