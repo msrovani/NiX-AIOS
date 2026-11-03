@@ -1,0 +1,13 @@
+b # [   52.881274] systemd[1]: Started Neural-OS Daemon.
+a # [   53.010965] systemd[1]: Started Neural-OS Daemon.
+b # [   65.513407] nosd[439]: 2026-11-02T05:15:48.279743Z  INFO nosd: mesh HB peer=11 pk=true
+a # [   65.523752] nosd[449]: 2026-11-02T05:15:48.295595Z  INFO nosd: mesh HB peer=12 pk=true
+a # [   66.274753] nosd[449]: 2026-11-02T05:15:49.071224Z  INFO nosd: mesh HB peer=12 pk=true
+b # [   66.517739] nosd[439]: 2026-11-02T05:15:49.282361Z  INFO nosd: mesh HB peer=11 pk=true
+a # [   67.292005] nosd[449]: 2026-11-02T05:15:50.077354Z  INFO nosd: mesh HB peer=12 pk=true
+b # [   67.513827] nosd[439]: 2026-11-02T05:15:50.286675Z  INFO nosd: mesh HB peer=11 pk=true
+a # [   68.475000] nosd[449]: 2026-11-02T05:15:51.267066Z  INFO nosd: mesh HB peer=12 pk=true
+b # [   68.670801] nosd[439]: 2026-11-02T05:15:51.437718Z  INFO nosd: mesh HB peer=11 pk=true
+a # [   69.486326] nosd[449]: 2026-11-02T05:15:52.270446Z  INFO nosd: mesh HB peer=12 pk=true
+b # [   69.668462] nosd[439]: 2026-11-02T05:15:52.974379Z  INFO nosd: mesh HB peer=11 pk=true
+test script finished in 71.72s

@@ -14,3 +14,16 @@ packages/nosd/vendor/
 .eco/state.json.bak
 .eco/state.json.tmp
 .eco/__pycache__/
+
+# Cursor / anexos de sessão (não versionar)
+.cloud-attachments/
+
+# One-shots locais de build/USB/FORGE (prefixo _; não canónicos)
+/scripts/_*
+/scripts/letra
+/scripts/dd-usb-*.ps1
+/scripts/online-nixaioslog.cmd
+/scripts/strip-bom-and-build-*.sh
+
+# Logs/snippets ad hoc em evidence (evidência real sem underscore)
+/docs/evidence/_*
