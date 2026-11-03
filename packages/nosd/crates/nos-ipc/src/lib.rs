@@ -56,13 +56,15 @@ impl Request {
             "health" | "score" | "fleet.health" | "model.list" | "model.suggest" | "model.plan"
             | "route.explain" | "cognitive.tick" | "artifact.validate" | "ui.list" | "ui.card"
             | "wifi.scan" | "voice.status" | "transmute.status" | "orb.get" | "orb.set"
-            | "orb.sense" => CapBits::NONE,
+            | "orb.sense" | "orb.symbiosis" => CapBits::NONE,
             // Plano vampiro V0/V1/V3/V4/V5: leitura pura (sem PII, sem nonces).
             // `mcp.call` aplica as caps DA TOOL no handler (o registry é
             // server-authored); o piso IPC é NONE para permitir tools NONE.
             "config.show" | "observe.energy" | "observe.net" | "observe.audio"
             | "audio.devices" | "prefs.get" | "prefs.set" | "cognitive.trace" | "ui.pending"
             | "mcp.list" | "mcp.call" | "dag.plan" => CapBits::NONE,
+            // Domínio Nix (leitura pura) + plano de app (não escreve nada).
+            "nix.status" | "nix.ask" | "factory.scaffold" => CapBits::NONE,
             "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
             | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
             "skill.list" | "skill.run" | "crdt.get" => CapBits::NONE,
@@ -75,6 +77,8 @@ impl Request {
             "transmute.run" => CapBits::NET.union(CapBits::FS).union(CapBits::NIX_WRITE),
             "agent.spawn" | "factory.promote" | "factory.seek" | "factory.synthesize"
             | "store.install" | "store.search" | "store.index" => CapBits::AGENT_SPAWN,
+            // Build real de app: escreve no data-dir e executa um compilador.
+            "factory.build" => CapBits::AGENT_SPAWN.union(CapBits::FS),
             "memory.recall" | "memory.health" => CapBits::NONE,
             "memory.remember" | "memory.sync" => CapBits::MEMORY,
             "memory.curate" | "memory.decide" => CapBits::MEMORY.union(CapBits::HITL),

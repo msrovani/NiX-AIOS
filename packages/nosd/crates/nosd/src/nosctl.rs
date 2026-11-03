@@ -172,6 +172,31 @@ enum Cmd {
         #[arg(long)]
         pattern: Option<String>,
     },
+    /// Domínio Nix: factos vivos da máquina (versão, geração, flake, ring).
+    #[command(name = "nix-status")]
+    NixStatus,
+    /// Domínio Nix: lições operacionais que casam com a pergunta.
+    #[command(name = "nix-ask")]
+    NixAsk {
+        question: String,
+    },
+    /// Fábrica: plano de app Rust/Python (ficheiros + content_id), sem escrever.
+    #[command(name = "factory-scaffold")]
+    FactoryScaffold {
+        intent: String,
+        #[arg(long)]
+        lang: Option<String>,
+    },
+    /// Fábrica: gera, constrói e corre a app (exige FS+AGENT_SPAWN).
+    #[command(name = "factory-build")]
+    FactoryBuild {
+        intent: String,
+        #[arg(long)]
+        lang: Option<String>,
+    },
+    /// Simbiose num só JSON (Nix + UI + fábrica) — o mesmo que o HUD vê.
+    #[command(name = "symbiosis")]
+    Symbiosis,
     /// CapGate NIX_WRITE → staging (+ auto-apply se NOSD_NIX_AUTO_SWITCH=1).
     /// Caminho preferido (T3.1): `--fields '{"hostname":"x"}'` — staging nasce
     /// de template fixo com valores charset-restrito; sem `--fields`, o
@@ -698,6 +723,23 @@ async fn async_main() -> anyhow::Result<()> {
             )
         }
         Cmd::OrbGet => ("orb.get", serde_json::json!({}), 0),
+        Cmd::NixStatus => ("nix.status", serde_json::json!({}), 0),
+        Cmd::NixAsk { question } => ("nix.ask", serde_json::json!({ "question": question }), 0),
+        Cmd::FactoryScaffold { intent, lang } => {
+            let mut p = serde_json::json!({ "intent": intent });
+            if let Some(l) = lang {
+                p["lang"] = serde_json::json!(l);
+            }
+            ("factory.scaffold", p, 0)
+        }
+        Cmd::FactoryBuild { intent, lang } => {
+            let mut p = serde_json::json!({ "intent": intent });
+            if let Some(l) = lang {
+                p["lang"] = serde_json::json!(l);
+            }
+            ("factory.build", p, (1 << 3) | (1 << 2)) // AGENT_SPAWN|FS
+        }
+        Cmd::Symbiosis => ("orb.symbiosis", serde_json::json!({}), 0),
         Cmd::OrbSet { state, pattern } => {
             let mut p = serde_json::json!({ "presets": true });
             if let Some(s) = state {

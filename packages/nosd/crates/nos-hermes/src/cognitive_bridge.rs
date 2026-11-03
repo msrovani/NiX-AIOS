@@ -99,8 +99,13 @@ pub fn build_chat_prompt(
         )
     };
 
+    // Simbiose Nix: quando a pergunta toca no sistema, o modelo recebe os
+    // factos DESTA máquina + as lições que custaram builds. Perguntas sem
+    // relação não gastam contexto (bloco omitido).
+    let nix_block = nos_core::nix_domain::prompt_block(user_prompt, 900).unwrap_or_default();
+
     let _ = tok; // recall_done marcado para eventual remember_user no mesmo fluxo
-    format!("{soul_block}{recall_block}{MARK_USER}\n{user_prompt}\n")
+    format!("{soul_block}{recall_block}{nix_block}{MARK_USER}\n{user_prompt}\n")
 }
 
 #[cfg(test)]
@@ -176,6 +181,30 @@ mod tests {
             !p.contains("nsgdb/doctrine"),
             "doutrina nao pode ir para o prompt de expressao: {p}"
         );
+    }
+
+    #[test]
+    fn nix_question_gets_live_block_and_others_do_not() {
+        let d = tempdir().unwrap();
+        let soul = d.path().join("SOUL.md");
+        std::fs::write(&soul, "persona\n").unwrap();
+        let mem = NosMemory::open_with_backend(d.path(), MemoryBackendKind::NsgdbLegacy).unwrap();
+
+        let p = build_chat_prompt(
+            &mem,
+            "o serviço systemd do nosd não arranca",
+            Some(&soul),
+            3,
+        );
+        assert!(p.contains("## Nix (live)"), "{p}");
+        assert!(p.contains("facts:"), "{p}");
+        // O bloco vive antes do turno do utilizador (prefixo estável).
+        assert!(p.find("## Nix (live)").unwrap() < p.find(MARK_USER).unwrap());
+
+        let q = build_chat_prompt(&mem, "receita de bolo de chocolate", Some(&soul), 3);
+        if !nos_core::nix_domain::probe().on_nixos {
+            assert!(!q.contains("## Nix (live)"), "{q}");
+        }
     }
 
     #[test]

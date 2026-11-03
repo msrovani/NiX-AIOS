@@ -39,6 +39,101 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 result: serde_json::to_value(&plan).unwrap_or(json!(null)),
             }
         }
+        // Fábrica de apps reais (Rust/Python): plano puro com ficheiros, sem
+        // escrever nada — o kiosk pode mostrar o plano e o utilizador decide.
+        "factory.scaffold" => {
+            let intent = req
+                .params
+                .get("intent")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if intent.is_empty() {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("params.intent required".into()),
+                    result: json!(null),
+                });
+            }
+            let lang = req
+                .params
+                .get("lang")
+                .and_then(|v| v.as_str())
+                .and_then(nos_factory::Lang::parse);
+            let plan = nos_factory::scaffold_plan(&intent, lang);
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: serde_json::to_value(&plan).unwrap_or(json!(null)),
+            }
+        }
+        // `factory.build`: escreve o projecto no data-dir, constrói e corre.
+        // Honestidade: sem toolchain ⇒ status `engine_absent` (ok=false).
+        "factory.build" => {
+            let intent = req
+                .params
+                .get("intent")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if intent.is_empty() {
+                return Some(Response {
+                    id: req.id,
+                    ok: false,
+                    error: Some("params.intent required".into()),
+                    result: json!(null),
+                });
+            }
+            let lang = req
+                .params
+                .get("lang")
+                .and_then(|v| v.as_str())
+                .and_then(nos_factory::Lang::parse);
+            let plan = nos_factory::scaffold_plan(&intent, lang);
+            let root = state.data_dir.join("factory").join("apps");
+            let dir = match nos_factory::write_scaffold(&plan, &root) {
+                Ok(d) => d,
+                Err(e) => {
+                    return Some(Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some(format!("scaffold write: {e}")),
+                        result: json!({ "plan": plan }),
+                    })
+                }
+            };
+            let out = nos_factory::build_and_run(&plan, &dir);
+            let ok = out.status == "ok";
+            let _ = state.hermes.record_opar(
+                "factory.build",
+                &format!("intent={} lang={}", plan.title, plan.lang.as_str()),
+                "scaffold",
+                &format!("{} ({} bytes)", dir.display(), plan.content_id),
+                &format!("status={} exit={:?} ms={}", out.status, out.exit, out.ms),
+            );
+            Response {
+                id: req.id,
+                ok,
+                error: if ok {
+                    None
+                } else {
+                    Some(format!("factory build: {}", out.status))
+                },
+                result: json!({
+                    "name": plan.name,
+                    "lang": plan.lang.as_str(),
+                    "content_id": plan.content_id,
+                    "dir": dir.display().to_string(),
+                    "files": plan.files.iter().map(|f| f.path.clone()).collect::<Vec<_>>(),
+                    "run": out,
+                    "honesty": "ok exige stdout do processo real; ausente = engine_absent",
+                }),
+            }
+        }
         "factory.seek" | "store.search" => {
             let goal = req
                 .params

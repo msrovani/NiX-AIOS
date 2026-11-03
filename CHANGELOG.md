@@ -5,6 +5,16 @@ Versionamento [SemVer](https://semver.org/).
 
 ## [0.7.0-alpha.5] — neural-sgdb MemoryGovernor + pin sync
 
+- **Simbiose (2026-11-03)**: fábrica de apps real — `nos-factory::scaffold`
+  gera Rust (`cargo`/`rustc`) ou Python, escreve, constrói e **executa**
+  (`status: ok` só com stdout real; ausência de toolchain = `engine_absent`);
+  RPC `factory.scaffold` (NONE, plano) e `factory.build` (AGENT_SPAWN|FS);
+  cada app gerada leva `flake.nix`. Domínio Nix `nos-core::nix_domain`
+  (factos vivos + 20 lições do `AGENTS.md`) no prompt (`## Nix (live)`), na
+  rota S1/S2 e em `nix.status`/`nix.ask`. HUD ORB: painel `02c SIMBIOSE`
+  (`orb.symbiosis`) com Nix/geração/ring/lições e plano de app.
+  Evidência `docs/evidence/SYMBIOSIS_2026-11-03.md`.
+
 - **nsgdb 1.5.0 → NixAIOS**: pin `ce5a5c70…` (`docs/NSGDB_VERSION.md` + flake input).
 - `nos-memory::MemoryGovernor`: two-pass, null-scope, ADD-only follow-ups, SOUL markers.
 - Backends: `neural` (default, FileStorage `memory/nsgdb/`) | `nsgdb_legacy` | `jsonl`.

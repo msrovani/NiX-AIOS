@@ -249,6 +249,15 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **Tranche simbiose 2026-11-03 (in-tree)**: fábrica de apps **real** em Rust e
+  Python (`nos-factory::scaffold`; RPC `factory.scaffold|factory.build`; CLI
+  `factory-scaffold|factory-build`; cada app nasce com `flake.nix`), domínio
+  Nix vivo (`nos-core::nix_domain`: factos da máquina + 20 lições do `AGENTS`;
+  bloco `## Nix (live)` no prompt do córtex/hermes; rota `nix_keywords` S1/S2;
+  RPC `nix.status|nix.ask`), HUD `02c SIMBIOSE` no ORB (`orb.symbiosis`).
+  Evidência `docs/evidence/SYMBIOSIS_2026-11-03.md`; smoke
+  `scripts/smoke-symbiosis.sh`. Not-tested: painel em QEMU/metal.
+
 - **Closeout fórum 2026-11-02 (0.7.0-alpha.5 in-tree)**: F9/F10 harvest,
   N1/N2 memória, M1 telepathy, `M3b-audio` opt-in; commits `2d2fb01`/`da0100c`.
   Evidência `docs/evidence/FORUM_CLOSEOUT_0.7.0-alpha.5.md`. P0 seguinte =

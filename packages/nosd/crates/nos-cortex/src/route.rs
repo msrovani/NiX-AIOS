@@ -119,6 +119,57 @@ pub fn route_intent_keyword(prompt: &str) -> RouteDecision {
             reason: "hw_keywords",
         };
     }
+    // Domínio Nix: mudar o sistema exige raciocínio (S2); consultar factos
+    // (`nix.status`) é pergunta local (S1). Antes `nix build` com erro de
+    // systemd caía em `default_s1` e o 0.8B respondia com folclore.
+    if contains_any(
+        &p,
+        &[
+            "nixos",
+            "nix build",
+            "nixos-rebuild",
+            "flake",
+            "nixpkgs",
+            "derivation",
+            "systemd unit",
+            "módulo nix",
+            "modulo nix",
+            "nix-shell",
+            "nix develop",
+            "home-manager",
+        ],
+    ) {
+        let deep = complex
+            || contains_any(
+                &p,
+                &[
+                    "erro",
+                    "error",
+                    "falha",
+                    "fail",
+                    "não arranca",
+                    "nao arranca",
+                    "switch",
+                    "apply",
+                    "rollback",
+                    "debugar",
+                    "debug",
+                ],
+            );
+        return RouteDecision {
+            slot: if deep {
+                ModelSlot::GeneratorPro
+            } else {
+                ModelSlot::Active
+            },
+            lane: if deep {
+                SystemLane::S2Deep
+            } else {
+                SystemLane::S1Local
+            },
+            reason: "nix_keywords",
+        };
+    }
     if contains_any(&p, &["rust ", "cargo ", "crate ", "wasm", "borrow"]) {
         return RouteDecision {
             slot: ModelSlot::RustCoder,
@@ -181,6 +232,21 @@ mod tests {
     fn pci_to_hw() {
         let d = route_intent("qual driver nvidia para este pci");
         assert_eq!(d.slot, ModelSlot::HwExpert);
+    }
+
+    #[test]
+    fn nix_build_error_escalates_to_s2() {
+        let d = route_intent("nix build falha com erro no módulo systemd do flake");
+        assert_eq!(d.reason, "nix_keywords");
+        assert_eq!(d.lane, SystemLane::S2Deep);
+        assert_eq!(d.slot, ModelSlot::GeneratorPro);
+    }
+
+    #[test]
+    fn nix_question_stays_local() {
+        let d = route_intent("o que é o flake.nix");
+        assert_eq!(d.reason, "nix_keywords");
+        assert_eq!(d.lane, SystemLane::S1Local);
     }
 
     #[test]

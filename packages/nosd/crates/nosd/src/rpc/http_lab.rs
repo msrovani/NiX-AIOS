@@ -49,6 +49,12 @@ const KIOSK_METHODS: &[&str] = &[
     // F2: memória cognitiva read-only no kiosk (writes = HITL via nosctl).
     "memory.recall",
     "memory.health",
+    // Simbiose: o HUD vê o estado Nix e o plano de uma app. `factory.build`
+    // NÃO entra — escreve no data-dir e executa um compilador.
+    "nix.status",
+    "nix.ask",
+    "factory.scaffold",
+    "orb.symbiosis",
 ];
 
 /// Lab cinemático: GET `/` → HTML (cam+mic+padrões); GET `/transmute` → wizard;
@@ -434,6 +440,10 @@ mod tests {
             "cognitive.trace",
             "memory.recall",
             "memory.health",
+            "nix.status",
+            "nix.ask",
+            "factory.scaffold",
+            "orb.symbiosis",
         ] {
             assert!(KIOSK_METHODS.contains(&m), "{m} devia estar exposto");
         }
@@ -460,6 +470,7 @@ mod tests {
             "memory.remember",
             "memory.sync",
             "memory.curate",
+            "factory.build",
         ] {
             assert!(
                 !KIOSK_METHODS.contains(&forbidden),

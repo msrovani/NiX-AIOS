@@ -9,6 +9,7 @@ mod improve;
 mod job;
 mod mcp;
 mod model;
+mod nix_domain;
 mod nix_wifi;
 mod prefs_rpc;
 mod security;
@@ -757,6 +758,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         return r;
     }
     if let Some(r) = chat::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = nix_domain::dispatch(state, &gate, req.clone()) {
         return r;
     }
     if let Some(r) = nix_wifi::dispatch(state, &gate, req.clone()) {

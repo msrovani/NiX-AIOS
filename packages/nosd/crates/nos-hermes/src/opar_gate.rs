@@ -18,6 +18,7 @@ pub const SIDE_EFFECT_METHODS: &[&str] = &[
     "transmute.run",
     "agent.spawn",
     "factory.promote",
+    "factory.build",
     "factory.synthesize",
     "factory.seek",
     "store.install",

@@ -2,6 +2,7 @@
 //! Artifact MD frontmatter gate (ADR-0052 subset) — deny-by-default sem schema/kind/name/goal/acionaveis.
 //! Seek-before-generate (F.3) + federated PackageStore.
 
+pub mod scaffold;
 mod seek;
 mod skill_opt;
 mod store;
@@ -10,6 +11,10 @@ pub mod templates;
 pub use seek::{
     seek_audit_line, seek_skill, CandidateSource, SeekConfig, SeekOutcome, SeekReport,
     SeekSourceTried, SkillCandidate, SkillNeed,
+};
+pub use scaffold::{
+    app_name, build_and_run, plan as scaffold_plan, write as write_scaffold, Lang, RunOutcome,
+    ScaffoldError, ScaffoldFile, ScaffoldPlan, Toolchain,
 };
 pub use skill_opt::{plan_skill_opt, self_evolve_agent_md, SkillOptAction, SkillOptPlan};
 pub use store::{

@@ -14,6 +14,7 @@ pub mod loop_guard;
 pub mod metrics;
 pub mod model_slot;
 pub mod net_util;
+pub mod nix_domain;
 pub mod orb;
 pub mod policy;
 pub mod proc;

@@ -32,6 +32,29 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 result: serde_json::to_value(snap).unwrap_or(json!(null)),
             }
         }
+        // Simbiose: o que o AIOS sabe de si mesmo e da máquina Nix que o
+        // hospeda, num só sítio (leitura pura). Alimenta o painel do HUD.
+        "orb.symbiosis" => {
+            let facts = nos_core::nix_domain::probe();
+            let windows = state.hermes.ui_list();
+            let pending = windows.iter().filter(|w| !w.grant_kind.is_empty()).count();
+            Response {
+                id: req.id,
+                ok: true,
+                error: None,
+                result: json!({
+                    "nix": nos_core::nix_domain::symbiosis_summary(),
+                    "facts_line": facts.line(),
+                    "ui": { "windows": windows.len(), "pending_grants": pending },
+                    "factory": {
+                        "langs": ["rust", "python"],
+                        "plan_rpc": "factory.scaffold",
+                        "build_rpc": "factory.build (CLI; exige FS+AGENT_SPAWN)",
+                    },
+                    "honesty": "leitura apenas; nada aqui escreve no sistema",
+                }),
+            }
+        }
         "ui.list" => Response {
             id: req.id,
             ok: true,

@@ -199,6 +199,10 @@ button{cursor:pointer}
 .legend i.mem{background:var(--violet);color:var(--violet)}
 .legend i.ok{background:var(--green);color:var(--green)}
 .legend-note{font-family:var(--font-mono);font-size:calc(6.2px * var(--fs));letter-spacing:.07em;color:rgba(91,125,146,.78);margin-top:4px}
+#symbiosisPanel .symb-factory{display:flex;gap:6px;margin-top:8px}
+#symbiosisPanel .symb-factory input{flex:1;min-width:0;background:rgba(4,14,24,.72);border:1px solid var(--edge);border-radius:6px;color:var(--ink);font:400 calc(6.6px * var(--fs)) var(--font-mono);padding:5px 7px}
+#symbiosisPanel .symb-factory input:focus{outline:none;border-color:var(--edge-strong)}
+#symbiosisPanel .symb-plan{margin-top:7px;max-height:9.5rem;overflow:auto;white-space:pre-wrap;word-break:break-word;font:400 calc(6.2px * var(--fs))/1.5 var(--font-mono);color:var(--ink-dim)}
 #orbEvent{
   position:absolute;left:50%;top:8%;transform:translateX(-50%);
   display:flex;align-items:center;gap:7px;padding:4px 9px;
@@ -727,6 +731,21 @@ button{cursor:pointer}
         <div class="kv" data-optional><span>SCORE</span><b id="kvScore" title="">—</b></div>
       </section>
 
+
+      <section class="panel" id="symbiosisPanel">
+        <header class="panel-head"><span class="idx">02c</span><h2>SIMBIOSE</h2><span class="rule"></span><span class="tag" id="symbTag">—</span></header>
+        <div class="kv"><span>NIX</span><b id="symbNix" title="nix.status — factos lidos do sistema">—</b></div>
+        <div class="kv"><span>GERAÇÃO</span><b id="symbGen" title="perfis system-*-link legíveis">—</b></div>
+        <div class="kv"><span>RING</span><b id="symbRing" title="helper root armado só com S-04">—</b></div>
+        <div class="kv"><span>LIÇÕES</span><b id="symbLessons" title="lições Nix injectadas no prompt do córtex">—</b></div>
+        <div class="kv"><span>JANELAS</span><b id="symbWindows">—</b></div>
+        <div class="symb-factory">
+          <input id="symbIntent" type="text" autocomplete="off" spellcheck="false" placeholder="app rust / python…" aria-label="Intent da app a gerar"/>
+          <button id="symbRust" class="mini" type="button" title="Plano de app Rust">RUST</button>
+          <button id="symbPy" class="mini" type="button" title="Plano de app Python">PY</button>
+        </div>
+        <div id="symbPlan" class="symb-plan">plano de app · nada é escrito sem decisão humana</div>
+      </section>
 
       <section class="panel" id="netPanel">
         <header class="panel-head"><span class="idx">02b</span><h2>REDE</h2><span class="rule"></span><span class="tag" id="netTag">—</span></header>
@@ -3093,6 +3112,55 @@ button{cursor:pointer}
   }
 
   /* ================= poll ================= */
+  /* ================= simbiose: Nix + fábrica ================= */
+  // Lê o que o AIOS sabe da máquina que o hospeda e o plano de uma app.
+  // Só leitura: o build real é `factory.build` (CLI, com FS+AGENT_SPAWN).
+  function symbSet(id, text, tone) {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = String(text);
+    el.classList.remove("ok", "warn", "err");
+    if (tone) el.classList.add(tone);
+  }
+
+  async function refreshSymbiosis() {
+    const r = await rpc("orb.symbiosis", {}, { timeout: 8000 });
+    if (!r || !r.ok || !r.result) return;
+    const nix = r.result.nix || {};
+    const f = nix.facts || {};
+    const tag = $("symbTag");
+    if (tag) {
+      tag.textContent = f.on_nixos ? "NIXOS" : "HOST";
+      tag.classList.toggle("live", !!f.on_nixos);
+      tag.classList.toggle("warn", !f.on_nixos);
+    }
+    symbSet("symbNix", f.version ? `NIXOS ${f.version}` : (r.result.facts_line || "—"),
+      f.on_nixos ? "ok" : "warn");
+    symbSet("symbGen", f.generations != null ? `g${f.generations}` : "—");
+    symbSet("symbRing", f.ring_armed ? "ARMED" : "DISARMED", f.ring_armed ? "warn" : null);
+    symbSet("symbLessons", nix.lessons != null ? String(nix.lessons) : "—");
+    const u = r.result.ui || {};
+    symbSet("symbWindows", `${u.windows || 0} · ${u.pending_grants || 0} HITL`);
+  }
+
+  async function symbScaffold(lang) {
+    const inp = $("symbIntent");
+    const intent = ((inp && inp.value) || "").trim() || `app de demonstração ${lang}`;
+    symbSet("symbPlan", "a gerar plano…");
+    const r = await rpc("factory.scaffold", { intent, lang }, { timeout: 15000 });
+    if (!r || !r.ok) {
+      symbSet("symbPlan", "plano recusado: " + ((r && r.error) || "sem resposta"), "err");
+      return;
+    }
+    const p = r.result || {};
+    const tc = p.toolchain || {};
+    const files = (p.files || []).map((x) => `  ${x.path} · ${String(x.content || "").length}B`).join("\n");
+    symbSet("symbPlan",
+      `${p.name} · ${p.lang}\n${String(p.content_id || "").slice(0, 16)}…\n` +
+      `${tc.tool || "?"} ${tc.available ? "disponível" : "ausente"}\n${files}`);
+    pushAction("FACTORY", `${p.lang} · ${p.name}`, "plano (sem escrita)", "info");
+  }
+
   async function pollNow() {
     if (!ui.ready || ui.polling) return;
     ui.polling = true;
@@ -3133,6 +3201,7 @@ button{cursor:pointer}
         renderAuthList();
       }
       if (energy && energy.ok) renderEnergy(energy.result);
+      refreshSymbiosis();
       if (net && net.ok) renderNet(net.result);
       if (audioSys && audioSys.ok) renderAudioSys(audioSys.result);
       if (vstat && vstat.ok) renderVoiceStatus(vstat.result);
@@ -3922,6 +3991,11 @@ button{cursor:pointer}
     if (te) te.addEventListener("change", () => savePrefs({ voice_engine: te.value }));
     const tm = $("ttsModel");
     if (tm) tm.addEventListener("change", () => { if (tm.value) savePrefs({ voice_model: tm.value }); });
+    const sRust = $("symbRust");
+    if (sRust) sRust.addEventListener("click", () => symbScaffold("rust"));
+    const sPy = $("symbPy");
+    if (sPy) sPy.addEventListener("click", () => symbScaffold("python"));
+
     const sp = $("suspendProposeBtn");
     if (sp) sp.addEventListener("click", async () => {
       try {
