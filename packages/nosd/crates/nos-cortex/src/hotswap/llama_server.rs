@@ -106,9 +106,7 @@ impl LlamaServerBackend {
             base,
             model.display()
         );
-        let api_key = std::env::var("NOSD_LLAMA_SERVER_KEY")
-            .ok()
-            .filter(|s| !s.trim().is_empty());
+        let api_key = api_key_from_env();
         Ok(Self {
             base: base.trim_end_matches('/').to_string(),
             _model: model,
@@ -129,10 +127,8 @@ impl LlamaServerBackend {
         let bin = find_bin().ok_or(SwapError::EngineAbsent("llama-server bin"))?;
         let port = pick_port()?;
         let ngl = ngl_from_env();
-        let api_key = std::env::var("NOSD_LLAMA_SERVER_KEY")
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string());
+        let api_key =
+            api_key_from_env().unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string());
         let mut cmd = Command::new(&bin);
         cmd.arg("--host")
             .arg("127.0.0.1")
@@ -259,6 +255,44 @@ fn ngl_from_env() -> u32 {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0)
+}
+
+/// Resolve a API key do llama-server. Precedência: ficheiro
+/// (`NOSD_LLAMA_SERVER_KEY_FILE`, tipicamente `$CREDENTIALS_DIRECTORY/
+/// llama-api-key` de um `LoadCredential=`) e só depois a variável directa.
+///
+/// O ficheiro é o caminho preferido: `systemctl show -p Environment` mostra
+/// `Environment=`, e o argv de um spawn vizinho é legível em `/proc`; o
+/// conteúdo de uma credencial não aparece em nenhum dos dois. Formato: uma key
+/// por linha, `#` comenta (igual a `--api-key-file` do llama-server).
+fn api_key_from_env() -> Option<String> {
+    if let Ok(path) = std::env::var("NOSD_LLAMA_SERVER_KEY_FILE") {
+        let path = path.trim();
+        if !path.is_empty() {
+            match std::fs::read_to_string(path) {
+                Ok(contents) => {
+                    let key = contents
+                        .lines()
+                        .map(str::trim)
+                        .find(|l| !l.is_empty() && !l.starts_with('#'));
+                    match key {
+                        Some(k) => return Some(k.to_string()),
+                        None => tracing::warn!(
+                            target: "nosd",
+                            "NOSD_LLAMA_SERVER_KEY_FILE sem keys: {path}"
+                        ),
+                    }
+                }
+                Err(e) => tracing::warn!(
+                    target: "nosd",
+                    "NOSD_LLAMA_SERVER_KEY_FILE ilegível ({path}): {e}"
+                ),
+            }
+        }
+    }
+    std::env::var("NOSD_LLAMA_SERVER_KEY")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
 }
 
 fn pick_port() -> Result<u16, SwapError> {

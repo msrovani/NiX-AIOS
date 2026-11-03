@@ -20,6 +20,12 @@ let
     fi
     export CUDA_VISIBLE_DEVICES="''${CUDA_VISIBLE_DEVICES:-${cfg.cudaVisibleDevices}}"
     export NVIDIA_VISIBLE_DEVICES="''${NVIDIA_VISIBLE_DEVICES:-${cfg.cudaVisibleDevices}}"
+    # Credencial (LoadCredential=), não Environment=: a key nunca entra na
+    # store, no `systemctl show` nem no argv do processo (--api-key-file).
+    KEYFILE=""
+    if [ -n "''${CREDENTIALS_DIRECTORY:-}" ] && [ -f "$CREDENTIALS_DIRECTORY/llama-api-key" ]; then
+      KEYFILE="--api-key-file=$CREDENTIALS_DIRECTORY/llama-api-key"
+    fi
     # Paridade com o spawn do nosd (nos-cortex): sem `-c` fixo, `--fit on`
     # escolhe o maior contexto/NGL que cabe na VRAM; `--reasoning off` evita
     # o orçamento gasto em raciocínio do Qwen3.x. Estava SÓ no spawn, o que
@@ -32,7 +38,8 @@ let
       --fit-ctx ${toString cfg.fitCtx} \
       --reasoning ${cfg.reasoning} \
       --no-webui \
-      -ngl ${toString cfg.nGpuLayers}
+      -ngl ${toString cfg.nGpuLayers} \
+      ''${KEYFILE:-}
   '';
 in
 {
@@ -100,6 +107,17 @@ in
       default = "off";
       description = "`--reasoning`: off evita que o Qwen3.x gaste o orçamento em  thinking";
     };
+    apiKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Ficheiro com a(s) API key(s) do llama-server (uma por linha). Entra no
+        unit por `LoadCredential=` e é passado por `--api-key-file`, nunca por
+        `Environment=`/argv: a store e o `systemctl show` são legíveis por
+        todos, e o argv é visível em /proc. Verificado no pin atual:
+        `llama-server --api-key-file FNAME` existe (llama-cpp 0.6.0).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
@@ -130,6 +148,7 @@ in
             "char-nvidia-caps rw"
           ];
           SupplementaryGroups = [ "video" "render" ];
+          LoadCredential = lib.optional (cfg.apiKeyFile != null) "llama-api-key:${cfg.apiKeyFile}";
           # Isolamento vs cage/iGPU: OOM do motor não deve preferir matar JARBAS.
           OOMScoreAdjust = 200;
           MemoryMax = "24G";
@@ -185,6 +204,7 @@ in
             "char-nvidia-caps rw"
           ];
           SupplementaryGroups = [ "video" "render" ];
+          LoadCredential = lib.optional (cfg.apiKeyFile != null) "llama-api-key:${cfg.apiKeyFile}";
           OOMScoreAdjust = 200;
           MemoryMax = "24G";
           MemoryHigh = "20G";
@@ -199,6 +219,7 @@ in
               --reasoning ${cfg.reasoning} \
               --no-webui \
               -ngl ${toString cfg.nGpuLayers} \
+              ${lib.optionalString (cfg.apiKeyFile != null) "--api-key-file=%d/llama-api-key"} \
               ${lib.concatStringsSep " " cfg.extraArgs}
           '';
         };
@@ -209,8 +230,21 @@ in
       systemd.services.nosd = {
         after = [ "nosd-engine.service" ];
         wants = [ "nosd-engine.service" ];
-        serviceConfig.Environment = [
-          "NOSD_LLAMA_SERVER=http://127.0.0.1:${toString cfg.port}"
+        serviceConfig = lib.mkMerge [
+          {
+            Environment = [
+              "NOSD_LLAMA_SERVER=http://127.0.0.1:${toString cfg.port}"
+            ];
+          }
+          (lib.mkIf (cfg.apiKeyFile != null) {
+            # G2/T2.3: com key no motor, o attach tem de autenticar. A key
+            # entra pela MESMA credencial (o nos-cortex resolve por
+            # `NOSD_LLAMA_SERVER_KEY_FILE`); pô-la em `Environment=` vazaria
+            # em `systemctl show -p Environment` — o que esta revisão corrigiu.
+            # `%d` (v247+) = $CREDENTIALS_DIRECTORY do unit.
+            LoadCredential = [ "llama-api-key:${cfg.apiKeyFile}" ];
+            Environment = [ "NOSD_LLAMA_SERVER_KEY_FILE=%d/llama-api-key" ];
+          })
         ];
       };
     })

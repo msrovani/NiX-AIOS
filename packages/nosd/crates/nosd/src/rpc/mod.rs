@@ -633,11 +633,14 @@ pub fn sync_local_fleet_health(state: &AppState) {
     });
 }
 
-fn quota_peer_key(auth: &AuthContext, auth_gen: u64) -> String {
+fn quota_peer_key(auth: &AuthContext, _auth_gen: u64) -> String {
     match auth {
         AuthContext::Unix { uid: Some(uid), .. } => format!("unix:{uid}"),
         AuthContext::Unix { .. } => "unix:unknown".to_string(),
-        AuthContext::Tcp => format!("tcp:token:{auth_gen}"),
+        // Token TCP: a quota segue a posse do token, não a geração IPC.
+        // Incluir `auth_gen` fazia um restart (generation volta a 1) parecer
+        // estável — mas um rotate_ipc criava bucket novo e devolvia orçamento.
+        AuthContext::Tcp => "tcp:token".to_string(),
         AuthContext::JarbasUi => "jarbas-ui".to_string(),
     }
 }

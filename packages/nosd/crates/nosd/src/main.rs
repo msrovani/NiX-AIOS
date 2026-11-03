@@ -394,6 +394,10 @@ async fn main() -> anyhow::Result<()> {
 
     // sd_notify READY=1 when NOTIFY_SOCKET set (systemd)
     sd_notify_ready();
+    // Watchdog do unit (`WatchdogSec=`): ticker periódico WATCHDOG=1. Sem
+    // isto, `WatchdogSec>0` no módulo mata um daemon saudável — o oposto do
+    // que o watchdog existe para fazer.
+    sd_notify_watchdog();
 
     // Quota de skills persistida e assinada com a chave do nó: um restart não
     // devolve orçamento a um peer que já o esgotou, e editar/apagar o ficheiro
@@ -800,6 +804,12 @@ async fn hermes_runtime_loop(
                                 pr.tier
                             );
                         }
+                        Ok(_) => {
+                            tracing::warn!(
+                                target: "nosd",
+                                "brain propose: card HITL não abriu (opened=false) — sem anti-spam CRDT"
+                            );
+                        }
                         Err(e) => {
                             tracing::warn!(
                                 target: "nosd",
@@ -857,29 +867,73 @@ async fn hermes_runtime_loop(
     }
 }
 
-fn sd_notify_ready() {
+/// Envia um datagrama para `NOTIFY_SOCKET` sem libsystemd.
+/// `false` = sem systemd (host Windows, dev, lab) ou falha de envio: o
+/// chamador não trata isto como erro, só o `WatchdogSec` é que depende.
+#[cfg(unix)]
+fn sd_notify(payload: &[u8]) -> bool {
     let Ok(sock) = std::env::var("NOTIFY_SOCKET") else {
+        return false;
+    };
+    use std::os::unix::net::UnixDatagram;
+    if sock.starts_with('@') {
+        // abstract namespace — skip in scaffold
+        tracing::warn!(target: "nosd", "NOTIFY_SOCKET abstract unsupported in scaffold");
+        return false;
+    }
+    let Ok(d) = UnixDatagram::unbound() else {
+        return false;
+    };
+    let mut msg = payload.to_vec();
+    msg.push(b'\n');
+    d.send_to(&msg, &sock).is_ok()
+}
+
+#[cfg(not(unix))]
+fn sd_notify(_payload: &[u8]) -> bool {
+    false
+}
+
+fn sd_notify_ready() {
+    if sd_notify(b"READY=1") {
+        info!(target: "nosd", "sd_notify READY=1");
+    }
+}
+
+/// Watchdog do systemd (`WatchdogSec=`): sem `WATCHDOG=1` periódico o systemd
+/// aborta o processo (`WatchdogSignal`, SIGABRT por default) e o
+/// `Restart=always` reinicia. Intervalo = `WATCHDOG_USEC / 3`, para que uma
+/// notificação falhada ainda tenha duas tentativas antes do prazo.
+///
+/// Isto mede *liveness do runtime*, não saúde de cada subsistema: se o runtime
+/// estiver bloqueado (ex.: `block_on` num handler), o ticker para e o systemd
+/// reinicia — que é precisamente o sintoma que um watchdog deve apanhar
+/// (matar o processo, não pendurá-lo, prova `Restart=`, não `WatchdogSec=`).
+fn sd_notify_watchdog() {
+    let Ok(raw) = std::env::var("WATCHDOG_USEC") else {
         return;
     };
-    // Minimal READY=1 without libsystemd — best-effort Unix datagram.
-    #[cfg(unix)]
-    {
-        use std::os::unix::net::UnixDatagram;
-        let path = if let Some(rest) = sock.strip_prefix('@') {
-            // abstract namespace — skip in scaffold
-            tracing::warn!(target: "nosd", "NOTIFY_SOCKET abstract unsupported in scaffold");
-            let _ = rest;
-            return;
-        } else {
-            sock
-        };
-        if let Ok(d) = UnixDatagram::unbound() {
-            let _ = d.send_to(b"READY=1\n", path);
-            info!(target: "nosd", "sd_notify READY=1");
+    let Ok(usec) = raw.trim().parse::<u64>() else {
+        tracing::warn!(target: "nosd", "WATCHDOG_USEC inválido: {raw:?}");
+        return;
+    };
+    if usec == 0 {
+        return;
+    }
+    let every = std::time::Duration::from_micros((usec / 3).max(1_000));
+    info!(target: "nosd", "sd_notify watchdog: ping a cada {:?}", every);
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(every);
+        // O primeiro tick de `interval` é imediato: consumi-lo evita mandar
+        // READY=1 e WATCHDOG=1 em dupla no mesmo instante.
+        ticker.tick().await;
+        loop {
+            ticker.tick().await;
+            if !sd_notify(b"WATCHDOG=1") {
+                // Sem NOTIFY_SOCKET (dev/host): o ticker não tem para onde
+                // enviar e sai em vez de girar à toa.
+                break;
+            }
         }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = sock;
-    }
+    });
 }

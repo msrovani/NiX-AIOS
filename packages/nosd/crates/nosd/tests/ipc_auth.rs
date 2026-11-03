@@ -967,6 +967,10 @@ fn skill_quota_survives_daemon_restart() {
             .unwrap()
             .as_nanos()
     ));
+    // Seed estável de 32 B: `load_or_create` regenera se o ficheiro tiver
+    // outro tamanho — duas gerações ⇒ node_id muda e a quota assinada
+    // falha (ou pior: lab sem deny claro).
+    std::fs::write(&key, [0xA5u8; 32]).expect("seed mesh.key 32 bytes");
     let key_s = key.to_string_lossy().to_string();
     // Janela longa: o que está em causa não é o TTL, é a persistência.
     let envs: [(&str, &str); 5] = [

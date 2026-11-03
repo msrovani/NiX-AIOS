@@ -54,6 +54,29 @@ jobs:
         working-directory: packages/nosd
         run: cargo test --workspace
 
+  # Checks estáticos (grep + eval, sem VM). Nenhum outro job os construía: sem
+  # isto, `engine-fit-parity` e `nosd-voice-deviceallow` — os guardas exactos
+  # dos bugs da revisão de simbiose de 2026-10-31 — apodrecem em silêncio, e
+  # um guarda que não corre é pior que nenhum (parece verde).
+  checks:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - hw-cuda-deviceallow
+          - nosd-voice-deviceallow
+          - jarbas-cage-alsa-deviceallow
+          - engine-fit-parity
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: ${{ matrix.check }}
+        run: nix build .#checks.x86_64-linux.${{ matrix.check }} -L
+
   nix-vm:
     runs-on: ubuntu-24.04
     steps:
@@ -69,6 +92,12 @@ jobs:
         # em TCG. Sem isto o build falha com "missing system features {kvm}".
         run: >
           nix build .#checks.x86_64-linux.nixaios-vm -L
+          --option system-features "kvm nixos-test big-parallel benchmark"
+      # P0 #2: prova que o `WatchdogSec=30s` reinicia um daemon pendurado
+      # (SIGSTOP) — o aceite antigo provava só `Restart=`.
+      - name: nixos VM watchdog (SIGSTOP -> SIGABRT -> 1 restart)
+        run: >
+          nix build .#checks.x86_64-linux.nosd-watchdog -L
           --option system-features "kvm nixos-test big-parallel benchmark"
 
   # Frota: 2 VMs por check (mesh, identidade, jobs, CRDT, skills) + 3 VMs

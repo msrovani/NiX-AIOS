@@ -537,6 +537,54 @@ PY
               touch $out
             '';
 
+          # P0 #2 (revisão simbiose 2026-10-31): o aceite antigo — "matar o
+          # processo e ver o systemd reiniciar" — provava `Restart=`, não
+          # `WatchdogSec=`. Um processo morto sai; o watchdog existe para o
+          # processo PENDURADO, que não sai e não notifica. Aqui o `nosd` é
+          # `SIGSTOP`ado: só o prazo do watchdog (30 s) o reinicia, e o
+          # `TimeoutStopSec` curto existe porque um processo parado não apanha
+          # o SIGABRT antes do SIGKILL — sem isso a prova levaria 90 s.
+          nosd-watchdog = pkgs.testers.nixosTest {
+            name = "nosd-watchdog";
+            nodes.machine = { lib, ... }: {
+              imports = [ self.nixosModules.neural-os ];
+              services.nosd = {
+                enable = true;
+                package = self.packages.${system}.nosd;
+                hermesTickSecs = 0;
+              };
+              systemd.services.nosd.serviceConfig.TimeoutStopSec = "5s";
+              environment.systemPackages = [ self.packages.${system}.nosd ];
+              system.stateVersion = "25.11";
+            };
+            testScript = ''
+              machine.start()
+              machine.wait_for_unit("nosd.service")
+              machine.wait_for_file("/run/nosd/nosd.sock")
+              nosctl = "${self.packages.${system}.nosd}/bin/nosctl --socket /run/nosd/nosd.sock"
+
+              # Saudável: nenhum reinício. Se o ticker não corresse, o
+              # `WatchdogSec=30s` já o teria matado antes deste ponto.
+              machine.succeed("test \"$(systemctl show -p NRestarts --value nosd.service)\" = 0")
+              machine.succeed(nosctl + " health")
+
+              pid = machine.succeed("systemctl show -p MainPID --value nosd.service").strip()
+              machine.succeed(f"kill -STOP {pid}")
+
+              # Pendurado: sem WATCHDOG=1 o systemd aborta e reinicia.
+              machine.wait_until_succeeds(
+                  "test \"$(systemctl show -p NRestarts --value nosd.service)\" -ge 1",
+                  timeout=120,
+              )
+              machine.wait_until_succeeds("systemctl is-active nosd.service | grep -qx active")
+
+              # Não é laço: UM reinício do watchdog, não um ciclo.
+              machine.sleep(60)
+              machine.succeed("test \"$(systemctl show -p NRestarts --value nosd.service)\" -le 1")
+              machine.succeed(nosctl + " health")
+            '';
+          };
+
           nixaios-vm = pkgs.testers.nixosTest {
             name = "nixaios-vm";
             nodes.machine = { lib, ... }: {

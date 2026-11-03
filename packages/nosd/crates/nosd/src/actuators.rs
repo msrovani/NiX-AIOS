@@ -198,11 +198,22 @@ enum WpctlSection {
 /// Linha de `wpctl status` (secção Sinks/Sources) → dispositivo.
 pub fn parse_wpctl_status_device_line(line: &str, kind: &str) -> Option<AudioDeviceInfo> {
     let raw = line.trim();
-    if raw.is_empty() || raw.starts_with('├') || raw.starts_with('└') || raw.ends_with(':') {
+    if raw.is_empty() || raw.ends_with(':') {
         return None;
     }
-    let is_default = raw.starts_with('*') || raw.contains(" * ");
-    let rest = raw.trim_start_matches('*').trim();
+    // Cabeçalhos de árvore (`├─ Sinks:`) — não dispositivos.
+    if raw.starts_with('├') || raw.starts_with('└') {
+        return None;
+    }
+    // Prefixos de árvore (`│`, espaços) antes do id / `*`.
+    let body = raw
+        .trim_start_matches(['│', ' ', '\t'])
+        .trim();
+    if body.is_empty() {
+        return None;
+    }
+    let is_default = body.starts_with('*') || body.contains(" * ");
+    let rest = body.trim_start_matches('*').trim();
     let (id_part, name_part) = rest.split_once('.')?;
     let id = id_part.trim();
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) {

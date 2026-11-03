@@ -236,7 +236,13 @@ in
         Restart = "always";
         RestartSec = "2s";
         TimeoutStartSec = "60s";
-        WatchdogSec = "0";
+        # Watchdog real: o `nosd` faz `sd_notify(WATCHDOG=1)` a cada
+        # WatchdogSec/3 (main.rs `sd_notify_watchdog`). Com `0` (antes) um
+        # daemon pendurado — runtime bloqueado, sem morrer — nunca era
+        # reiniciado: `Restart=always` só age sobre saída, não sobre silêncio.
+        # Aceite: SIGSTOP no MainPID → SIGABRT → um restart, sem laço
+        # (checks.x86_64-linux.nosd-watchdog).
+        WatchdogSec = "30s";
         Nice = -10;
         # Prompt Minimal Image: proteger inferência do OOM killer (viável).
         OOMScoreAdjust = -1000;

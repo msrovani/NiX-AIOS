@@ -49,7 +49,6 @@ fn security_rotate_requires_admin_caps() {
 /// caps — plan é Observe puro; accept carrega NET|FS e exige grant HITL
 /// (Escalate no dispatch), side-effect registado no OPAR.
 #[test]
-#[test]
 fn improve_and_factory_plan_caps_none() {
     assert_eq!(sample_req("improve.check").required_cap(), CapBits::NONE);
     assert_eq!(sample_req("improve.propose").required_cap(), CapBits::NONE);
