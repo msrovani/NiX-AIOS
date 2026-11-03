@@ -169,9 +169,15 @@ A `iso-hw` inclui `llama.cpp` (a ISO de release não; por isso aparece
    **antes** do `nosd`/firstboot, com verificação de espaço e tamanho.
 3. O `transmute` regista o GGUF e faz `hot_load` — sem rede.
 
-Origem: `unsloth/Qwen3.5-0.8B-GGUF` / `Qwen3.5-0.8B-Q4_K_M.gguf`
-(**508 MB**, Apache-2.0). O repo `Qwen/Qwen3.5-0.8B` é safetensors
-multimodal e **não** serve directamente ao llama.cpp.
+Origem (desde 2026-11-03): GGUF Q4_K_M do **Qwen3.5-0.8B editado pela
+Astra** — `NotCherry/Qwen3.5-0.8B-weight-space-programming-GGUF`
+(**517 MB**, Apache-2.0; LFS sha `0be511c8…`, pinado em
+`flake.nix#qwen35-08b-q4km`). O edito (Weight-Space Programming, MIT
+CSAIL/RikiyaT 2026-11-02) remove uma "direcção de loop" em down_proj
+das camadas 15/19 (0.016% dos pesos; MATH-500 7.9→48.1%). Rollback:
+`qwen35-08b-q4km-base` = original unsloth sem edito (508 MB). O repo
+`Qwen/Qwen3.5-0.8B` é safetensors multimodal e **não** serve
+directamente ao llama.cpp.
 
 Fallback (sem GGUF no pendrive): no Q5, com rede, o transmute baixa via HF
 (com GGUF seedado o ficheiro é cache hit). Sem rede e sem GGUF fica

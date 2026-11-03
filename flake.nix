@@ -112,17 +112,44 @@
           # HW real já arranca COM o brain — sem download no first boot.
           # GGUF content-addressed (pin por SRI) = a reproducibilidade que o
           # download runtime não dava (G4.1: modelo como derivação Nix).
-          # Fontes de confiança: unsloth (Apache-2.0), base_model Qwen/Qwen3.5-0.8B.
+          # Fontes: S1 = checkpoint editado RikiyaT/akhaliq (verificável bit-
+          # a-bit), quantizado pela NotCherry; fallback = unsloth (Apache-2.0).
           # 0.7-alpha1: a iso-hw embute TODOS os tiers pinados abaixo
-          # (offline). O default continua 0.8B Q4; 4B/9B só activam por
-          # brain.plan/accept (HITL, ring para o 9B). A ISO de release
-          # continua sem modelos — ver docs/adr-addenda/0118-qwen-embedded-brain.md.
+          # (offline). O default continua 0.8B Q4 (AGORA com edito da Astra);
+          # 4B/9B só activam por brain.plan/accept (HITL, ring para o 9B). A
+          # ISO de release continua sem modelos — ver
+          # docs/adr-addenda/0118-qwen-embedded-brain.md.
+          # 2026-11-03: S1 embutido passa a ser o Qwen3.5-0.8B **editado pela
+          # Astra** (Weight-Space Programming, MIT CSAIL/RikiyaT 2026-11-02):
+          # sem treino, subtractiu uma "direcção de loop" (thinking que nunca
+          # acaba) de down_proj das camadas 15/19 — 131 072 pesos (0.016%).
+          # Post: MATH-500 7.9→48.1%, GSM8K 13.8→67.1%, IFEval 21.0→62.3%,
+          # hit-token-limit 93→33%. Re-run independente (akhaliq, H200):
+          # 51.0%. Bit-exact vs base @2fc0636… (2 tensores, sha verificado).
+          # Fonte GGUF: NotCherry/…-weight-space-programming-GGUF (Q4_K_M,
+          # LFS sha256 0be511c8…, 541903776 B). CAVEATS honestos:
+          # (a) ganhos provados com **thinking ON** + contexto longo (32k);
+          #     com --reasoning off o ganho pode não se materializar;
+          # (b) não há evidência de que o edito sobreviva à quantização
+          #     (o repo GGUF não faz claims de qualidade);
+          # (c) quantização única Q4_K_M de publisher novo (sem reputação),
+          #     baseado no checkpoint re-verificado do RikiyaT/akhaliq.
+          # Status: PINADO (hash) — engine/metal OBSERVED pendente.
           qwen35-08b-q4km = pkgs.fetchurl {
+            url = "https://huggingface.co/NotCherry/Qwen3.5-0.8B-weight-space-programming-GGUF/resolve/main/Qwen3.5-0.8B-Weight-Space-Programming-Q4_K_M.gguf";
+            # LFS sha256 do HF tree (NotCherry/…-GGUF), 541903776 B.
+            hash = "sha256-C+URyDJQVeE1nLZC20LaNPLcEGmRKP1LZJZ4FeP/ahs=";
+          };
+          # Rollback: original **sem edito** da unsloth, mantido para
+          # revert/AB (o veredito do edito em quantizado não é VERIFIED).
+          qwen35-08b-q4km-base = pkgs.fetchurl {
             url = "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf";
             # LFS sha256 do HF tree (unsloth/Qwen3.5-0.8B-GGUF), 532517120 B.
             hash = "sha256-vSWHguNff0WPis7RrcBT5ukuibxzW6O+idOKBhIdxRc=";
           };
           # Tier upgrade proposto pós-boot quando o hw permitir (RAM/NVRAM).
+          # NOTA: ainda aponta para o base sem edito (Q8_0 da unsloth não
+          # existe para o checkpoint editado) — trocar quando converterem.
           qwen35-08b-q8 = pkgs.fetchurl {
             url = "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q8_0.gguf";
             hash = "sha256-CtiF/9S7Ai/E8NM6Mwj6EI74YTFZ07OmfiOrygVremw=";
