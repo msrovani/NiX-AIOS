@@ -203,6 +203,19 @@ Resumo executavel; detalhe em
     **PID do intérprete** (`Get-CimInstance Win32_Process` filtrado por
     `CommandLine -like '*<script>'`), ou `taskkill //F //T` a partir de um PID
     que ainda exista. `//PID` do bash **não** é prova de paragem.
+48. **Hash do modelo pinado prova-se com `nix build`, não com "confiar no
+    post"**: GGUF de terceiro novo (ex.: quantização do edito Astra
+    2026-11-04) entra como `fetchurl` com SRI do LFS sha256; o `nix build`
+    que bate é a prova real dos bytes (`8wv2737h…`). Converter SRI
+    (`python -c "base64(bytes.fromhex(hex))"`) e comparar `sha256sum` —
+    lição 37: ler o README não é VERIFIED.
+49. **Ganho de modelo editado é do protocolo de medição, não do modelo em
+    si**: o edito da Astra (Weight-Space Programming) é provado em
+    safetensors bf16, **thinking ON**, 32k ctx (MATH-500 7.9→48.1).
+    No NixAIOS o boot corre `--reasoning off` + fit-ctx 2048 + Q4_K_M —
+    outro protocolo: documentar SEMPRE os caveats junto do pin
+    (`flake.nix`), guardar rollback sem edito (`-base`), e quantização de
+    publisher novo não faz claims de qualidade — só o hash fala.
 
 ## Comandos
 
@@ -249,6 +262,15 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **S1 swap 2026-11-04 (in-tree)**: a `iso-hw` arranca com o Qwen3.5-0.8B
+  **editado pela Astra** (Weight-Space Programming, MIT CSAIL/RikiyaT —
+  loop de thinking removido em down_proj L15/19, 0.016% dos pesos,
+  sem treino). `qwen35-08b-q4km` → GGUF Q4_K_M NotCherry (541 903 776 B,
+  LFS sha `0be511c8…`, `nix build` hash-verify PASS); fallback
+  `qwen35-08b-q4km-base` (unsloth sem edito) também PASS. Commit
+  `eba69c2`. Residual: edito sobreviver à Q4_K_M / `--reasoning off`,
+  boot engine QEMU/metal OBSERVED pendentes. Evidência
+  `docs/evidence/S1_ASTRA_EDIT_2026-11-04.md`.
 - **Tranche simbiose 2026-11-03 (in-tree)**: fábrica de apps **real** em Rust e
   Python (`nos-factory::scaffold`; RPC `factory.scaffold|factory.build`; CLI
   `factory-scaffold|factory-build`; cada app nasce com `flake.nix`), domínio

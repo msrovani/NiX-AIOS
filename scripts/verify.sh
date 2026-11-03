@@ -48,6 +48,17 @@ case "$(uname -s 2>/dev/null || echo unknown)" in
     done
     unset IFS
     export PATH="$CLEAN"
+    # Windows host sem cargo: o toolchain NixAIOS vive no devShell Nix do
+    # WSL (mcp eco-tokens corre este script no Git Bash do host). Re-exec
+    # dentro do devShell em vez de falhar com exit 127 "command not found".
+    if ! command -v cargo >/dev/null 2>&1 && [[ "${ECO_VERIFY_WSL:-}" != "1" ]]; then
+      if command -v wsl.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+        WSLROOT="$(cygpath -u "$ROOT" | sed -E 's|^/c/|/mnt/c/|')"
+        export ECO_VERIFY_WSL=1
+        exec wsl.exe -e bash -lc \
+          "cd '$WSLROOT' && nix develop -c -- bash '$WSLROOT/scripts/verify.sh'"
+      fi
+    fi
     ;;
 esac
 
