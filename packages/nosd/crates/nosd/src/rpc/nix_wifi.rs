@@ -215,11 +215,7 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 .get("kind")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let id = req
-                .params
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let id = req.params.get("id").and_then(|v| v.as_str()).unwrap_or("");
             match actuators::pipewire_set_default(kind, id) {
                 Ok(()) => Response {
                     id: req.id,

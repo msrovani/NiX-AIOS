@@ -51,16 +51,12 @@ fn template_json_wasm(json: &str) -> Vec<u8> {
 
 fn net_monitor_wasm() -> &'static [u8] {
     static W: OnceLock<Vec<u8>> = OnceLock::new();
-    W.get_or_init(|| {
-        template_json_wasm(r#"{"template":"net.monitor","status":"stub"}"#)
-    })
+    W.get_or_init(|| template_json_wasm(r#"{"template":"net.monitor","status":"stub"}"#))
 }
 
 fn log_heartbeat_wasm() -> &'static [u8] {
     static W: OnceLock<Vec<u8>> = OnceLock::new();
-    W.get_or_init(|| {
-        template_json_wasm(r#"{"template":"log.heartbeat","beat":"stub"}"#)
-    })
+    W.get_or_init(|| template_json_wasm(r#"{"template":"log.heartbeat","beat":"stub"}"#))
 }
 
 fn echo_infer_wasm() -> &'static [u8] {
@@ -214,10 +210,9 @@ mod tests {
 
     #[test]
     fn intent_match_pt_en() {
-        assert!(match_skill_create_network_intent(
-            "Crie uma skill para monitorar a rede"
-        )
-        .is_some());
+        assert!(
+            match_skill_create_network_intent("Crie uma skill para monitorar a rede").is_some()
+        );
         assert!(match_skill_create_network_intent("create network monitor app").is_some());
         assert!(match_skill_create_network_intent("olá mundo").is_none());
         assert!(match_skill_create_network_intent("criar skill de log").is_none());

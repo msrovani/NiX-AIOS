@@ -1,9 +1,7 @@
 //! CHJ improve.* — check (opt-in probes allowlist) + propose (card HITL).
 use super::*;
 use nos_core::{reported_rate, CapGate};
-use nos_hermes::{
-    fingerprint_of, improve_propose_open, ImprovePropose, DEFAULT_FP_TTL_MS,
-};
+use nos_hermes::{fingerprint_of, improve_propose_open, ImprovePropose, DEFAULT_FP_TTL_MS};
 use nos_ipc::{Request, Response};
 use serde_json::json;
 use std::path::Path;
@@ -12,8 +10,7 @@ fn improve_check_result(state: &AppState) -> serde_json::Value {
     let enabled = std::env::var("NOSD_IMPROVE_CHECK").ok().as_deref() == Some("1");
     if !enabled {
         let nix_u = reported_rate(0, 0, &["nixos_version"], "nixos-version", &[]).unwrap();
-        let kern_u =
-            reported_rate(0, 0, &["kernel_release"], "kernel.running", &[]).unwrap();
+        let kern_u = reported_rate(0, 0, &["kernel_release"], "kernel.running", &[]).unwrap();
         return json!({
             "enabled": false,
             "nix": nix_u,
@@ -35,14 +32,7 @@ fn improve_check_result(state: &AppState) -> serde_json::Value {
         &[],
     )
     .unwrap();
-    let n_rate = reported_rate(
-        nix_measured,
-        1,
-        &["nixos_version"],
-        "nixos-version",
-        &[],
-    )
-    .unwrap();
+    let n_rate = reported_rate(nix_measured, 1, &["nixos_version"], "nixos-version", &[]).unwrap();
 
     let mut suggestions = Vec::new();
     if let (Some(run), Some(cand)) = (&kernel_running, &kernel_candidate) {
@@ -84,8 +74,8 @@ fn probe_kernel_candidate(data_dir: &Path) -> Option<KernelCandidate> {
     if let Ok(v) = std::env::var("NOSD_KERNEL_CANDIDATE") {
         let v = v.trim().to_string();
         if !v.is_empty() {
-            let importance = std::env::var("NOSD_KERNEL_IMPORTANCE")
-                .unwrap_or_else(|_| "medium".into());
+            let importance =
+                std::env::var("NOSD_KERNEL_IMPORTANCE").unwrap_or_else(|_| "medium".into());
             return Some(KernelCandidate {
                 version: v,
                 importance: importance.trim().to_string(),
@@ -96,11 +86,7 @@ fn probe_kernel_candidate(data_dir: &Path) -> Option<KernelCandidate> {
     let raw = std::fs::read_to_string(path).ok()?;
     let mut lines = raw.lines().map(str::trim).filter(|l| !l.is_empty());
     let version = lines.next()?.to_string();
-    let importance = lines
-        .next()
-        .unwrap_or("medium")
-        .trim()
-        .to_string();
+    let importance = lines.next().unwrap_or("medium").trim().to_string();
     Some(KernelCandidate {
         version,
         importance,
@@ -166,7 +152,10 @@ fn probe_nixos_version(measured: &mut u64) -> Option<String> {
         if !std::path::Path::new(path).is_file() {
             continue;
         }
-        let out = Command::new(path).output().ok().filter(|o| o.status.success())?;
+        let out = Command::new(path)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())?;
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() {
             *measured = 1;
@@ -189,8 +178,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                 Ok(v) => v,
                 Err(e) => {
                     // Atalho DIAG: { "kind": "system.suspend" } mínimo
-                    if req.params.get("kind").and_then(|v| v.as_str()) == Some("system.suspend")
-                    {
+                    if req.params.get("kind").and_then(|v| v.as_str()) == Some("system.suspend") {
                         ImprovePropose {
                             kind: "system.suspend".into(),
                             title: "Suspender o sistema".into(),
@@ -238,8 +226,7 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                     });
                 }
             }
-            let gate_hitl =
-                nos_core::CapGate::new(nos_core::CapBits::HITL, state.ipc_generation());
+            let gate_hitl = nos_core::CapGate::new(nos_core::CapBits::HITL, state.ipc_generation());
             match improve_propose_open(
                 &state.hermes.windows,
                 &gate_hitl,

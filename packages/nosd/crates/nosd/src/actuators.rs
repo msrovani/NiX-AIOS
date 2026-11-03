@@ -206,9 +206,7 @@ pub fn parse_wpctl_status_device_line(line: &str, kind: &str) -> Option<AudioDev
         return None;
     }
     // Prefixos de árvore (`│`, espaços) antes do id / `*`.
-    let body = raw
-        .trim_start_matches(['│', ' ', '\t'])
-        .trim();
+    let body = raw.trim_start_matches(['│', ' ', '\t']).trim();
     if body.is_empty() {
         return None;
     }
@@ -334,7 +332,9 @@ pub fn pipewire_set_default(kind: &str, id: &str) -> Result<(), ActuatorError> {
         return Err(ActuatorError::Io("invalid device id".into()));
     }
     if !id.chars().all(|c| c.is_ascii_digit()) {
-        return Err(ActuatorError::Io("device id must be numeric (wpctl)".into()));
+        return Err(ActuatorError::Io(
+            "device id must be numeric (wpctl)".into(),
+        ));
     }
     let out = Command::new("wpctl")
         .args(["set-default", id])

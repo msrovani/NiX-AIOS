@@ -82,9 +82,7 @@ fn now_ms() -> u64 {
 fn fp_recent(fp_cache: &Mutex<HashMap<String, u64>>, fp: &str, ttl_ms: u64) -> bool {
     let now = now_ms();
     let map = fp_cache.lock();
-    map.get(fp)
-        .map(|ts| *ts + ttl_ms > now)
-        .unwrap_or(false)
+    map.get(fp).map(|ts| *ts + ttl_ms > now).unwrap_or(false)
 }
 
 fn fp_remember(fp_cache: &Mutex<HashMap<String, u64>>, fp: &str) {
@@ -203,10 +201,7 @@ pub fn from_brain_proposal(
         title: format!("Brain upgrade — tier {} ({})", pr.tier, pr.candidate.name),
         reason: format!(
             "{}\nGanho: {} — {}\nCusto: {} MB pinados (exacto)",
-            plan.honesty,
-            pr.gain.size_label,
-            pr.gain.honesty_note,
-            pr.cost.download_mb
+            plan.honesty, pr.gain.size_label, pr.gain.honesty_note, pr.cost.download_mb
         ),
         importance: "high".into(),
         current: format!(

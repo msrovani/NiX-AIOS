@@ -929,7 +929,10 @@ mod tests {
             m.telepathy_exchange(&items, 0),
             Err(GovError::Store(_))
         ));
-        assert!(matches!(m.telepathy_import(&items), Err(GovError::Store(_))));
+        assert!(matches!(
+            m.telepathy_import(&items),
+            Err(GovError::Store(_))
+        ));
     }
 
     /// N1: expire/decay/consolidate não fingem sucesso (performed:false).
@@ -1149,7 +1152,6 @@ mod tests {
         let cs = m.cold_start().unwrap();
         assert_eq!(cs["api_version"], MEMORY_API_VERSION);
     }
-
 
     /// Cap 256: lote oversized recusado antes de escrever.
     #[test]

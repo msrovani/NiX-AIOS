@@ -6,10 +6,10 @@ mod agency;
 mod autolearn;
 mod blob_deliberate;
 pub mod brain_upgrade;
-pub mod improve_propose;
 mod card;
 mod cognitive_act;
 mod cognitive_bridge;
+pub mod improve_propose;
 mod membrane;
 mod opar_gate;
 mod orb_broker;
@@ -25,10 +25,6 @@ pub use blob_deliberate::{
     deliberate_blob_fetch, gate_allows_fetch, iso_must_not_ship_blobs, note_persona_download,
     remember_deliberation, BlobDeliberation, BlobKind, BlobNeed,
 };
-pub use improve_propose::{
-    correct_plan_on_deny, fingerprint_of, from_brain_proposal, propose as improve_propose_open,
-    card_body as improve_card_body, ImprovePropose, ProposeOutcome, DEFAULT_FP_TTL_MS,
-};
 pub use brain_upgrade::{
     accept, card_body, pick_adapt_tier, pick_reachable_tier, plan, sha256_file, AcceptError,
     AcceptOutcome, AdaptDirection, BrainUpgradePlan,
@@ -36,6 +32,10 @@ pub use brain_upgrade::{
 pub use card::{parse_card_prompt, CardKv, CardSpec};
 pub use cognitive_act::{wrap_opar, wrap_opar_with_seek, CognitiveAct};
 pub use cognitive_bridge::{build_chat_prompt, soul_path_default};
+pub use improve_propose::{
+    card_body as improve_card_body, correct_plan_on_deny, fingerprint_of, from_brain_proposal,
+    propose as improve_propose_open, ImprovePropose, ProposeOutcome, DEFAULT_FP_TTL_MS,
+};
 pub use membrane::{discover_peers, graft, mcp_allowed, MembraneGrant};
 pub use opar_gate::{is_side_effect, SIDE_EFFECT_METHODS};
 pub use orb_broker::OrbBroker;

@@ -12,14 +12,14 @@ pub use seek::{
     SeekSourceTried, SkillCandidate, SkillNeed,
 };
 pub use skill_opt::{plan_skill_opt, self_evolve_agent_md, SkillOptAction, SkillOptPlan};
-pub use templates::{
-    cap_bits_for_template, draft_from_plan, factory_plan, match_skill_create_network_intent,
-    pick_template_id, template_wasm, FactoryPlanResult, TemplateId,
-};
 pub use store::{
     bytes_to_hex, fnv1a64, fnv1a64_hex16, FederatedIndex, FederatedIndexEntry, ImportMeta,
     ImportProvenance, PackageStore, SandboxStatus, StoreError, StoredPackage, FEDERATED_INDEX_CAP,
     PACKAGE_STORE_CAP,
+};
+pub use templates::{
+    cap_bits_for_template, draft_from_plan, factory_plan, match_skill_create_network_intent,
+    pick_template_id, template_wasm, FactoryPlanResult, TemplateId,
 };
 
 use nos_core::CapBits;

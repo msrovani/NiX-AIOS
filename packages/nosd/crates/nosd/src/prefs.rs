@@ -155,7 +155,10 @@ fn opt_id(v: &Value) -> Result<Option<String>, String> {
     if s.contains('/') || s.contains('\\') || s.contains("..") {
         return Err("id: charset".into());
     }
-    if !s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !s
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err("id: charset".into());
     }
     Ok(Some(s.to_string()))
@@ -165,7 +168,11 @@ fn opt_engine(v: &Value) -> Result<Option<String>, String> {
     if v.is_null() {
         return Ok(None);
     }
-    let s = v.as_str().ok_or("voice_engine: string")?.trim().to_ascii_lowercase();
+    let s = v
+        .as_str()
+        .ok_or("voice_engine: string")?
+        .trim()
+        .to_ascii_lowercase();
     match s.as_str() {
         "" => Ok(None),
         "piper" | "espeak" => Ok(Some(s)),
