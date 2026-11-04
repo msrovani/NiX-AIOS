@@ -74,7 +74,35 @@ com side-effect, HITL intocado):
 **Not-tested dos fixes**: HUD com os fixes em QEMU/metal (ISO re-build
 id-08 abaixo); LinkState/energy badge contra os hardware reais.
 
-## Rebuild pós-fixes (PENDING)
+## Rebuild pós-C1–C6 + FAT32 1 GiB (2026-11-04)
 
-- `nix build .#iso-hw-cuda` com as mudanças HUD + `pack-hw-usb.sh`:
-  **PENDENTE** (nova ISO/`.img`, novos sha256 a actualizar neste doc).
+Nova ISO/`.img` com o HUD C1–C6 embutido no `nosd` da ISO e FAT
+`NIXAIOSLOG` reduzida para **1 GiB** (pedida pelo usuário; FAT_MB=1024
+em `pack-hw-usb.sh`):
+
+| Campo | Valor |
+|---|---|
+| ISO (nix store) | `/nix/store/nlbyyyix40jb0i7c4gw90saj92ba4f6f-…/iso/nixos-minimal-26.11.20261020.02c087f-x86_64-linux.iso` |
+| ISO sha256 | `5747c666a5973a82ee62612ddda4a61f1d9614fdc8a27283a68efb0bb3186a41` |
+| `.img` pendrive | `~/nixaios-hw-s1astra-q4km-cudata-20261104.img` (WSL ext4) |
+| `.img` tamanho | 9 397 338 112 B (8.75 GiB) — ISO 7.75 GiB + FAT 1 GiB |
+| `.img` sha256 | `09c4e76f727ac2fdc4bf82abf7bf8dd34b9b7c019e30321bd14701697257f194` |
+| Partição FAT | p3 = 1 GiB `c W95 FAT32 (LBA)`, start 16 257 024 |
+
+Prova do `.img` (WSL Ubuntu-24.04, `wsl -u root`):
+
+- `file` p3: `DOS/MBR boot sector … OEM-ID "mkfs.fat" … FAT (32 bit)
+  … label: "NIXAIOSLOG "`; mount ro OK, README.txt visível.
+- squashfs da ISO nova (`xorriso -extract /nix-store.squashfs` +
+  `unsquashfs -l`): S1
+  `8wv2737hqv8wgxmmq2mkypymzav0sspj-Qwen3.5-0.8B-Weight-Space-Programming-Q4_K_M.gguf`
+  e S2 `0cpj2dkknhvwnzw8lj6qap5mib2mkdv8-Qwen3.5-4B-Q6_K.gguf` —
+  **mesmos store paths do pin do flake** (Astra bit-exact / unsloth
+  Q6_K); STT `ggml-tiny` + piper/espeak mantidos (escolha do usuário:
+  "manter voz").
+- GGUFs continuam **embutidos na ISO**; a FAT 1 GiB nasce vazia a dado
+  (seed opcional de `models/` não cabe GGUF 4B nici 0.8B na FAT — seed
+  via `models/` na FAT só para wifi.conf/firstboot ou GGUF por DD
+  manual).
+- Win11 e FAT híbrida: lição 45 mantém-se — partições do `.img` podem
+  nascer Offline (Disk Management → Online); **não** alterado por 1 GiB.
