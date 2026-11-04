@@ -387,6 +387,10 @@ button{cursor:pointer}
 .btn.ghost{background:transparent;border-color:var(--edge);color:var(--ink-mute)}
 .btn.ghost:hover{color:var(--ink);border-color:var(--ink-mute)}
 #txtBtn.on{color:var(--acc);border-color:var(--acc)}
+/* Botão a aguardar resposta do servidor — nunca deixa o operador no escuro. */
+.btn-loading{position:relative;color:transparent !important;border-color:rgba(var(--acc-rgb),.35) !important}
+.btn-loading::after{content:"";position:absolute;inset:50%;translate:-50% -50%;width:12px;height:12px;border:2px solid rgba(var(--acc-rgb),.55);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+.btn-loading:hover{cursor:progress}
 .dock-vol{display:flex;align-items:center;gap:2px}
 #volLabel{font-family:var(--font-mono);font-size:calc(9px * var(--fs));color:var(--ink-mute);min-width:26px;text-align:center;font-variant-numeric:tabular-nums}
 .tag-btn{
@@ -2300,6 +2304,13 @@ button{cursor:pointer}
     };
     step();
   }
+  function setBtnLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) btn.classList.add("btn-loading");
+    else btn.classList.remove("btn-loading");
+    btn.disabled = loading;
+  }
+
   function holdEnd() {
     if (ui.hitl.holdRAF) cancelAnimationFrame(ui.hitl.holdRAF);
     ui.hitl.holdRAF = 0;
@@ -2531,11 +2542,9 @@ button{cursor:pointer}
     v.setUint32(36, dataLen, true);
     for (let i = 0; i < pcm16.length; i++) v.setInt16(44 + i * 2, pcm16[i], true);
     const bytes = new Uint8Array(buf);
-    let bin = "";
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) {
-      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-    }
+    // TextDecoder(latin1) mapeia 1 byte → 1 char sem pilha (evita o
+    // stack overflow de String.fromCharCode.apply em áudio > ~32 KiB).
+    const bin = new TextDecoder("latin1").decode(bytes);
     return btoa(bin);
   }
 
@@ -3229,8 +3238,11 @@ button{cursor:pointer}
   async function symbScaffold(lang) {
     const inp = $("symbIntent");
     const intent = ((inp && inp.value) || "").trim() || `app de demonstração ${lang}`;
+    const btn = lang === "rust" ? $("symbRust") : $("symbPy");
+    setBtnLoading(btn, true);
     symbSet("symbPlan", "a gerar plano…");
     const r = await rpc("factory.scaffold", { intent, lang }, { timeout: 15000 });
+    setBtnLoading(btn, false);
     if (!r || !r.ok) {
       symbSet("symbPlan", "plano recusado: " + ((r && r.error) || "sem resposta"), "err");
       return;
@@ -4083,12 +4095,15 @@ button{cursor:pointer}
 
     const sp = $("suspendProposeBtn");
     if (sp) sp.addEventListener("click", async () => {
+      setBtnLoading(sp, true);
       try {
         const r = await rpc("improve.propose", { kind: "system.suspend" });
         if (r && r.ok) toast("SUSPEND", "Card HITL (ou TTL)", "warn");
         else toast("SUSPEND", (r && r.error) || "falhou", "err");
         pollNow();
-      } catch (e) { toast("SUSPEND", String(e), "err"); }
+      } catch (e) { toast("SUSPEND", String(e), "err"); } finally {
+        setBtnLoading(sp, false);
+      }
     });
 
     const micBtn = $("micMuteBtn");

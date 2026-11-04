@@ -29,6 +29,10 @@ pub struct NixFacts {
     pub nixpkgs: Option<u32>,
     /// `/dev/nvidia0` ou `/proc/driver/nvidia/version` presentes.
     pub has_nvidia: bool,
+    /// `/proc/driver/nvidia/gpus/*/power_readings` ou nvidia-smi disponível → CUDA real.
+    pub has_cuda: bool,
+    /// Contador RAPL legível em `/sys/class/powercap/*/energy_uj`.
+    pub has_rapl: bool,
 }
 
 impl NixFacts {
@@ -145,6 +149,12 @@ pub fn probe() -> NixFacts {
         systemd: Path::new("/run/systemd/system").is_dir(),
         has_nvidia: Path::new("/dev/nvidia0").exists()
             || Path::new("/proc/driver/nvidia/version").is_file(),
+        has_cuda: Path::new("/proc/driver/nvidia/gpus")
+            .read_dir()
+            .is_ok_and(|rd| rd.flatten().next().is_some()),
+        has_rapl: Path::new("/sys/class/powercap")
+            .read_dir()
+            .is_ok_and(|rd| rd.flatten().next().is_some()),
     }
 }
 
@@ -196,6 +206,10 @@ pub enum Pre {
     HasNvidia,
     /// O ring Nix está desarmado (default seguro).
     RingDisarmed,
+    /// CUDA está disponível (nvidia-smi / driver carregado).
+    HasCuda,
+    /// Contador de energia RAPL disponível (medida real, não estimativa).
+    HasRapl,
 }
 
 impl serde::Serialize for Pre {
@@ -212,6 +226,8 @@ impl Pre {
             Pre::NixpkgsAtLeast(v) => format!("nixpkgs>={}", v / 100),
             Pre::HasNvidia => "has_nvidia".into(),
             Pre::RingDisarmed => "ring_disarmed".into(),
+            Pre::HasCuda => "has_cuda".into(),
+            Pre::HasRapl => "has_rapl".into(),
         }
     }
 
@@ -221,6 +237,8 @@ impl Pre {
             Pre::NixpkgsAtLeast(v) => f.nixpkgs.map(|x| x >= v).unwrap_or(false),
             Pre::HasNvidia => f.has_nvidia,
             Pre::RingDisarmed => !f.ring_armed,
+            Pre::HasCuda => f.has_cuda,
+            Pre::HasRapl => f.has_rapl,
         }
     }
 }
@@ -293,14 +311,14 @@ pub const LESSONS: &[Lesson] = &[
         "device-allow",
         "hardware",
         ["deviceallow", "nvidia", "cuda", "gpu", "gpu permit"],
-        "`DeviceAllow` resolve aliases por `/proc/devices`: `char-nvidia` cobre `/dev/nvidiaN` e `/dev/nvidiactl`. Aliases inexistentes são ignorados em silêncio e a CUDA morre com ENODEV.",
+        "`DeviceAllow` resolve aliases por /proc/devices: char-nvidia cobre /dev/nvidiaN e /dev/nvidiactl. Aliases inexistentes sao ignorados em silencio e a CUDA morre com ENODEV.",
         [Pre::HasNvidia]
     ),
     lesson!(
         "credential",
         "segurança",
         ["api key", "segredo", "secret", "token", "loadcredential"],
-        "Segredos entram por `LoadCredential=` e `$CREDENTIALS_DIRECTORY`: nunca em `Environment=` (visível em `systemctl show`) nem em argv."
+        "Segredos entram por LoadCredential= e $CREDENTIALS_DIRECTORY: nunca em Environment= (visível em systemctl show) nem em argv."
     ),
     lesson!(
         "crlf",
@@ -516,6 +534,12 @@ fn hint_for(l: &Lesson, f: &NixFacts) -> &'static str {
             }
             Pre::RingDisarmed if f.ring_armed => {
                 return "Ring armado fora do default seguro — rever S-04/ADR antes de confiar"
+            }
+            Pre::HasCuda if !f.has_cuda => {
+                return "CUDA não detectado — a lição re-aplica quando o driver NVIDIA carregar"
+            }
+            Pre::HasRapl if !f.has_rapl => {
+                return "RAPL ausente — energia fica em tdp_estimate (limite inferior), nunca 0"
             }
             _ => {}
         }

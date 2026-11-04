@@ -27,12 +27,12 @@ pub fn parse_gguf_header(buf: &[u8]) -> Result<GgufHeaderInfo, GgufError> {
     if &buf[0..4] != b"GGUF" {
         return Err(GgufError::BadMagic);
     }
-    let version = u32::from_le_bytes(buf[4..8].try_into().unwrap());
+    let version = u32::from_le_bytes(buf[4..8].try_into().map_err(|_| GgufError::BadMagic)?);
     if !(1..=3).contains(&version) {
         return Err(GgufError::BadVersion(version));
     }
-    let tensor_count = u64::from_le_bytes(buf[8..16].try_into().unwrap());
-    let kv_count = u64::from_le_bytes(buf[16..24].try_into().unwrap());
+    let tensor_count = u64::from_le_bytes(buf[8..16].try_into().map_err(|_| GgufError::TooShort)?);
+    let kv_count = u64::from_le_bytes(buf[16..24].try_into().map_err(|_| GgufError::TooShort)?);
     Ok(GgufHeaderInfo {
         version,
         tensor_count,
@@ -45,7 +45,9 @@ pub fn safetensors_header_len(buf: &[u8]) -> Result<u64, GgufError> {
     if buf.len() < 8 {
         return Err(GgufError::TooShort);
     }
-    Ok(u64::from_le_bytes(buf[0..8].try_into().unwrap()))
+    Ok(u64::from_le_bytes(
+        buf[0..8].try_into().map_err(|_| GgufError::TooShort)?,
+    ))
 }
 
 #[cfg(test)]

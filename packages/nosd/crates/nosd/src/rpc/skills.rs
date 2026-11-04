@@ -1446,7 +1446,15 @@ pub(crate) fn dispatch(state: &AppState, req: Request, peer: &str) -> Option<Res
                     best = Some((s, m.clone(), why));
                 }
             }
-            let (score, chosen, why) = best.expect("nao vazio");
+            let (score, chosen, why) = match best {
+                Some(b) => b,
+                None => {
+                    return Some(err(
+                        req.id,
+                        format!("sem candidatas para focus '{focus}' (seleção vazia)"),
+                    ))
+                }
+            };
             let name = chosen["name"].as_str().unwrap_or("");
             let version = chosen["version"].as_str().unwrap_or("0.0.0");
             state.mesh.crdt_put(

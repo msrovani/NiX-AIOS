@@ -789,6 +789,7 @@ impl HermesEngine {
             s2_pending: self.s2.pending() as u32,
             power_save: nos_core::routing::power_save_from_env(),
             s1_available: self.hotswap.engine_name() != "cpu-echo",
+            energy_budget_j: None,
         })
     }
 

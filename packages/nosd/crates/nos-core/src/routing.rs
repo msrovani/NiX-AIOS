@@ -44,6 +44,9 @@ pub struct RouteInputs {
     pub power_save: bool,
     /// O S1 não é `cpu-echo`.
     pub s1_available: bool,
+    /// Orçamento de energia restante (Joules). Se definido e o custo
+    /// estimado do S2 exceder, faz downgrade para S1.
+    pub energy_budget_j: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +106,14 @@ pub fn plan_backend(i: &RouteInputs) -> RoutePlan {
     if i.interactive && i.s2_pending > 0 {
         return s1_backend(i, "s2_busy_interactive", true);
     }
+    if let Some(budget) = i.energy_budget_j {
+        // Custo estimado mínimo de uma chamada S2 (4B): ~50 J de GPU.
+        // Sem orçamento, não se dispara o 4B — cai em S1 honesto.
+        const S2_MIN_J: u64 = 50;
+        if budget < S2_MIN_J {
+            return s1_backend(i, "energy_budget", true);
+        }
+    }
     RoutePlan {
         backend: Backend::S2,
         reason: "lane_s2",
@@ -123,6 +134,7 @@ mod tests {
             s2_pending: 0,
             power_save: false,
             s1_available: true,
+            energy_budget_j: None,
         }
     }
 
@@ -232,5 +244,27 @@ mod tests {
             ..base()
         };
         assert_eq!(plan_backend(&i).backend, Backend::S2);
+    }
+
+    #[test]
+    fn energy_budget_too_low_downgrades_to_s1() {
+        let i = RouteInputs {
+            energy_budget_j: Some(10),
+            ..base()
+        };
+        let p = plan_backend(&i);
+        assert_eq!(p.backend, Backend::S1);
+        assert_eq!(p.reason, "energy_budget");
+        assert!(p.downgraded);
+    }
+
+    #[test]
+    fn energy_budget_sufficient_keeps_s2() {
+        let i = RouteInputs {
+            energy_budget_j: Some(10_000),
+            ..base()
+        };
+        let p = plan_backend(&i);
+        assert_eq!(p.backend, Backend::S2);
     }
 }
