@@ -12,7 +12,7 @@ do Ring0. O aceite primário é **M3 — Boot→JARBAS Jarvis-like**, seguido de
 **M4 metal** e **M5 frota**. Ver [`docs/BOOT_TO_JARBAS.md`](docs/BOOT_TO_JARBAS.md)
 e [`docs/REMIGRATION_PLAN_LEDGER.md`](docs/REMIGRATION_PLAN_LEDGER.md).
 
-Versão corrente: **0.7.0-alpha.5** (in-tree + closeout fórum 2026-11-02; última ISO publicada `0.6.0-alpha.11`). Volid ISO: **`NIXAIOS051`**.
+Versão corrente: **0.7.0-alpha.6** (in-tree, HUD C1–C6; última ISO publicada `0.7.0-alpha.5`). Volid ISO: **`NIXAIOS051`**.
 Memória cognitiva: neural-sgdb via `MemoryGovernor` — ver [`docs/MEMORY_NSGDB.md`](docs/MEMORY_NSGDB.md) + [`docs/NSGDB_VERSION.md`](docs/NSGDB_VERSION.md).
 Closeout: [`docs/evidence/FORUM_CLOSEOUT_0.7.0-alpha.5.md`](docs/evidence/FORUM_CLOSEOUT_0.7.0-alpha.5.md) — próximo P0 = colheita metal Core7.
 
@@ -217,6 +217,24 @@ Resumo executavel; detalhe em
     (`flake.nix`), guardar rollback sem edito (`-base`), e quantização de
     publisher novo não faz claims de qualidade — só o hash fala.
 
+50. **FAT dentro de `.img` híbrido não lê com offset no mtools**:
+    `mdir -i img@@8325596288 ::` = `non DOS media` (a ISO+partição híbrida
+    engana o mtools). Prova da FAT32 = `losetup -P` + `mount -o ro` no
+    **`wsl -u root`** (o `sudo` do host pede password; root WSL não), e
+    `losetup -d` sempre no fim — loop da sessão anterior ficou pendurado
+    em `/dev/loop0`.
+51. **Job WSL lançado da sessão morre sem rasto**: o log em `/tmp` meio
+    caminho desaparece com o processo (não há `ps` de sobra, não há log).
+    Tarefa longa = script bash (`_tmp_*.sh` no repo, apagar depois)
+    com log em **`$HOME`** (não `/tmp`), correndo em background.
+52. **"A ISO contém o modelo X" prova-se com `unsquashfs -l`, não com o
+    post**: `nix shell nixpkgs#xorriso nixpkgs#squashfsTools` →
+    `xorriso -osirrox on -indev $ISO -extract /nix-store.squashfs` +
+    `unsquashfs -l | grep` com contagem (`G-matches: 409`). A extractor
+    do squashfs da live ainda está a copiar a 4 GiB/min, e só o
+    listing da árvore extraída fala por si (compare store paths com os
+    pins do `flake.nix`).
+
 ## Comandos
 
 HW (um só pendrive): `nix build .#iso-hw` -> `scripts/pack-hw-usb.sh <iso> <img>`
@@ -262,6 +280,20 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **Tranche 0.7.0-alpha.6 (in-tree, HUD C1–C6 + pendrive FAT 1 GiB)**:
+  correcções do HUD `orb_lab.html` dirigidas às fotos do metal
+  0.7.0-alpha.5 — C1 rede por `link_state` real (`nos-observe::
+  NetLinkState`), C2 badge de scope na energia, C4 painel `02e VOZ`
+  separado + `PROPOR SUSPEND` completo + drawer de lições
+  (`nix.open_lessons` com `hint_for()`), C5 prioridades 180° no topo,
+  C6 coluna esquerda 25vw exacto. Código `2fa3e61`, artefactos 720p
+  `01fd4f4`, docs `e60e930`/`9e3bfd3`. Rebuild `iso-hw-cuda`:
+  ISO sha `5747c666…8a41` (`nlbyyyix40jb0i7c4gw90saj92ba4f6f`), `.img`
+  8,75 GiB sha `09c4e76f…f194` com FAT32 **1 GiB** `NIXAIOSLOG`
+  (`FAT_MB=1024`); S1 Astra + S2 4B + voz provados por squashfs (lição
+  52). Evidência `docs/evidence/ISO_HW_CUDA_S1ASTRA_2026-11-04.md`;
+  memória `docs/memory/SESSION_20261104_HUD_C1C6.md`. Metal AWAITING_HW
+  (boot no pendrive novo não observado).
 - **S1 swap 2026-11-04 (in-tree)**: a `iso-hw` arranca com o Qwen3.5-0.8B
   **editado pela Astra** (Weight-Space Programming, MIT CSAIL/RikiyaT —
   loop de thinking removido em down_proj L15/19, 0.016% dos pesos,

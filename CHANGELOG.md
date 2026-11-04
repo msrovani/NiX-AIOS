@@ -3,6 +3,29 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [0.7.0-alpha.6] — HUD C1–C8 (correcções das fotos de metal) + pendrive FAT 1 GiB
+
+- **HUD `orb_lab` C1–C6** (commits `2fa3e61` código + `01fd4f4`/`e60e930`
+  evidência): C1 estado de rede derive do **link real** (`nos-observe::
+  NetLinkState` `Associated|NoLink|Down`, `link_state()`), não de iff-up;
+  C2 energia com **badge de scope** (`CPU|GPU|FULL|EST|—`) — a mentira
+  silenciosa "MED só-GPU" morre; C4 painel **`02e VOZ`** separado do REDE
+  + botão `PROPOR SUSPEND` completo com tag `TIER HITL`; C4 drawer de
+  lições (DÍVIDA clicável → `openLessonsDrawer`, servindo
+  `nix.open_lessons` com `hint_for()` em `nos-core::nix_domain`); C5
+  painel de prioridades visíveis no topo 180°; C6 coluna esquerda = **25vw
+  exacto** (kiosk + narrow).
+- **Rebuild `iso-hw-cuda`** com HUD embutido + pendrive novo:
+  ISO `/nix/store/nlbyyyix40jb0i7c4gw90saj92ba4f6f-…`, sha256
+  `5747c666…8a41`; `.img` 9 397 338 112 B (8,75 GiB), sha256
+  `09c4e76f…f194`, FAT32 **1 GiB** `NIXAIOSLOG` (`FAT_MB=1024` no
+  `pack-hw-usb.sh`). S1 Astra Q4_K_M + S2 4B Q6_K + STT/piper provados
+  por squashfs (409 matches). Commit docs: `9e3bfd3`.
+- Evidência: `docs/evidence/ISO_HW_CUDA_S1ASTRA_2026-11-04.md`;
+  memória: `docs/memory/SESSION_20261104_HUD_C1C6.md`.
+- Metal (boot no pendrive novo, FAT 1 GiB legível no Win11)
+  **AWAITING_HW**.
+
 ## [0.7.0-alpha.5] — neural-sgdb MemoryGovernor + pin sync
 
 - **S1 swap (2026-11-04, in-tree)**: o GGUF embutido na `iso-hw`
