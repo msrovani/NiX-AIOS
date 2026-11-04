@@ -282,7 +282,7 @@ fn wpctl_output(args: &[&str]) -> Option<String> {
 pub fn collect_audio_view() -> AudioView {
     #[cfg(not(unix))]
     {
-        return audio_view_absent();
+        audio_view_absent()
     }
     #[cfg(unix)]
     {

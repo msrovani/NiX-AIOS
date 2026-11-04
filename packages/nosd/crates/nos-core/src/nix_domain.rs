@@ -468,10 +468,25 @@ pub fn audit() -> serde_json::Value {
 /// Resumo para HUD/UI (sem doutrina): factos + contagem de lições.
 pub fn symbiosis_summary() -> serde_json::Value {
     let f = probe();
+    let mut open: Vec<serde_json::Value> = Vec::new();
+    for l in LESSONS {
+        if let Err(why) = applicability(l, &f) {
+            open.push(serde_json::json!({
+                "id": l.id,
+                "topic": l.topic,
+                "text": l.text,
+                "why": why,
+                // O que a máquina precisaria para a lição voltar a aplicar.
+                "hint": hint_for(l, &f),
+            }));
+        }
+    }
     serde_json::json!({
         "facts": f,
         "line": f.line(),
         "lessons": LESSONS.len(),
+        "open_lessons": open,
+        "open_count": open.len(),
         "topics": {
             "build": LESSONS.iter().filter(|l| l.topic == "build").count(),
             "systemd": LESSONS.iter().filter(|l| l.topic == "systemd").count(),
@@ -483,6 +498,29 @@ pub fn symbiosis_summary() -> serde_json::Value {
             .filter(|l| applicability(l, &f).is_ok())
             .count(),
     })
+}
+
+/// Hint acionável para fechar uma lição em dívida: deriva da pré-condição
+/// que falhou contra os factos vivos (mesma semântica de `Pre::holds`).
+fn hint_for(l: &Lesson, f: &NixFacts) -> &'static str {
+    for p in l.when {
+        match p {
+            Pre::OnNixos if !f.on_nixos => {
+                return "Host não é NixOS — esta lição só vale dentro da ISO/VM NIXAIOS"
+            }
+            Pre::NixpkgsAtLeast(v) if !f.nixpkgs.map(|x| x >= *v).unwrap_or(false) => {
+                return "nixpkgs abaixo do mínimo da lição — novo build/instalação resolve"
+            }
+            Pre::HasNvidia if !f.has_nvidia => {
+                return "GPU NVIDIA não visível — a lição re-aplica quando a dGPU aparece"
+            }
+            Pre::RingDisarmed if f.ring_armed => {
+                return "Ring armado fora do default seguro — rever S-04/ADR antes de confiar"
+            }
+            _ => {}
+        }
+    }
+    "Pré-condição não cumprida nesta máquina — ver `why`"
 }
 
 #[cfg(test)]
@@ -497,6 +535,17 @@ mod tests {
         }
         // linha sempre produzível
         assert!(!f.line().is_empty());
+    }
+
+    #[test]
+    fn symbiosis_exposes_open_lessons_with_hint() {
+        let s = symbiosis_summary();
+        let open = s["open_lessons"].as_array().unwrap();
+        assert_eq!(open.len(), s["open_count"].as_u64().unwrap() as usize);
+        for l in open {
+            assert!(l.get("id").is_some(), "lição aberta sem id");
+            assert!(l.get("hint").is_some(), "lição aberta sem hint acionável");
+        }
     }
 
     #[test]

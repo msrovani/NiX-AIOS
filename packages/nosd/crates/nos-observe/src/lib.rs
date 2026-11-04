@@ -73,10 +73,82 @@ pub struct NmHint {
     pub primary: Option<String>,
 }
 
+/// Estado de associação para o HUD (ORB): `UP` verde só com rede associada.
+///
+/// - `associated`: interface up **e** com SSID/carrier real (wifi com SSID,
+///   ou Ethernet com `operstate=up` + link negociado). Só aqui o chip fica
+///   verde e `netUp` diz "UP".
+/// - `no-link`: interface up administrativo mas **sem** associação (Wi-Fi
+///   não associado = `nmcli` sem SSID). Chip âmbar `SEM LINK`.
+/// - `down`: interface/operstate down (ou plataforma sem leitura).
+///
+/// Derivação pura (sem I/O): testável por `net_link_state()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NetLinkState {
+    Associated,
+    NoLink,
+    Down,
+}
+
+impl NetLinkState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NetLinkState::Associated => "associated",
+            NetLinkState::NoLink => "no-link",
+            NetLinkState::Down => "down",
+        }
+    }
+}
+
+/// Deriva `NetLinkState` de (up, operstate, ssid, link_mbps):
+/// `UP` verde exige SSID ou Ethernet negociada; interface up sem
+/// associação = `no-link` (âmbar), nunca verde.
+///
+/// - wifi: `associated` iff `up && ssid.is_some()`.
+/// - ethernet: `associated` iff `up && operstate == Some("up") &&
+///   link_mbps.is_some()`.
+/// - outros tipos: `associated` iff `up && operstate == Some("up")`.
+/// - `up == false` (ou operstate down) → `down`.
+pub fn net_link_state(
+    up: bool,
+    net_type: &str,
+    operstate: Option<&str>,
+    ssid: Option<&str>,
+    link_mbps: Option<i64>,
+) -> NetLinkState {
+    if !up {
+        return NetLinkState::Down;
+    }
+    if net_type == "wifi" {
+        return match ssid {
+            Some(s) if !s.trim().is_empty() => NetLinkState::Associated,
+            _ => NetLinkState::NoLink,
+        };
+    }
+    if net_type == "ethernet" {
+        let carrier = operstate == Some("up") && link_mbps.is_some();
+        return if carrier {
+            NetLinkState::Associated
+        } else {
+            NetLinkState::NoLink
+        };
+    }
+    // Demais tipos: só `up` sem operstate "down".
+    if operstate == Some("down") || operstate == Some("unknown") {
+        return NetLinkState::Down;
+    }
+    NetLinkState::Associated
+}
+
 /// Vista read-only da ligação primária (ORB Fase 1). Sem PSK/secrets; sem throughput inventado.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetView {
+    /// Legado: `up administrativo`. **Não** é o sinal de "rede utilizável";
+    /// usar `link_state == Associated` para verde. Mantido por contrato.
     pub up: bool,
+    /// Estado derivado do link real (`associated` | `no-link` | `down`).
+    pub link_state: NetLinkState,
     #[serde(rename = "type")]
     pub net_type: String,
     pub device: Option<String>,
@@ -95,6 +167,7 @@ pub fn collect_net_view() -> NetView {
     {
         NetView {
             up: false,
+            link_state: NetLinkState::Down,
             net_type: "none".into(),
             device: None,
             link_mbps: None,
@@ -188,6 +261,7 @@ fn collect_net_view_unix() -> NetView {
     let Some(dev) = device else {
         return NetView {
             up: false,
+            link_state: NetLinkState::Down,
             net_type: "none".into(),
             device: None,
             link_mbps: None,
@@ -209,9 +283,17 @@ fn collect_net_view_unix() -> NetView {
     } else {
         None
     };
+    let link_state = net_link_state(
+        up,
+        &net_type,
+        operstate.as_deref(),
+        ssid.as_deref(),
+        link_mbps,
+    );
 
     NetView {
         up,
+        link_state,
         net_type,
         device: Some(dev),
         link_mbps,
@@ -706,5 +788,46 @@ mod tests {
         );
         assert_eq!(parse_active_wifi_ssid_line("no:Hidden"), None);
         assert_eq!(parse_active_wifi_ssid_line("yes:"), None);
+    }
+
+    #[test]
+    fn net_link_state_derives_from_link_not_iff_up() {
+        use NetLinkState as S;
+        // Wi-Fi sem SSID = nunca verde, mesmo com iff up.
+        assert_eq!(
+            net_link_state(true, "wifi", Some("up"), None, Some(150)),
+            S::NoLink
+        );
+        assert_eq!(
+            net_link_state(true, "wifi", Some("up"), Some(""), Some(150)),
+            S::NoLink
+        );
+        // Wi-Fi com SSID = associado.
+        assert_eq!(
+            net_link_state(true, "wifi", Some("up"), Some("Casa"), Some(150)),
+            S::Associated
+        );
+        // Ethernet: exige link negociado (speed presente) + operstate up.
+        assert_eq!(
+            net_link_state(true, "ethernet", Some("up"), None, Some(1000)),
+            S::Associated
+        );
+        assert_eq!(
+            net_link_state(true, "ethernet", Some("up"), None, None),
+            S::NoLink
+        );
+        // Interface down = down (precede tudo).
+        assert_eq!(
+            net_link_state(false, "wifi", Some("down"), Some("Casa"), Some(150)),
+            S::Down
+        );
+        assert_eq!(
+            net_link_state(true, "other", Some("down"), None, None),
+            S::Down
+        );
+        // Strings estáveis para o HUd.
+        assert_eq!(S::NoLink.as_str(), "no-link");
+        assert_eq!(S::Associated.as_str(), "associated");
+        assert_eq!(S::Down.as_str(), "down");
     }
 }

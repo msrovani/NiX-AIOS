@@ -138,7 +138,9 @@ button{cursor:pointer}
 #cockpit{
   position:relative;z-index:10;
   flex:1;min-height:0;display:grid;
-  grid-template-columns:minmax(270px,330px) minmax(0,1fr) minmax(290px,350px);
+  /* Coluna esquerda a 1/4 do ecrã: tronco de label+valor legível nas fotos
+     metal (labels cortados a 330px fixos). Piso garante texto não-colado. */
+  grid-template-columns:minmax(300px,25vw) minmax(0,1fr) minmax(290px,350px);
   gap:var(--gap);padding:12px var(--pad) 10px;
 }
 #railLeft,#railRight,#center{min-height:0;min-width:0}
@@ -191,6 +193,9 @@ button{cursor:pointer}
 .kv b.ok{color:var(--green)}
 .kv b.warn{color:var(--amber)}
 .kv b.err{color:var(--red)}
+.kv .tier-tag{font-family:var(--font-mono);font-size:calc(7px * var(--fs));letter-spacing:.1em;color:var(--amber);border:1px solid rgba(255,178,87,.35);padding:1px 5px;margin-left:6px;white-space:nowrap}
+.kv.kv-click{cursor:pointer}
+.kv.kv-click:hover b{color:var(--acc)}
 .core-kvs{margin-top:9px;padding-top:3px;border-top:1px solid rgba(95,180,215,.1)}
 .legend{display:flex;flex-wrap:wrap;gap:5px 10px;margin-top:7px;padding-top:6px;border-top:1px solid rgba(95,180,215,.1)}
 .legend span{display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:calc(6.5px * var(--fs));letter-spacing:.1em;color:var(--ink-mute);white-space:nowrap}
@@ -585,7 +590,8 @@ button{cursor:pointer}
 
 /* Kiosk 1280x720: aperta as rails sem perder legibilidade. */
 @media (max-height:800px){
-  #cockpit{padding-top:8px;padding-bottom:7px}
+  #cockpit{padding-top:8px;padding-bottom:7px;grid-template-columns:minmax(240px,25vw) minmax(0,1fr) minmax(260px,320px)}
+  #voicePanel{display:none} /* C3: 02e VOZ é data-optional aqui — drawer DIAG */
   #railLeft,#railRight{gap:8px}
   .panel{padding:8px 11px 9px}
   .panel-head{margin-bottom:6px}
@@ -618,7 +624,7 @@ button{cursor:pointer}
 }
 
 @media (max-width:1200px){
-  #cockpit{grid-template-columns:minmax(250px,300px) minmax(0,1fr)}
+  #cockpit{grid-template-columns:minmax(250px,25vw) minmax(0,1fr)}
   #railRight{display:none}
   #authPanel{margin-top:0}
 }
@@ -738,7 +744,7 @@ button{cursor:pointer}
         <div class="kv"><span>GERAÇÃO</span><b id="symbGen" title="perfis system-*-link legíveis">—</b></div>
         <div class="kv"><span>RING</span><b id="symbRing" title="helper root armado só com S-04">—</b></div>
         <div class="kv"><span>LIÇÕES</span><b id="symbLessons" title="lições Nix aplicáveis a ESTA máquina (o resto é dívida)">—</b></div>
-        <div class="kv"><span>DÍVIDA</span><b id="symbDebt" title="lições que já não se aplicam — nix.audit">—</b></div>
+        <div class="kv kv-click" id="symbDebtRow" title="lições que já não se aplicam — nix.audit (clique para detalhe)"><span>DÍVIDA</span><b id="symbDebt">—</b></div>
         <div class="kv"><span>CAPS</span><b id="symbCaps" title="self.status — métodos que este nó conhece">—</b></div>
         <div class="kv"><span>JANELAS</span><b id="symbWindows">—</b></div>
         <div id="symbLimits" class="symb-plan">limites · a ler…</div>
@@ -757,10 +763,20 @@ button{cursor:pointer}
         <div class="kv"><span>DEVICE</span><b id="netDev">—</b></div>
         <div class="kv"><span>LINK</span><b id="netMbps" title="Capacidade do link (sysfs), não throughput">—</b></div>
         <div class="kv"><span>SSID</span><b id="netSsid">—</b></div>
+      </section>
+      <!-- C3: painel VOZ separado (não aninhado em REDE) -->
+      <section class="panel" id="voicePanel" data-optional>
+        <header class="panel-head"><span class="idx">02e</span><h2>VOZ</h2><span class="rule"></span><span class="tag" id="voiceTag">—</span></header>
         <div class="kv"><span>TTS</span><b id="ttsEngineLbl" title="voice.status">—</b></div>
-        <div class="kv"><span>ENGINE</span><select id="ttsEngine" class="btn ghost" style="max-width:9rem" aria-label="Engine TTS"></select></div>
-        <div class="kv"><span>VOZ</span><select id="ttsModel" class="btn ghost" style="max-width:9rem" aria-label="Modelo Piper"></select></div>
-        <button id="suspendProposeBtn" class="mini" type="button" title="Propor suspensão (HITL)">PROPOR SUSPEND</button>
+        <div class="kv"><span>ENGINE</span><select id="ttsEngine" class="btn ghost" style="max-width:10rem" aria-label="Engine TTS"></select></div>
+        <div class="kv"><span>VOZ</span><select id="ttsModel" class="btn ghost" style="max-width:10rem" aria-label="Modelo Piper"></select></div>
+        <!-- C5: botão de suspensão completo, com tier/HITL visível -->
+        <div class="kv"><span>SUSPENDER</span>
+          <span>
+            <button id="suspendProposeBtn" class="mini" type="button" title="Propor suspensão — exige decisão humana (HITL)">PROPOR SUSPEND</button>
+            <span class="tier-tag" title="Tier desta acção — o grant é server-authored">TIER HITL</span>
+          </span>
+        </div>
       </section>
       <section class="panel" id="energyPanel">
         <header class="panel-head"><span class="idx">03</span><h2>ENERGIA</h2><span class="rule"></span><span class="tag" id="energyTag">—</span></header>
@@ -1404,9 +1420,24 @@ button{cursor:pointer}
     const measuredSrc = [cpu && cpu.source, gpu && gpu.source]
       .filter((s) => s === "rapl" || s === "nvml");
     const aggregateMeasured = ["rapl", "nvml", "tdp_estimate"].includes(String(e.source || ""));
+    // C2: scope visível no badge (nunca MED enganoso só-GPU).
+    // CPU RAPL ausente + GPU NVML = "GPU" (só GPU · CPU por medir).
+    const scopeTxt = (() => {
+      const hasCpu = !!(cpu && cpu.source === "rapl");
+      const hasGpu = !!(gpu && gpu.source === "nvml");
+      if (hasCpu && hasGpu) return "FULL";
+      if (hasCpu) return "CPU";
+      if (hasGpu) return "GPU";
+      return aggregateMeasured ? (e.source === "tdp_estimate" ? "EST" : "MED") : "—";
+    })();
     const tag = $("energyTag");
-    tag.textContent = measuredSrc.length ? "MED" : (aggregateMeasured ? (e.source === "tdp_estimate" ? "EST" : "MED") : "—");
+    tag.textContent = scopeTxt;
     tag.className = "tag " + (measuredSrc.length || (aggregateMeasured && e.source !== "tdp_estimate") ? "live" : (aggregateMeasured ? "warn" : ""));
+    tag.title = scopeTxt === "GPU" ? "GPU (NVML) medida · CPU por medir (sem RAPL) — limite inferior, não a máquina"
+      : scopeTxt === "CPU" ? "CPU (RAPL) medida · GPU por medir"
+      : scopeTxt === "FULL" ? "CPU (RAPL) + GPU (NVML) medidas"
+      : scopeTxt === "EST" ? "TDP estimado (limite inferior)"
+      : "Sem fonte de energia medida — travessão, nunca 0";
 
     const splitTotal = (cpu ? cpu.total_j || 0 : 0) + (gpu ? gpu.total_j || 0 : 0);
     const total = split && splitTotal > 0 ? splitTotal : (typeof e.joules_total === "number" ? e.joules_total : 0);
@@ -2960,16 +2991,25 @@ button{cursor:pointer}
     if (!n) return;
     ui.net = n;
     const up = !!n.up;
-    setKv("netUp", up ? "UP" : "DOWN", up ? "ok" : "warn");
+    // C1: estado derivado do link real (não do iff up administrativo).
+    // associated = verde UP; no-link = âmbar SEM LINK; down = vermelho DOWN.
+    const ls = (n.link_state || (up ? "associated" : "down")).toLowerCase();
+    const stateTxt = ls === "associated" ? "UP" : (ls === "no-link" ? "SEM LINK" : "DOWN");
+    const stateCls = ls === "associated" ? "ok" : (ls === "no-link" ? "warn" : "err");
+    setKv("netUp", stateTxt, stateCls);
     setKv("netType", n.type || "none");
     setKv("netDev", n.device || "—");
     const mbps = n.link_mbps;
-    setKv("netMbps", mbps == null ? "—" : `${mbps} Mbps (link)`, mbps != null ? "ok" : "",
+    setKv("netMbps", mbps == null ? "—" : `${mbps} Mbps (link)`, ls === "associated" && mbps != null ? "ok" : "",
       "capacidade do link (sysfs), não throughput medido");
-    setKv("netSsid", n.ssid || "—");
+    setKv("netSsid", ls === "associated" ? (n.ssid || "—") : "sem associação", "",
+      ls === "associated" ? "" : "interface up mas sem SSID/carrier — ligar via wifi.connect");
     const tag = $("netTag");
-    if (tag) { tag.textContent = up ? String(n.type || "UP").toUpperCase() : "DOWN"; tag.className = "tag " + (up ? "live" : "warn"); }
-    if (up) {
+    if (tag) {
+      tag.textContent = ls === "associated" ? String(n.type || "UP").toUpperCase() : stateTxt;
+      tag.className = "tag " + (ls === "associated" ? "live" : (ls === "no-link" ? "warn" : ""));
+    }
+    if (ls === "associated") {
       $("linkBadge").classList.add("ok");
       const tip = [n.type, n.device, mbps != null ? (mbps + "M") : null, n.ssid].filter(Boolean).join(" · ");
       $("linkText").textContent = tip || "LINK UP";
@@ -3152,8 +3192,11 @@ button{cursor:pointer}
     if (audit && audit.ok && audit.result) {
       const a = audit.result;
       symbSet("symbDebt", `${a.stale || 0}/${a.total || 0}`, a.stale ? "warn" : "ok");
-    }
-    if (self && self.ok && self.result) {
+      // C4: guardar lições abertas (id + hint) para o drawer clicável.
+      // Preferir a fonte rica (orb.symbiosis → nix.open_lessons, com hint);
+      // stale_lessons do audit só tem id+why.
+      ui.openLessons = (nix.open_lessons && nix.open_lessons.length) || a.stale ? (nix.open_lessons || a.stale_lessons || []) : [];
+    }    if (self && self.ok && self.result) {
       const s = self.result;
       const c = s.counts || {};
       symbSet("symbCaps", `${c.methods || 0}·${c.domains || 0}d`);
@@ -3162,6 +3205,26 @@ button{cursor:pointer}
       if (box) box.textContent = lim.length ? lim.join("\n") : "sem limites declarados";
     }
   }
+
+  // C4: drawer das lições em dívida de conhecimento — read-only, sem RPC extra.
+  function openLessonsDrawer() {
+    const list = ui.openLessons || [];
+    openDrawer("DÍVIDA DE CONHECIMENTO", (body) => {
+      const intro = document.createElement("p");
+      intro.textContent = list.length
+        ? `${list.length} lição(ões) do AGENTS.md já não se aplicam nesta máquina:`
+        : "Nenhuma lição em dívida — todo o conhecimento aplica-se à máquina actual.";
+      body.appendChild(intro);
+      for (const l of list) {
+        const p = document.createElement("p");
+        const why = l.why ? ` — porquê: ${l.why}` : "";
+        const hint = l.hint ? `\n→ ${l.hint}` : "";
+        p.textContent = `${l.id || "??"} (${l.topic || "?"}): ${l.text || ""}${why}${hint}`;
+        body.appendChild(p);
+      }
+    });
+  }
+
 
   async function symbScaffold(lang) {
     const inp = $("symbIntent");
@@ -3907,6 +3970,8 @@ button{cursor:pointer}
     $("txtBtn").addEventListener("click", () => setTextMode(!ui.textMode, true));
     $("helpBtn").addEventListener("click", openHelp);
     $("diagBtn").addEventListener("click", openDiag);
+    const debtRow = $("symbDebtRow");
+    if (debtRow) debtRow.addEventListener("click", openLessonsDrawer); // C4
     $("bootRetry").addEventListener("click", () => startSession());
     $("drawerClose").addEventListener("click", closeDrawer);
     document.querySelector("[data-drawer-close]").addEventListener("click", closeDrawer);
