@@ -26,6 +26,17 @@ Qwen3.5-4B **Q6_K** na dGPU (`llama-server :8082`, `--fit on --fit-ctx
 - STT: `3hxqscirmb90103r7v7lqhygaiqjlm1g-ggml-tiny.bin`; TTS:
   piper-standalone + espeak (Diogo/Andrea/…, pt_BR-faber onnx).
 
+## Packing (pendrive único)
+
+- Artefacto flash: `~/nixaios-hw-cuda-s1astra-20261104.img` (WSL ext4,
+  `/home/msrov/`), 12 618 563 584 B (11,75 GiB),
+  sha256 `dd15109d18029433cd12e0d1565f7b4174a8fabd9d9cf45260a3f23917e6eb2e`.
+- Partição 3 = FAT32 4 GiB montada por losetup e confirmada
+  (`FAT_VERIFIED`); ISO na part 1/2 como já é do costume.
+- A FAT nasce vazia a dado (`README` descreve seed opcional de
+  `models/active-…gguf` e `wifi.conf` e respostas do firstboot);
+  os GGUFs de S1/S2 viajam **embutidos** no squashfs da ISO.
+
 ## Tested / Not-tested
 
 - **Tested**: `nix build .#iso-hw-cuda` (out-path + closure); sha256 do
