@@ -24,6 +24,11 @@ pub struct NixFacts {
     /// `NOSD_NIX_RING=1` no processo — o ring root só é armável com S-04.
     pub ring_armed: bool,
     pub systemd: bool,
+    /// `YYMM` do nixpkgs instalado (ex.: `2611`), derivado de `/etc/NIXOS`.
+    /// `None` = não provado — uma lição presa a versão não se aplica.
+    pub nixpkgs: Option<u32>,
+    /// `/dev/nvidia0` ou `/proc/driver/nvidia/version` presentes.
+    pub has_nvidia: bool,
 }
 
 impl NixFacts {
@@ -125,9 +130,11 @@ pub fn probe() -> NixFacts {
     } else {
         None
     };
+    let version = read_trim("/etc/NIXOS", 48);
     NixFacts {
         on_nixos,
-        version: read_trim("/etc/NIXOS", 48),
+        nixpkgs: parse_nixpkgs(version.as_deref()),
+        version,
         system: readlink("/run/current-system"),
         config_dir,
         flake,
@@ -136,7 +143,32 @@ pub fn probe() -> NixFacts {
             .map(|v| v == "1")
             .unwrap_or(false),
         systemd: Path::new("/run/systemd/system").is_dir(),
+        has_nvidia: Path::new("/dev/nvidia0").exists()
+            || Path::new("/proc/driver/nvidia/version").is_file(),
     }
+}
+
+/// `26.11.20240915.abc` → `2611`. Aceita `YY.MM` no início; mais nada.
+pub fn parse_nixpkgs(release: Option<&str>) -> Option<u32> {
+    let s = release?;
+    let mut it = s.split('.');
+    let yy = it.next()?;
+    let mm = it.next()?;
+    // `25.05pre` / `26.11.2024...`: só o prefixo numérico conta.
+    let digits = |s: &str| -> Option<u32> {
+        let d: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if d.is_empty() {
+            None
+        } else {
+            d.parse().ok()
+        }
+    };
+    let yy: u32 = digits(yy)?;
+    let mm: u32 = digits(mm)?;
+    if !(20..=40).contains(&yy) || !(1..=12).contains(&mm) {
+        return None;
+    }
+    Some(yy * 100 + mm)
 }
 
 /// Lição operacional destilada do `AGENTS.md` — cada uma custou um build ou
@@ -147,15 +179,74 @@ pub struct Lesson {
     pub topic: &'static str,
     pub triggers: &'static [&'static str],
     pub text: &'static str,
+    /// Pré-condições avaliadas contra os factos vivos. Uma lição cuja
+    /// pré-condição é falsa **não** entra no prompt nem no `nix.ask`: é assim
+    /// que o conhecimento envelhece sem mentir (nixpkgs novo, sem GPU, ring…).
+    pub when: &'static [Pre],
+}
+
+/// Condição sob a qual uma lição ainda é verdadeira.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pre {
+    /// Só num NixOS instalado.
+    OnNixos,
+    /// `YYMM` mínimo do nixpkgs (ex.: 2611 = 26.11).
+    NixpkgsAtLeast(u32),
+    /// Há GPU NVIDIA visível no host.
+    HasNvidia,
+    /// O ring Nix está desarmado (default seguro).
+    RingDisarmed,
+}
+
+impl serde::Serialize for Pre {
+    /// Serializa como o rótulo legível (`nixpkgs>=26.11`), não como enum.
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.label())
+    }
+}
+
+impl Pre {
+    pub fn label(self) -> String {
+        match self {
+            Pre::OnNixos => "on_nixos".into(),
+            Pre::NixpkgsAtLeast(v) => format!("nixpkgs>={}", v / 100),
+            Pre::HasNvidia => "has_nvidia".into(),
+            Pre::RingDisarmed => "ring_disarmed".into(),
+        }
+    }
+
+    fn holds(self, f: &NixFacts) -> bool {
+        match self {
+            Pre::OnNixos => f.on_nixos,
+            Pre::NixpkgsAtLeast(v) => f.nixpkgs.map(|x| x >= v).unwrap_or(false),
+            Pre::HasNvidia => f.has_nvidia,
+            Pre::RingDisarmed => !f.ring_armed,
+        }
+    }
+}
+
+/// A lição aplica-se a estes factos? `Err(motivo)` é o motivo da recusa —
+/// usado pelo `audit` e nunca escondido.
+pub fn applicability(l: &Lesson, f: &NixFacts) -> Result<(), String> {
+    for p in l.when {
+        if !p.holds(f) {
+            return Err(format!("{} falsa", p.label()));
+        }
+    }
+    Ok(())
 }
 
 macro_rules! lesson {
     ($id:literal, $topic:literal, [$($t:literal),*], $text:literal) => {
+        lesson!($id, $topic, [$($t),*], $text, [])
+    };
+    ($id:literal, $topic:literal, [$($t:literal),*], $text:literal, [$($p:expr),*]) => {
         Lesson {
             id: $id,
             topic: $topic,
             triggers: &[$($t),*],
             text: $text,
+            when: &[$($p),*],
         }
     };
 }
@@ -202,7 +293,8 @@ pub const LESSONS: &[Lesson] = &[
         "device-allow",
         "hardware",
         ["deviceallow", "nvidia", "cuda", "gpu", "gpu permit"],
-        "`DeviceAllow` resolve aliases por `/proc/devices`: `char-nvidia` cobre `/dev/nvidiaN` e `/dev/nvidiactl`. Aliases inexistentes são ignorados em silêncio e a CUDA morre com ENODEV."
+        "`DeviceAllow` resolve aliases por `/proc/devices`: `char-nvidia` cobre `/dev/nvidiaN` e `/dev/nvidiactl`. Aliases inexistentes são ignorados em silêncio e a CUDA morre com ENODEV.",
+        [Pre::HasNvidia]
     ),
     lesson!(
         "credential",
@@ -244,13 +336,15 @@ pub const LESSONS: &[Lesson] = &[
         "cargo-build-flags",
         "build",
         ["cargoextraargs", "cargo", "26.11", "buildrustpackage"],
-        "`cargoExtraArgs` foi removido no nixpkgs 26.11 em silêncio: usar `cargoBuildFlags`."
+        "`cargoExtraArgs` foi removido no nixpkgs 26.11 em silêncio: usar `cargoBuildFlags`.",
+        [Pre::NixpkgsAtLeast(2611)]
     ),
     lesson!(
         "firstboot-tty1",
         "boot",
         ["firstboot", "boot", "serial", "tty", "getty"],
-        "Firstboot interactivo no metal corre no `tty1`: o getty serial ganha o flock e as perguntas ficam invisíveis. `console=tty0` mantém o boot visível."
+        "Firstboot interactivo no metal corre no `tty1`: o getty serial ganha o flock e as perguntas ficam invisíveis. `console=tty0` mantém o boot visível.",
+        [Pre::OnNixos]
     ),
     lesson!(
         "cage-vt",
@@ -262,7 +356,8 @@ pub const LESSONS: &[Lesson] = &[
         "iso-firewall",
         "rede",
         ["firewall", "udp", "porta", "mesh", "demo"],
-        "A ISO live tem o firewall NixOS ligado: UDP 19000/TCP 19001 morrem no INPUT. Uma demo tem de o abrir/desligar explicitamente."
+        "A ISO live tem o firewall NixOS ligado: UDP 19000/TCP 19001 morrem no INPUT. Uma demo tem de o abrir/desligar explicitamente.",
+        [Pre::OnNixos]
     ),
     lesson!(
         "qemu-not-metal",
@@ -274,7 +369,8 @@ pub const LESSONS: &[Lesson] = &[
         "ring-disarmed",
         "segurança",
         ["ring", "root", "nix.propose", "apply", "armado"],
-        "Ring Nix desarmado (`armRing=false`) é o default correcto: sem `NOSD_NIX_RING=1` o helper root recusa. Auto-melhoria = `nix.propose` → HITL → `nix.confirm`."
+        "Ring Nix desarmado (`armRing=false`) é o default correcto: sem `NOSD_NIX_RING=1` o helper root recusa. Auto-melhoria = `nix.propose` → HITL → `nix.confirm`.",
+        [Pre::RingDisarmed]
     ),
     lesson!(
         "store-hash",
@@ -285,10 +381,21 @@ pub const LESSONS: &[Lesson] = &[
 ];
 
 /// Lições cujo trigger aparece na pergunta (case-insensitive), até `max`.
+///
+/// Só entram lições **aplicáveis** aos factos desta máquina: uma lição presa a
+/// 26.11 não fala num 27.05, e `device-allow` não fala sem GPU NVIDIA.
 pub fn lookup(question: &str, max: usize) -> Vec<&'static Lesson> {
+    lookup_with(question, max, &probe())
+}
+
+/// `lookup` com factos explícitos (testes e `nix.ask` com snapshot).
+pub fn lookup_with(question: &str, max: usize, facts: &NixFacts) -> Vec<&'static Lesson> {
     let q = question.to_lowercase();
     let mut scored: Vec<(usize, &'static Lesson)> = Vec::new();
     for l in LESSONS {
+        if applicability(l, facts).is_err() {
+            continue;
+        }
         let score = l
             .triggers
             .iter()
@@ -336,6 +443,28 @@ pub fn prompt_block(question: &str, max_chars: usize) -> Option<String> {
     }
 }
 
+/// Dívida de conhecimento: que lições já não se aplicam a esta máquina e
+/// porquê. É o que impede o AGENTS.md de virar folclore depois de um bump.
+pub fn audit() -> serde_json::Value {
+    let f = probe();
+    let mut applies: Vec<&'static str> = Vec::new();
+    let mut stale: Vec<serde_json::Value> = Vec::new();
+    for l in LESSONS {
+        match applicability(l, &f) {
+            Ok(()) => applies.push(l.id),
+            Err(why) => stale.push(serde_json::json!({ "id": l.id, "why": why })),
+        }
+    }
+    serde_json::json!({
+        "facts": f,
+        "total": LESSONS.len(),
+        "applies": applies.len(),
+        "stale": stale.len(),
+        "stale_lessons": stale,
+        "basis": if f.on_nixos { "observed" } else { "host_nao_nixos" },
+    })
+}
+
 /// Resumo para HUD/UI (sem doutrina): factos + contagem de lições.
 pub fn symbiosis_summary() -> serde_json::Value {
     let f = probe();
@@ -349,6 +478,10 @@ pub fn symbiosis_summary() -> serde_json::Value {
             "hardware": LESSONS.iter().filter(|l| l.topic == "hardware").count(),
         },
         "honesty": "factos lidos do sistema; ausente = null, nunca estimado",
+        "applicable": LESSONS
+            .iter()
+            .filter(|l| applicability(l, &f).is_ok())
+            .count(),
     })
 }
 
@@ -401,6 +534,80 @@ mod tests {
         if let Some(b) = prompt_block("nix build flake systemd cuda", 120) {
             assert!(b.chars().count() <= 120, "bloco tem de respeitar o tecto");
         }
+    }
+
+    #[test]
+    fn nixpkgs_is_parsed_or_none() {
+        assert_eq!(parse_nixpkgs(Some("26.11.20240915.abc")), Some(2611));
+        assert_eq!(parse_nixpkgs(Some("25.05pre")), Some(2505));
+        assert_eq!(parse_nixpkgs(Some("lixo")), None);
+        assert_eq!(parse_nixpkgs(Some("26")), None);
+        assert_eq!(parse_nixpkgs(None), None);
+    }
+
+    #[test]
+    fn preconditions_drop_lessons_that_no_longer_hold() {
+        let f = NixFacts::default(); // fora do NixOS, ring desarmado, sem nvidia
+        let ids: Vec<&str> = lookup_with("ring root nix.propose apply", 6, &f)
+            .iter()
+            .map(|l| l.id)
+            .collect();
+        assert!(ids.contains(&"ring-disarmed"), "{ids:?}");
+
+        let armed = NixFacts {
+            ring_armed: true,
+            ..NixFacts::default()
+        };
+        let ids2: Vec<&str> = lookup_with("ring root nix.propose apply", 6, &armed)
+            .iter()
+            .map(|l| l.id)
+            .collect();
+        assert!(!ids2.contains(&"ring-disarmed"), "ring armado: {ids2:?}");
+    }
+
+    #[test]
+    fn version_bound_lesson_needs_the_version() {
+        let old = NixFacts {
+            nixpkgs: Some(2505),
+            ..NixFacts::default()
+        };
+        let new = NixFacts {
+            nixpkgs: Some(2611),
+            ..NixFacts::default()
+        };
+        let has = |facts: &NixFacts, id: &str| {
+            lookup_with("cargoextraargs buildrustpackage", 5, facts)
+                .iter()
+                .any(|l| l.id == id)
+        };
+        assert!(!has(&old, "cargo-build-flags"));
+        assert!(has(&new, "cargo-build-flags"));
+    }
+
+    #[test]
+    fn gpu_lesson_needs_a_gpu() {
+        let no_gpu = NixFacts::default();
+        let gpu = NixFacts {
+            has_nvidia: true,
+            ..NixFacts::default()
+        };
+        let has = |facts: &NixFacts| {
+            lookup_with("cuda deviceallow nvidia", 5, facts)
+                .iter()
+                .any(|l| l.id == "device-allow")
+        };
+        assert!(!has(&no_gpu));
+        assert!(has(&gpu));
+    }
+
+    #[test]
+    fn audit_counts_never_exceed_total() {
+        let a = audit();
+        let total = a["total"].as_u64().unwrap();
+        let applies = a["applies"].as_u64().unwrap();
+        let stale = a["stale"].as_u64().unwrap();
+        assert_eq!(total, applies + stale);
+        assert_eq!(total as usize, LESSONS.len());
     }
 
     #[test]

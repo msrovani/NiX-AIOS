@@ -7,10 +7,13 @@
 //!
 //! Doutrina: neural-sgdb é substrato consultivo. Hits ≠ voz do modelo.
 
+use nos_core::self_model::SelfEnv;
 use nos_memory::{NosMemory, RecallMode, RecallReq};
 use std::path::{Path, PathBuf};
 
 pub const MARK_PERSONA: &str = "## Persona (SOUL)";
+/// Quem é o nó, o que pode e o que não pode — derivado de factos vivos.
+pub const MARK_SELF: &str = "## Self (live)";
 /// Nome canónico do bloco consultivo (legado: "Memory recall").
 pub const MARK_RECALL: &str = "## Memory search";
 pub const MARK_USER: &str = "## User";
@@ -52,6 +55,25 @@ pub fn build_chat_prompt(
     user_prompt: &str,
     soul_path: Option<&Path>,
     recall_k: usize,
+) -> String {
+    build_chat_prompt_env(
+        memory,
+        user_prompt,
+        soul_path,
+        recall_k,
+        &SelfEnv::default(),
+    )
+}
+
+/// Igual a `build_chat_prompt`, mas com os factos que só o daemon conhece
+/// (motor carregado, backend de memória, data-dir). Ordem cache-friendly:
+/// Persona (fixa) → Self (semi-estático) → Memory search → Nix → User.
+pub fn build_chat_prompt_env(
+    memory: &NosMemory,
+    user_prompt: &str,
+    soul_path: Option<&Path>,
+    recall_k: usize,
+    env: &SelfEnv,
 ) -> String {
     let mut tok = memory.begin_turn();
     let soul_block = soul_block(soul_path, 2048);
@@ -104,8 +126,13 @@ pub fn build_chat_prompt(
     // relação não gastam contexto (bloco omitido).
     let nix_block = nos_core::nix_domain::prompt_block(user_prompt, 900).unwrap_or_default();
 
+    // Autoconhecimento: um nó que não sabe quem é inventa capacidades. O bloco
+    // é curto (domínios + limites + onde procurar) e vem do catálogo provado.
+    let st = nos_core::self_model::probe();
+    let self_block = nos_core::self_model::prompt_block(&st, env, 700);
+
     let _ = tok; // recall_done marcado para eventual remember_user no mesmo fluxo
-    format!("{soul_block}{recall_block}{nix_block}{MARK_USER}\n{user_prompt}\n")
+    format!("{soul_block}{self_block}{recall_block}{nix_block}{MARK_USER}\n{user_prompt}\n")
 }
 
 #[cfg(test)]
@@ -236,5 +263,30 @@ mod tests {
         let p = build_chat_prompt(&mem, "ola", Some(&soul), 3);
         assert!(!p.contains("PROTOCOL DUMP"), "{p}");
         assert!(!p.contains("nsgdb/doctrine"), "{p}");
+    }
+
+    #[test]
+    fn self_block_sits_between_persona_and_user() {
+        let d = tempdir().unwrap();
+        let soul = d.path().join("SOUL.md");
+        std::fs::write(&soul, "persona\n").unwrap();
+        let mem = NosMemory::open_with_backend(d.path(), MemoryBackendKind::NsgdbLegacy).unwrap();
+        let env = SelfEnv {
+            engine_present: Some(false),
+            memory_backend: Some("neural".into()),
+            ..Default::default()
+        };
+        let p = build_chat_prompt_env(&mem, "quem es tu?", Some(&soul), 3, &env);
+        let i_persona = p.find(MARK_PERSONA).unwrap();
+        let i_self = p.find(MARK_SELF).unwrap();
+        let i_user = p.find(MARK_USER).unwrap();
+        assert!(i_persona < i_self && i_self < i_user, "{p}");
+        assert!(p.contains("NixAIOS"), "{p}");
+        assert!(
+            p.contains("net.research"),
+            "o self tem de dizer onde procurar fora: {p}"
+        );
+        // Motor ausente é declarado na identidade, não escondido.
+        assert!(p.contains("motor: ausente"), "{p}");
     }
 }

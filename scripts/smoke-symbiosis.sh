@@ -77,4 +77,38 @@ has '"status": "ok"' "$out"
 has '"lang": "python"' "$out"
 has 'app\.py' "$out"
 
-echo "PASS: simbiose (nix.status/nix.ask/orb.symbiosis/factory.scaffold/factory.build)"
+echo "== S9 self-status (quem sou / o que posso / onde procurar) =="
+out="$(run self)"
+has '"identity"' "$out"
+has '"NixAIOS"' "$out"
+has '"capabilities"' "$out"
+has '"entrails"' "$out"
+has '"pointers"' "$out"
+has '"methods": [0-9]{2,}' "$out"
+has '"limits"' "$out"
+# O autoconhecimento tem de listar a fonte de verdade e a saída para a web.
+has 'net\.research' "$out"
+has 'nix\.status' "$out"
+
+echo "== S10 nix-audit (dívida de conhecimento) =="
+out="$(run nix-audit)"
+has '"total": [0-9]+' "$out"
+has '"stale"' "$out"
+has '"stale_lessons"' "$out"
+has '"basis": "(observed|host_nao_nixos)"' "$out"
+
+# S11: pesquisa web falha FECHADA quando não há rede/alvo (nunca sucesso fingido).
+echo "== S11 research fail-closed (alvo inalcançável) =="
+if out="$(run research "https://127.0.0.1:1/x" 2>&1)"; then
+  fail "net.research devolveu ok para um alvo inalcançável"
+else
+  has 'net_unavailable|status' "$out"
+fi
+# Esquema não-https tem de ser recusado localmente, sem rede.
+if out="$(run research "file:///etc/passwd" 2>&1)"; then
+  fail "net.research aceitou file://"
+else
+  has 'bad_args|só https' "$out"
+fi
+
+echo "PASS: simbiose (nix.status/nix.ask/nix.audit/self.status/net.research/orb.symbiosis/factory.*)"

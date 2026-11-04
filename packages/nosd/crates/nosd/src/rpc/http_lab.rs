@@ -53,8 +53,11 @@ const KIOSK_METHODS: &[&str] = &[
     // NÃO entra — escreve no data-dir e executa um compilador.
     "nix.status",
     "nix.ask",
+    "nix.audit",
     "factory.scaffold",
     "orb.symbiosis",
+    // Autoconhecimento: o HUD mostra o que o nó é e o que não pode fazer.
+    "self.status",
 ];
 
 /// Lab cinemático: GET `/` → HTML (cam+mic+padrões); GET `/transmute` → wizard;
@@ -442,8 +445,10 @@ mod tests {
             "memory.health",
             "nix.status",
             "nix.ask",
+            "nix.audit",
             "factory.scaffold",
             "orb.symbiosis",
+            "self.status",
         ] {
             assert!(KIOSK_METHODS.contains(&m), "{m} devia estar exposto");
         }
@@ -471,6 +476,7 @@ mod tests {
             "memory.sync",
             "memory.curate",
             "factory.build",
+            "net.research",
         ] {
             assert!(
                 !KIOSK_METHODS.contains(&forbidden),

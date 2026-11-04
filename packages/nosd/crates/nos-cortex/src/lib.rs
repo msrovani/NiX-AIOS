@@ -12,6 +12,7 @@ pub mod header_scan;
 pub mod hotswap;
 pub mod hub;
 pub mod offload;
+pub mod research;
 pub mod route;
 pub mod router_score;
 pub mod s2_queue;
@@ -36,6 +37,7 @@ pub use hotswap::{
 };
 pub use hub::ModelHub;
 pub use offload::plan_n_gpu_layers;
+pub use research::{html_to_text, research, Research, ResearchError, Source};
 pub use route::{route_intent, route_intent_keyword, RouteDecision, SystemLane};
 pub use router_score::{score_intent, RouteScores};
 pub use s2_queue::{S2Queue, S2Result};

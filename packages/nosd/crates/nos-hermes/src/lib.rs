@@ -31,7 +31,9 @@ pub use brain_upgrade::{
 };
 pub use card::{parse_card_prompt, CardKv, CardSpec};
 pub use cognitive_act::{wrap_opar, wrap_opar_with_seek, CognitiveAct};
-pub use cognitive_bridge::{build_chat_prompt, soul_path_default};
+pub use cognitive_bridge::{
+    build_chat_prompt, build_chat_prompt_env, soul_path_default, MARK_SELF,
+};
 pub use improve_propose::{
     card_body as improve_card_body, correct_plan_on_deny, fingerprint_of, from_brain_proposal,
     propose as improve_propose_open, ImprovePropose, ProposeOutcome, DEFAULT_FP_TTL_MS,
@@ -753,9 +755,18 @@ impl HermesEngine {
             .map_err(|e| HermesError::Infer(format!("s2 falhou e S1 tambem: {e}")))
     }
 
-    /// Prompt que vai ao modelo: persona (SOUL.md) + memória + pergunta.
+    /// Prompt que vai ao modelo: persona (SOUL.md) + self + memória + Nix +
+    /// pergunta. Os factos que só o daemon sabe (motor carregado, backend de
+    /// memória) entram por `SelfEnv` — o modelo não tem de os adivinhar.
     fn build_model_prompt(&self, user_prompt: &str) -> String {
-        build_chat_prompt(&self.memory, user_prompt, None, 3)
+        let env = nos_core::self_model::SelfEnv {
+            engine_present: Some(self.hotswap_s2.is_some()),
+            model: None,
+            net: None,
+            data_dir: None,
+            memory_backend: Some(format!("{:?}", self.memory.backend()).to_lowercase()),
+        };
+        build_chat_prompt_env(&self.memory, user_prompt, None, 3, &env)
     }
 
     /// V10 — decisão de backend S1/S2, explicável e com o estado real.

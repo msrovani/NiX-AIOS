@@ -118,7 +118,9 @@ impl ToolExecutor for IpcExecutor {
                     "k": args.get("k").and_then(|v| v.as_u64()).unwrap_or(5),
                 }),
             ),
+            "nsd.self" => ("self.status", json!({})),
             "nsd.nix_status" => ("nix.status", json!({})),
+            "nsd.nix_audit" => ("nix.audit", json!({})),
             "nsd.nix_ask" => (
                 "nix.ask",
                 json!({ "question": args.get("question").and_then(|v| v.as_str()).unwrap_or("") }),
@@ -153,8 +155,16 @@ fn registry() -> Registry {
             "recall lexical governado (leitura; null-scope; nunca write)",
         ),
         (
+            "nsd.self",
+            "quem sou: identidade, capacidades com caps, limites e onde procurar (leitura)",
+        ),
+        (
             "nsd.nix_status",
             "factos Nix da máquina: versão, geração, flake, ring (leitura)",
+        ),
+        (
+            "nsd.nix_audit",
+            "lições Nix que JÁ não se aplicam a esta máquina, com o motivo (leitura)",
         ),
         (
             "nsd.nix_ask",

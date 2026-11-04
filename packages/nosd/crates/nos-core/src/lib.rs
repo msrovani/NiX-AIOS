@@ -22,6 +22,7 @@ pub mod reported;
 pub mod routing;
 pub mod safety_trust;
 pub mod score;
+pub mod self_model;
 pub mod text;
 pub mod trim;
 pub mod ui_window;

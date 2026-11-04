@@ -65,6 +65,13 @@ pub(crate) fn dispatch(_state: &AppState, _gate: &CapGate, req: Request) -> Opti
                 }),
             }
         }
+        // Dívida de conhecimento: lições que já não se aplicam a ESTA máquina.
+        "nix.audit" => Response {
+            id: req.id,
+            ok: true,
+            error: None,
+            result: nix_domain::audit(),
+        },
         _ => return None,
     })
 }

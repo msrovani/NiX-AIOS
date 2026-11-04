@@ -5,6 +5,35 @@ Versionamento [SemVer](https://semver.org/).
 
 ## [0.7.0-alpha.5] — neural-sgdb MemoryGovernor + pin sync
 
+- **S1 swap (2026-11-04, in-tree)**: o GGUF embutido na `iso-hw`
+  passa a ser o **Qwen3.5-0.8B editado pela Astra** (Weight-Space
+  Programming, MIT CSAIL/RikiyaT 2026-11-02): subtracção de uma direcção
+  de loop em down_proj das camadas 15/19 — 131 072 pesos, 0.016%, sem
+  treino (MATH-500 7.9→48.1%, GSM8K 13.8→67.1%, IFEval 21.0→62.3%;
+  re-run independente 51.0%). Pin novo em `flake.nix#qwen35-08b-q4km`
+  (`NotCherry/…-GGUF` Q4_K_M, 541 903 776 B, LFS sha `0be511c8…`,
+  `nix build` hash-verify PASS + sha256sum confirmado). Fallback
+  `qwen35-08b-q4km-base` (unsloth sem edito, idem PASS).
+  **Not-tested:** edito sobreviver à quantização Q4_K_M; ganhos com
+  `--reasoning off`/ctx curto; engine boot em QEMU/metal. Ver
+  `docs/HW_TEST.md` §Modelo de arranque.
+
+- **Autoconhecimento + web (2026-11-03, in-tree)**: `nos-core::self_model`
+  (catálogo de ~95 métodos com caps, domínios, efeitos; factos vivos;
+  `limits` calculados; `entrails`; `pointers`) provado contra
+  `nos-ipc::required_cap` por teste — o agente não pode "saber" uma cap que
+  o daemon recusa. Prompt: bloco `## Self (live)` (Persona → Self → Memory →
+  Nix → User), com motor/backend reais via `SelfEnv`. RPC `self.status`
+  (NONE), `nix.audit` (NONE) e `net.research` (NET); CLI `self`, `nix-audit`,
+  `research`; MCP `nsd.self`/`nsd.nix_audit`; HUD SIMBIOSE com CAPS e DÍVIDA.
+  Lições Nix com pré-condições (`on_nixos`, `nixpkgs>=`, `has_nvidia`,
+  `ring_disarmed`) — conhecimento que envelhece sem mentir. `memory.recall`
+  passa a aceitar `path` (activacão por contexto nsgdb) e `entities`.
+  `net.research`: DuckDuckGo Instant Answer (JSON, sem chave) + leitura
+  https (8 s, 256 KiB), `http://`/`file://` recusados, offline =
+  `net_unavailable` (nunca sucesso fingido).
+  Evidência `docs/evidence/SYMBIOSIS_2026-11-03.md` §5.
+
 - **Simbiose (2026-11-03)**: fábrica de apps real — `nos-factory::scaffold`
   gera Rust (`cargo`/`rustc`) ou Python, escreve, constrói e **executa**
   (`status: ok` só com stdout real; ausência de toolchain = `engine_absent`);

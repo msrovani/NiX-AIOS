@@ -64,7 +64,10 @@ impl Request {
             | "audio.devices" | "prefs.get" | "prefs.set" | "cognitive.trace" | "ui.pending"
             | "mcp.list" | "mcp.call" | "dag.plan" => CapBits::NONE,
             // Domínio Nix (leitura pura) + plano de app (não escreve nada).
-            "nix.status" | "nix.ask" | "factory.scaffold" => CapBits::NONE,
+            "nix.status" | "nix.ask" | "nix.audit" | "factory.scaffold" => CapBits::NONE,
+            // Autoconhecimento (leitura pura) e web (NET obrigatório).
+            "self.status" => CapBits::NONE,
+            "net.research" => CapBits::NET,
             "job.submit" | "infer.submit" | "chat" | "chat.submit" | "chat.poll"
             | "model.unload" | "voice.stt" | "voice.tts" | "voice.turn" => CapBits::INFER,
             "skill.list" | "skill.run" | "crdt.get" => CapBits::NONE,
@@ -180,5 +183,34 @@ mod tests {
             params: serde_json::json!({}),
         };
         assert_eq!(req.required_cap(), CapBits::DENY_UNKNOWN);
+    }
+
+    /// O autoconhecimento NÃO pode divergir da autoridade: cada método do
+    /// catálogo (`nos-core::self_model`) tem de exigir exactamente as caps que
+    /// o registry diz. Sem isto, o agente "sabe" coisas que o daemon recusa.
+    #[test]
+    fn self_model_catalog_matches_authority() {
+        let mut checked = 0;
+        for cap in nos_core::self_model::CATALOG {
+            let req = Request {
+                id: 1,
+                method: cap.method.into(),
+                caps: 0,
+                cap_gen: 0,
+                agent: String::new(),
+                token: None,
+                params: serde_json::json!({}),
+            };
+            assert_eq!(
+                req.required_cap(),
+                cap.caps,
+                "{}: catálogo diz {:?}, registry exige {:?}",
+                cap.method,
+                cap.caps,
+                req.required_cap()
+            );
+            checked += 1;
+        }
+        assert!(checked >= 90, "catálogo curto: {checked}");
     }
 }

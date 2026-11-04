@@ -737,8 +737,11 @@ button{cursor:pointer}
         <div class="kv"><span>NIX</span><b id="symbNix" title="nix.status — factos lidos do sistema">—</b></div>
         <div class="kv"><span>GERAÇÃO</span><b id="symbGen" title="perfis system-*-link legíveis">—</b></div>
         <div class="kv"><span>RING</span><b id="symbRing" title="helper root armado só com S-04">—</b></div>
-        <div class="kv"><span>LIÇÕES</span><b id="symbLessons" title="lições Nix injectadas no prompt do córtex">—</b></div>
+        <div class="kv"><span>LIÇÕES</span><b id="symbLessons" title="lições Nix aplicáveis a ESTA máquina (o resto é dívida)">—</b></div>
+        <div class="kv"><span>DÍVIDA</span><b id="symbDebt" title="lições que já não se aplicam — nix.audit">—</b></div>
+        <div class="kv"><span>CAPS</span><b id="symbCaps" title="self.status — métodos que este nó conhece">—</b></div>
         <div class="kv"><span>JANELAS</span><b id="symbWindows">—</b></div>
+        <div id="symbLimits" class="symb-plan">limites · a ler…</div>
         <div class="symb-factory">
           <input id="symbIntent" type="text" autocomplete="off" spellcheck="false" placeholder="app rust / python…" aria-label="Intent da app a gerar"/>
           <button id="symbRust" class="mini" type="button" title="Plano de app Rust">RUST</button>
@@ -3141,6 +3144,23 @@ button{cursor:pointer}
     symbSet("symbLessons", nix.lessons != null ? String(nix.lessons) : "—");
     const u = r.result.ui || {};
     symbSet("symbWindows", `${u.windows || 0} · ${u.pending_grants || 0} HITL`);
+    // Autoconhecimento + dívida de conhecimento (ambos read-only).
+    const [self, audit] = await Promise.all([
+      rpc("self.status", {}, { timeout: 8000 }),
+      rpc("nix.audit", {}, { timeout: 8000 }),
+    ]);
+    if (audit && audit.ok && audit.result) {
+      const a = audit.result;
+      symbSet("symbDebt", `${a.stale || 0}/${a.total || 0}`, a.stale ? "warn" : "ok");
+    }
+    if (self && self.ok && self.result) {
+      const s = self.result;
+      const c = s.counts || {};
+      symbSet("symbCaps", `${c.methods || 0}·${c.domains || 0}d`);
+      const lim = (s.limits || []).slice(0, 3);
+      const box = $("symbLimits");
+      if (box) box.textContent = lim.length ? lim.join("\n") : "sem limites declarados";
+    }
   }
 
   async function symbScaffold(lang) {

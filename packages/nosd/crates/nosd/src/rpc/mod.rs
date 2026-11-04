@@ -13,6 +13,7 @@ mod nix_domain;
 mod nix_wifi;
 mod prefs_rpc;
 mod security;
+mod self_rpc;
 mod skill_md;
 pub mod skills;
 mod ui_orb;
@@ -761,6 +762,9 @@ fn dispatch(state: &AppState, auth: &AuthContext, req: Request) -> Response {
         return r;
     }
     if let Some(r) = nix_domain::dispatch(state, &gate, req.clone()) {
+        return r;
+    }
+    if let Some(r) = self_rpc::dispatch(state, &gate, req.clone()) {
         return r;
     }
     if let Some(r) = nix_wifi::dispatch(state, &gate, req.clone()) {

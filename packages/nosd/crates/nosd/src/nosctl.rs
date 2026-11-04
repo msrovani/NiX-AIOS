@@ -180,6 +180,20 @@ enum Cmd {
     NixAsk {
         question: String,
     },
+    /// Autoconhecimento: quem sou, o que posso, o que não posso, onde procurar.
+    #[command(name = "self")]
+    SelfStatus,
+    /// Domínio Nix: lições que JÁ não se aplicam a esta máquina (e porquê).
+    #[command(name = "nix-audit")]
+    NixAudit,
+    /// Pesquisa web (https, DuckDuckGo Instant Answer) — o que não está no sistema.
+    #[command(name = "research")]
+    Research {
+        /// Pergunta ou URL https a ler.
+        query: String,
+        #[arg(long, default_value_t = 5)]
+        k: usize,
+    },
     /// Fábrica: plano de app Rust/Python (ficheiros + content_id), sem escrever.
     #[command(name = "factory-scaffold")]
     FactoryScaffold {
@@ -725,6 +739,13 @@ async fn async_main() -> anyhow::Result<()> {
         Cmd::OrbGet => ("orb.get", serde_json::json!({}), 0),
         Cmd::NixStatus => ("nix.status", serde_json::json!({}), 0),
         Cmd::NixAsk { question } => ("nix.ask", serde_json::json!({ "question": question }), 0),
+        Cmd::SelfStatus => ("self.status", serde_json::json!({}), 0),
+        Cmd::NixAudit => ("nix.audit", serde_json::json!({}), 0),
+        Cmd::Research { query, k } => (
+            "net.research",
+            serde_json::json!({ "query": query, "k": k }),
+            0,
+        ),
         Cmd::FactoryScaffold { intent, lang } => {
             let mut p = serde_json::json!({ "intent": intent });
             if let Some(l) = lang {

@@ -73,6 +73,42 @@ Consumidores:
   `content_id`, toolchain disponível/ausente e ficheiros. O rodapé do painel
   diz explicitamente que nada é escrito sem decisão humana.
 
+## 4. Autoconhecimento e conhecimento que envelhece (segunda passagem)
+
+O nó passa a subir sabendo quem é, sem que ninguém lhe diga:
+
+- **`nos-core::self_model`** — catálogo de ~95 métodos com domínio, caps e
+  `side_effect`; `probe()` (versão do crate, OS/arch, `NOSD_NODE_ID`,
+  `nix_domain::probe`); `limits()` **calculado** (fora do NixOS, ring
+  desarmado, motor S2 ausente, rede não verificada, lei de identidade/HITL);
+  `ENTRAILS` (transporte, caps, fail-closed, memória, CRDT, root, OPAR,
+  evidência); `POINTERS` (que ficheiro manda em quê).
+- **A mesma tabela que autoriza**: teste
+  `self_model_catalog_matches_authority` (em `nos-ipc`) falha se o catálogo
+  divergir de `Request::required_cap` — o agente não pode "saber" uma cap
+  que o daemon recusa.
+- **Prompt**: `## Self (live)` entre Persona e Memory search, com motor e
+  backend reais (`SelfEnv`) e tecto de 700 chars. O bloco diz onde procurar
+  e que, fora do sistema, se usa `net.research` citando a fonte.
+- **RPC/CLI/MCP**: `self.status` (NONE), `nix.audit` (NONE), `net.research`
+  (NET) → `nosctl self|nix-audit|research`, `nsd.self|nsd.nix_audit`.
+- **HUD**: `02c SIMBIOSE` ganhou `CAPS` (métodos·domínios do catálogo) e
+  `DÍVIDA` (lições obsoletas/total) e uma caixa de limites.
+
+**Lições com pré-condições** (`Pre`): `on_nixos`, `nixpkgs>=YY.MM`,
+`has_nvidia`, `ring_disarmed`. `lookup` filtra-as contra os factos vivos e
+`nix.audit` devolve `{total, applies, stale, stale_lessons[{id,why}]}` —
+o conhecimento expira em vez de se tornar folclore.
+
+**`net.research`** (o "se não está no sistema, pesquisa"): DuckDuckGo Instant
+Answer em JSON (sem chave, sem scraping) ou leitura de uma página https
+(8 s, 256 KiB, texto limpo). `http://`/`file://`/`data:` recusados antes de
+tocar na rede; offline = `ok:false` + `net_unavailable`.
+
+**`memory.recall` + `path`/`entities`**: a activação por contexto do nsgdb
+1.5.0 (`curate set_trigger` → `recall(path="modules/cage.nix")`) deixa de
+estar dormente no RPC.
+
 ## Verificação
 
 - `cargo test --workspace` — ver `Tested:` no commit.
@@ -81,8 +117,16 @@ Consumidores:
   sem relação), `symbiosis`, `factory-scaffold` rust/python,
   `factory-build` rust/python com `status: ok`.
 - Contratos: `ipc_registry` (caps `NONE` de `nix.*`/`factory.scaffold`),
-  `kiosk_methods_are_scope_limited` (novos métodos `NONE`; `factory.build`
-  proibido no kiosk).
+  `self_model_catalog_matches_authority` (catálogo ↔ autoridade),
+  `kiosk_methods_are_scope_limited` (novos métodos `NONE`; `factory.build` e
+  `net.research` proibidos no kiosk).
+- `scripts/smoke-symbiosis.sh` S9–S11: `self` (identidade, `capabilities`,
+  `entrails`, `pointers`, `methods`, `net.research` listado), `nix-audit`
+  (`total`/`stale`/`basis`), `research` **fail-closed** (alvo inalcançável e
+  `file://`).
+- `research` unit tests: parse do Instant Answer (incl. `RelatedTopics`
+  aninhados + dedupe), `html_to_text` multi-byte (`Nix & NixOS usa a árvore
+git`), recusa de esquemas, `no_answer` vs `net_unavailable`.
 
 ## Not-tested
 
@@ -93,3 +137,12 @@ Consumidores:
   não foi exercitado num ambiente real só com o daemon.
 - Build Nix das apps geradas (`nix build` na `flake.nix` do projecto gerado):
   o ficheiro é gerado e testado por conteúdo, não construído no CI.
+- `net.research` **com rede real**: os testes cobrem parse, recusas e
+  fail-closed; nenhuma pesquisa verdadeira ao DuckDuckGo foi feita nesta
+  bancada (nem há garantia de que a API responda no metal).
+- `self.status` em QEMU/metal: só validado com daemon local (host WSL);
+  `on_nixos=false` aqui, logo os limites de geração/rollback não foram vistos
+  num NixOS real.
+- Lições migradas para o nsgdb `aios/nix` com `set_trigger` por ficheiro:
+  **não** feito nesta passagem (o mecanismo ficou exposto; o seed continua em
+  código versionado, que é a fonte revisível).

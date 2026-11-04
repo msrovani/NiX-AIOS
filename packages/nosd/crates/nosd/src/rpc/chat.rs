@@ -119,14 +119,35 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                     .and_then(|v| v.as_str())
                     .unwrap_or("lexical"),
             );
+            // Context activation (nsgdb v1.5.0) + entidades: `path` resolve as
+            // regras gravadas por `set_trigger` (ex.: `modules/*.nix`), sem
+            // adivinhar nada — quem chama é que diz onde está a trabalhar.
+            let path = req
+                .params
+                .get("path")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let entities: Vec<String> = req
+                .params
+                .get("entities")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str())
+                        .take(8)
+                        .map(|s| s.to_string())
+                        .collect()
+                })
+                .unwrap_or_default();
             match state.hermes.memory.recall_governed(nos_memory::RecallReq {
                 query: q,
                 k,
                 scope,
-                entities: &[],
+                entities: &entities,
                 mode,
                 embedding: None,
-                path: None,
+                path,
             }) {
                 Ok(hits) => Response {
                     id: req.id,
