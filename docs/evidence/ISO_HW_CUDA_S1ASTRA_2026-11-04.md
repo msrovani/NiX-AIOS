@@ -45,5 +45,36 @@ Qwen3.5-4B **Q6_K** na dGPU (`llama-server :8082`, `--fit on --fit-ctx
 - **Not-tested**: metal com este S1 editado (driver/CUDA/VRAM/voice);
   edito sobreviver à quantização Q4_K_M em produção (ver
   `docs/evidence/S1_ASTRA_EDIT_2026-11-04.md`); boot gate
-  (`--stage MQE`) da ISO; `pack-hw-usb.sh` não corrido (o `.img` único
-  com FAT `NIXAIOSLOG` é passo seguinte antes de DD).
+  (`--stage MQE`) da ISO.
+
+## HUD C1–C6 (corrige o que os fotos de metal mostraram)
+
+Análise das fotos HUD de metal (2026-11-02/03) levou ao plano C1–C7,
+implementado no commit `2fa3e61` (apresentação/derivação; sem novos RPCs
+com side-effect, HITL intocado):
+
+- **C1** REDE: estado derivado do link real (`NetLinkState`
+  `associated|no-link|down` em `nos-observe`); iff-up administrativo sem
+  SSID/carrier deixa de pintar UP (era o P1 dos fotos).
+- **C2** ENERGIA: badge de scope `CPU|GPU|FULL|EST|—`; `MED` só-GPU
+  silencioso morto (era o P2).
+- **C3** VOZ: painel 02e separado (deixa de estar aninhado em REDE, P3),
+  `data-optional` (esconde no ≤800px, disponível no drawer DIAG).
+- **C4** DÍVIDA: linha SIMBIOSE clicável → drawer com lições abertas
+  (id/topic/text/why + `hint` derivado de `Pre::holds` — `nix.audit` +
+  `orb.symbiosis` read-only; matava o P4).
+- **C5** SUSPEND: texto completo `PROPOR SUSPEND` no painel VOZ com
+  etiqueta `TIER HITL` (P5); o grant continua server-authored.
+- **C6** PROPORÇÃO: rail esquerda 25vw (`minmax(300px,25vw)` + kiosk
+  queries ≤800px/≤1200px); prova headless-Chromium 720p em
+  `docs/evidence/artifacts/orb_hud_25vw_720p_layout.png` (~25.1%, sem
+  truncamentos P6/P7).
+- **C7** evidência: este documento + artefactos `orb_hud_25vw_720p_*.png`.
+
+**Not-tested dos fixes**: HUD com os fixes em QEMU/metal (ISO re-build
+id-08 abaixo); LinkState/energy badge contra os hardware reais.
+
+## Rebuild pós-fixes (PENDING)
+
+- `nix build .#iso-hw-cuda` com as mudanças HUD + `pack-hw-usb.sh`:
+  **PENDENTE** (nova ISO/`.img`, novos sha256 a actualizar neste doc).
