@@ -30,15 +30,16 @@ for i in range(e_phnum):
         dyn = vaddr
         break
 assert dyn is not None, "no PT_DYNAMIC"
-ok = False
+all_w = True
 for i in range(e_phnum):
     off = e_phoff + i * e_phentsize
     t, flags, _o, vaddr, _p, _f, memsz, _a = struct.unpack_from("<IIQQQQQQ", b, off)
-    if t == 1 and vaddr <= dyn < vaddr + memsz:
-        assert flags & 2, f"PT_LOAD still RO flags={flags:#x}"
-        ok = True
-assert ok, "no LOAD covering DYNAMIC"
-print("nvidia-smi PF_W ok", file=sys.stderr)
+    if t == 1 and memsz > 0:
+        if not (flags & 2):
+            all_w = False
+            print(f"PT_LOAD at vaddr={vaddr:#x} memsz={memsz:#x} lacks PF_W flags={flags:#x}", file=sys.stderr)
+assert all_w, "not all PT_LOAD have PF_W"
+print("nvidia-smi PF_W on all PT_LOAD ok", file=sys.stderr)
 PY
   '';
 
@@ -75,7 +76,9 @@ in
   systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
     "CUDA_VISIBLE_DEVICES=0"
     "NVIDIA_VISIBLE_DEVICES=0"
-    "NOSD_LLAMA_NGL=99"
+    # NÃO definir NOSD_LLAMA_NGL=99: flag explícita anula o --fit on que
+    # escolhe camadas+ctx que cabem na VRAM (metal 2026-11-03: S2 morreu com
+    # cudaMalloc OOM a 3352 MiB numa GPU de 6 GiB; só recuperou com NGL 5).
     "NOSD_LLAMA_MODEL=${modelPath}"
     # Sem S2: não definir NOSD_LLAMA_SERVER_S2 / MODEL_S2.
     "NOSD_NVIDIA_SMI=${nvidiaBinFixed}/bin/nvidia-smi"

@@ -346,9 +346,10 @@
             touch $out
           '';
 
-          # nvidia-smi ELF: PT_LOAD que cobre PT_DYNAMIC deve ter PF_W
-          # (glibc 2.44 DT_DEBUG). Usa o binário apontado por NOSD_NVIDIA_SMI
-          # na config iso-hw-cuda (derivação nvidia-bin-elf-pf-w).
+          # nvidia-smi ELF: todos os PT_LOAD devem ter PF_W (glibc 2.44
+          # DT_DEBUG escreve num endereço do executável; sem PF_W, ld-linux
+          # SIGSEGV no metal). Verifica o binário apontido por
+          # NOSD_NVIDIA_SMI na config iso-hw-cuda (derivação nvidia-bin-elf-pf-w).
           nvidia-smi-elf-pf-w =
             let
               cfg = self.nixosConfigurations.nixaios-iso-hw-cuda.config;
@@ -386,15 +387,16 @@ for i in range(e_phnum):
         dyn = vaddr
         break
 assert dyn is not None, "no PT_DYNAMIC"
-ok = False
+all_w = True
 for i in range(e_phnum):
     off = e_phoff + i * e_phentsize
     t, flags, _o, vaddr, _p, _f, memsz, _a = struct.unpack_from("<IIQQQQQQ", b, off)
-    if t == 1 and vaddr <= dyn < vaddr + memsz:
-        assert flags & 2, f"PT_LOAD covering .dynamic lacks PF_W flags={flags:#x}"
-        ok = True
-assert ok, "no PT_LOAD covers PT_DYNAMIC"
-print(f"ok {p} PF_W on DYNAMIC LOAD", file=sys.stderr)
+    if t == 1 and memsz > 0:
+        if not (flags & 2):
+            all_w = False
+            print(f"PT_LOAD at vaddr={vaddr:#x} memsz={memsz:#x} lacks PF_W flags={flags:#x}", file=sys.stderr)
+assert all_w, "not all PT_LOAD have PF_W"
+print(f"ok {p} PF_W on all PT_LOAD", file=sys.stderr)
 PY
               touch $out
             '';

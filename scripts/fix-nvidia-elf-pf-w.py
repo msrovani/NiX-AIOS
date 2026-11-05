@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""OR PF_W on every PT_LOAD that covers PT_DYNAMIC (patchelf + glibc 2.44).
+"""OR PF_W on every PT_LOAD (patchelf + glibc 2.44).
 
-nvidia-x11-*-bin non-PIE tools (nvidia-smi, …) can land .dynamic in a
-read-only LOAD. ld-linux then SIGSEGV writing DT_DEBUG. Metal 2026-10-31.
+nvidia-x11-*-bin non-PIE tools (nvidia-smi, …) can land .dynamic and other
+write targets (e.g. the DT_DEBUG r_debug slot ld-linux writes at startup) in
+read-only LOAD segments. ld-linux then SIGSEGV writing to them. Metal
+2026-11-03: fixing only the PT_LOAD covering PT_DYNAMIC was insufficient;
+segfault at 0x401488 inside ld-linux persists.
+
+Fix: OR PF_W on ALL PT_LOAD segments so every address the dynamic linker
+may write to is writable.
 """
 from __future__ import annotations
 
@@ -23,19 +29,20 @@ def fix_elf(path: Path) -> str:
         return "skip-not-elf64"
     e_phoff = struct.unpack_from("<Q", data, 32)[0]
     e_phentsize, e_phnum = struct.unpack_from("<HH", data, 54)
-    dyn_vaddr = None
+
+    # Sanity: confirm PT_DYNAMIC exists (it always does for dynamically linked
+    # ELF, but guard anyway).
+    dyn_found = False
     for i in range(e_phnum):
         off = e_phoff + i * e_phentsize
-        p_type, _flags, _po, p_vaddr, _pp, _pf, _memsz, _pa = struct.unpack_from(
-            "<IIQQQQQQ", data, off
-        )
+        p_type, _flags = struct.unpack_from("<II", data, off)
         if p_type == PT_DYNAMIC:
-            dyn_vaddr = p_vaddr
+            dyn_found = True
             break
-    if dyn_vaddr is None:
+    if not dyn_found:
         return "skip-no-dynamic"
 
-    covering = []
+    changed = 0
     for i in range(e_phnum):
         off = e_phoff + i * e_phentsize
         p_type, p_flags, _po, p_vaddr, _pp, _pf, p_memsz, _pa = struct.unpack_from(
@@ -45,14 +52,6 @@ def fix_elf(path: Path) -> str:
             continue
         if p_memsz == 0:
             continue
-        if p_vaddr <= dyn_vaddr < p_vaddr + p_memsz:
-            covering.append((off, p_flags))
-
-    if not covering:
-        return "skip-no-load"
-
-    changed = 0
-    for off, p_flags in covering:
         if p_flags & PF_W:
             continue
         struct.pack_into("<I", data, off + 4, p_flags | PF_W)
@@ -76,7 +75,7 @@ def main(argv: list[str]) -> int:
             rc = 1
             continue
         status = fix_elf(p)
-        print(f"{p}: {status}")
+        print(f"{p}: {status}", file=sys.stderr)
         if status.startswith("skip-"):
             rc = 1
     return rc

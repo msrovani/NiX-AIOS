@@ -26,7 +26,8 @@ let
         ${pkgs.python3}/bin/python3 ${../scripts/fix-nvidia-elf-pf-w.py} "$out/bin/$b"
       fi
     done
-    # sanity: segment that holds DYNAMIC must have PF_W
+    # sanity: every PT_LOAD must have PF_W so ld-linux can write DT_DEBUG and
+    # other relocation targets without SIGSEGV (glibc 2.44, metal 2026-11-03).
     ${pkgs.python3}/bin/python3 - "$out/bin/nvidia-smi" <<'PY'
 import struct, pathlib, sys
 p = pathlib.Path(sys.argv[1])
@@ -41,15 +42,16 @@ for i in range(e_phnum):
         dyn = vaddr
         break
 assert dyn is not None, "no PT_DYNAMIC"
-ok = False
+all_w = True
 for i in range(e_phnum):
     off = e_phoff + i * e_phentsize
     t, flags, _o, vaddr, _p, _f, memsz, _a = struct.unpack_from("<IIQQQQQQ", b, off)
-    if t == 1 and vaddr <= dyn < vaddr + memsz:
-        assert flags & 2, f"PT_LOAD still RO flags={flags:#x}"
-        ok = True
-assert ok, "no LOAD covering DYNAMIC"
-print("nvidia-smi PF_W ok", file=sys.stderr)
+    if t == 1 and memsz > 0:
+        if not (flags & 2):
+            all_w = False
+            print(f"PT_LOAD at vaddr={vaddr:#x} memsz={memsz:#x} lacks PF_W flags={flags:#x}", file=sys.stderr)
+assert all_w, "not all PT_LOAD have PF_W"
+print("nvidia-smi PF_W on all PT_LOAD ok", file=sys.stderr)
 PY
   '';
 
