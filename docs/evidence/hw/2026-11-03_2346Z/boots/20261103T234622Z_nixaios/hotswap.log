@@ -1,0 +1,6 @@
+=== nosd-hotswap-aios start 2026-11-03T23:47:17-03:00 ===
+hotswap: wrote /etc/nixos/ai-managed.nix (locale=pt_BR.UTF-8)
+hotswap: stopping display-manager (se existir)…
+hotswap: nosd health OK
+hotswap: starting jarbas-cage.service…
+=== nosd-hotswap-aios DONE (jarbas-cage active, VT7) ===

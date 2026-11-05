@@ -1,0 +1,8 @@
+stamp=20261103T234621Z host=nixaios
+gate_rc=0
+A1=card_present
+A2=pipewire_absent
+A4=mic_ok bytes=32044
+A1=card_present A2=pipewire_absent A4=mic_ok A6=play_ok=absent snd_denied=0
+stage=M3b-audio ring=Ring3_Linux_metal layer=ADAPT claim_status=AWAITING_HW result=SKIP detail=aplay_card,tts_unreachable,stt_nonempty,snd_denied=0
+gate_summary fails=0 stage=M3b-audio strict=0 idea=#707 playbook=docs/BOOT_TO_JARBAS.md

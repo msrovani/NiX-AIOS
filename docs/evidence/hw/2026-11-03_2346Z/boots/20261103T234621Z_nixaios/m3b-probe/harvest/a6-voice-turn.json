@@ -1,0 +1,14 @@
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "locale": "pt_BR.UTF-8",
+    "play_ok": false,
+    "reason": "default_s1",
+    "reply": "EngineAbsent\nsem rede\nHITL: user solicitado \"teste de áudio\", mas não foi especificada a ferramenta ou a porta de entrada necessária para validar o hardware ou a voz.\nNix: NixOS 26.11.2026, ring desarmado, não há ferramentas de testing especificadas.\nMemória: Não há memória neural carregada neste contexto.\nInstrução: Solicite a ferramenta de teste (ex: `nvidia-smi` ou `audio-standalone`), a porta de entrada (ex: `port 443` ou `tcp://0.0.0.0:443`) e o protocolo de interação (ex: `HTTP` ou `TCP`).",
+    "slot": "active",
+    "transcript": "teste de audio",
+    "tts_ok": false,
+    "wav_b64": null
+  }
+}

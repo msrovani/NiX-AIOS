@@ -1,0 +1,95 @@
+=== nixaios journal dump 20261103T234622Z host=nixaios ===
+nov 03 20:46:10 nixaios systemd[1]: Starting Mount NIXAIOSLOG FAT (robust by-label/blkid)...
+nov 03 20:46:10 nixaios systemd[1]: Starting llama-server S2/PRO (Qwen 4B Q6_K, CUDA)...
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[926]: nixaios-log: trying /dev/disk/by-label/NIXAIOSLOG (/dev/sda3)
+nov 03 20:46:10 nixaios systemd[1]: Started llama-server S2/PRO (Qwen 4B Q6_K, CUDA).
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[942]: fsck.fat 4.2 (2021-01-31)
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[942]: /dev/sda3: 2 files, 2/261627 clusters
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[926]: nixaios-log: OK /dev/sda3 -> /mnt/nixaios-log
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1147]: total 12
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1147]: drwxrwxrwx 2 root root 4096 dez 31  1969 .
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1147]: drwxr-xr-x 3 root root   60 nov  3 20:46 ..
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1147]: -rwxrwxrwx 1 root root   47 nov  3 20:46 GUEST_MOUNTED.txt
+nov 03 20:46:10 nixaios 1kgfalh6w2041fcjyl5z4056xdjkfchl-nixaios-ensure-log-fat[1147]: -rwxrwxrwx 1 root root  580 nov  3 19:37 README.txt
+nov 03 20:46:10 nixaios systemd[1]: Finished Mount NIXAIOSLOG FAT (robust by-label/blkid).
+nov 03 20:46:10 nixaios llama-server[948]: 0.00.002.408 I srv  llama_server: initializing ...
+nov 03 20:46:11 nixaios systemd[1]: Starting Neural-OS Daemon...
+nov 03 20:46:11 nixaios nosd[1187]: 2026-11-03T23:46:11.497626Z  INFO nosd: ipc token file /var/lib/nosd/ipc.token (token never logged)
+nov 03 20:46:11 nixaios nosd[1187]: 2026-11-03T23:46:11.497644Z  INFO nosd: nix ring DISARMED (S-06); set NOSD_NIX_RING=1 only after HITL nonce + VM test
+nov 03 20:46:12 nixaios nosd[1187]: 2026-11-03T23:46:12.668395Z  INFO nosd: capacity ram_avail_mb=13835 vendor=nvidia cards=["card0", "card1"] render=["renderD128", "renderD129"] igpu=Some("card1") dgpu=Some("card0") vram_free_mb=5807 posture=nvidia_smi suggest_ngl=32 (CUDA llama only; NOSD_LLAMA_NGL overrides)
+nov 03 20:46:12 nixaios nosd[1187]: 2026-11-03T23:46:12.668414Z  INFO nosd: node_id derived from machine-id/hostname → 15864
+nov 03 20:46:12 nixaios nosd[1187]: 2026-11-03T23:46:12.689123Z  INFO nosd: hub register generator_pro /var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf
+nov 03 20:46:12 nixaios nosd[1187]: 2026-11-03T23:46:12.689138Z  INFO nosd: hub register active /var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf
+nov 03 20:46:12 nixaios nosd[1187]: 2026-11-03T23:46:12.689141Z  INFO nosd: hub register active /var/lib/nosd/models/qwen3.5-0.8b-q4km.gguf
+nov 03 20:46:12 nixaios llama-server[948]: 0.02.119.102 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+nov 03 20:46:12 nixaios llama-server[948]: 0.02.119.145 I srv  init_listene: The UI is disabled
+nov 03 20:46:12 nixaios llama-server[948]: 0.02.119.145 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+nov 03 20:46:12 nixaios llama-server[948]: 0.02.119.182 W srv  llama_server: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)
+nov 03 20:46:12 nixaios nosd[1218]: 0.00.235.273 I srv  llama_server: initializing ...
+nov 03 20:46:12 nixaios nosd[1218]: 0.00.235.281 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+nov 03 20:46:12 nixaios nosd[1218]: 0.00.235.331 I srv  init_listene: The UI is disabled
+nov 03 20:46:12 nixaios nosd[1218]: 0.00.235.331 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+nov 03 20:46:12 nixaios llama-server[948]: 0.02.120.685 I srv    load_model: loading model '/var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf'
+nov 03 20:46:12 nixaios nosd[1218]: 0.00.236.983 I srv    load_model: loading model '/var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf'
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.459 W model has unused tensor blk.24.attn_norm.weight (size = 4096 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.465 W model has unused tensor blk.24.post_attention_norm.weight (size = 4096 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.469 W model has unused tensor blk.24.attn_q.weight (size = 2359296 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.471 W model has unused tensor blk.24.attn_k.weight (size = 294912 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.472 W model has unused tensor blk.24.attn_v.weight (size = 430080 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.477 W model has unused tensor blk.24.attn_output.weight (size = 1179648 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.479 W model has unused tensor blk.24.attn_q_norm.weight (size = 1024 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.480 W model has unused tensor blk.24.attn_k_norm.weight (size = 1024 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.482 W model has unused tensor blk.24.ffn_gate.weight (size = 2064384 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.483 W model has unused tensor blk.24.ffn_down.weight (size = 3010560 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.485 W model has unused tensor blk.24.ffn_up.weight (size = 2064384 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.487 W model has unused tensor blk.24.nextn.eh_proj.weight (size = 1179648 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.489 W model has unused tensor blk.24.nextn.enorm.weight (size = 4096 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.491 W model has unused tensor blk.24.nextn.hnorm.weight (size = 4096 bytes) -- ignoring
+nov 03 20:46:13 nixaios nosd[1218]: 0.01.098.495 W model has unused tensor blk.24.nextn.shared_head_norm.weight (size = 4096 bytes) -- ignoring
+nov 03 20:46:20 nixaios nosd[1218]: 0.07.845.739 I cmn          init: llama threadpool init, n_threads = 6
+nov 03 20:46:21 nixaios nosd[1218]: 0.09.056.918 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 262144, kv_unified = 'true'
+nov 03 20:46:21 nixaios nosd[1218]: 0.09.059.423 I srv  llama_server: model loaded
+nov 03 20:46:21 nixaios nosd[1218]: 0.09.059.425 I srv  llama_server: listening on http://127.0.0.1:37635
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966325Z  INFO nosd: llama-server spawned pid=1218 base=http://127.0.0.1:37635 model=/var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf ngl=99 api_key=set
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966344Z  INFO nosd: hotswap attach llama-server-http
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966349Z  INFO nosd: engine=llama-server-http
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966382Z  INFO nosd: llama-server backend base=http://127.0.0.1:8082 model=/var/lib/nosd/models/Qwen3.5-4B-Q6_K.gguf
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966386Z  INFO nosd: hotswap attach(s2) llama-server-http
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966388Z  INFO nosd: engine_s2=llama-server-http base=http://127.0.0.1:8082
+nov 03 20:46:21 nixaios nosd[1187]: Sgdb open: 0 docs reindexados (ART/BQ) em 0 ms
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966902Z  INFO nosd: nsgdb doctrine seeded path=/var/lib/nosd/memory/nsgdb/store
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966911Z  INFO nosd: memory open backend=Neural neural=true path=/var/lib/nosd/memory/nsgdb
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.966954Z  INFO nosd: memory cold_start {"api_version":"1","backend":"Neural","doctrine_hits":1,"era":{"embedder_note":"demo_trigram_not_cosine","indexed_models":[],"telepathy":"ready","view":"era"},"memory_ok":true,"pref_hits":0}
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968424Z  INFO nosd: orb state=connecting pattern=sphere particles=120
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968435Z  INFO nosd: ui open id=1 kind=Info source=Hermes escalate=false
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968442Z  INFO nosd: orb state=idle pattern=sphere particles=80
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968497Z  INFO nosd: landlock Verified under /var/lib/nosd
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968499Z  INFO nosd: landlock status=Verified
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968550Z  INFO nosd: crdt log "/var/lib/nosd/mesh-crdt/seg.bin" fmt=Nsgdb replayed=0
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968560Z  INFO nosd: NOSD_SCORE phase=ready sev=Ok hub=1 mem=1 peers=0 s1=keyword llama=absent+engine=boot ll=Verified | nosd scaffold up
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968571Z  INFO nosd: sd_notify READY=1
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968572Z  INFO nosd: sd_notify watchdog: ping a cada 10s
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968582Z  INFO nosd: skill quota signed=false (chave do no via NOSD_MESH_KEY/NOSD_MESH_REQUIRE_SIG)
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968609Z  INFO nosd: mesh udp bind=0.0.0.0:19000 broadcast=255.255.255.255:19000 targets=1 peers=0
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968613Z  INFO nosd: mesh targets: broadcast=255.255.255.255:19000 seeds=0 total=1
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968615Z  INFO nosd: mesh udp ON bind=0.0.0.0:19000 broadcast=255.255.255.255:19000 (Wi‑Fi notes + wired AMD na mesma LAN)
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968617Z  INFO nosd: hermes continuous tick every 2s (NOSD_HERMES_TICK_SECS)
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968619Z  INFO nosd: orb cinematic lab http://127.0.0.1:7701  (cam+mic+patterns → orb.sense)
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968622Z  INFO nosd: listen unix /run/nosd/nosd.sock
+nov 03 20:46:21 nixaios systemd[1]: Started Neural-OS Daemon.
+nov 03 20:46:21 nixaios nosd[1187]: 2026-11-03T23:46:21.968821Z  INFO nosd: orb lab listening http://127.0.0.1:7701
+nov 03 20:46:21 nixaios systemd[1]: Starting JARBAS hub slog (sem DRM)...
+nov 03 20:46:21 nixaios systemd[1]: Started Export journal -> NIXAIOSLOG FAT32.
+nov 03 20:46:22 nixaios 2jk7m7hr7p7dv1q2sw6r6q322pfza1l6-jarbas-wait-deps[1316]: /nix/store/2jk7m7hr7p7dv1q2sw6r6q322pfza1l6-jarbas-wait-deps: line 35: /var/lib/nosd/aios-mode: Arquivo ou diretório inexistente
+nov 03 20:46:22 nixaios nosd[1187]: 2026-11-03T23:46:22.189411Z  WARN nosd: mesh HB tx ENETUNREACH x1 (aguarda Wi‑Fi/eth na mesma LAN; broadcast=255.255.255.255:19000)
+nov 03 20:46:22 nixaios nosd[1187]: 2026-11-03T23:46:22.189526Z  INFO nosd: hermes runtime tick=1 peers=0 payload={"agency_agents":4,"bei_budget":9999,"chat_iterations_left":256,"engine":"llama-server-http","hub_loaded":1,"latent_tag":null,"orb_level":0.0,"orb_state":"idle","pending_skills":0,"persona_emotion":"Neutral","persona_heartbeat_due":false,"s2_pending":0,"sleep_phase":"REPLAY","sleep_phases":["REPLAY","DREAM","CONSOLIDATE","PRUNE","REFLECT"],"ui_windows":1}
+nov 03 20:46:22 nixaios nosd[1187]: 2026-11-03T23:46:22.190304Z  INFO nosd: NOSD_SCORE phase=runtime sev=Ok hub=1 mem=1 peers=0 s1=keyword llama=managed+engine=llama-server-http ll=Verified | fleet=unknown | ok
+nov 03 20:46:22 nixaios systemd-coredump[1347]: Process 1345 (nvidia-smi) of user 0 dumped core.
+                                                
+                                                Stack trace of thread 1345:
+                                                #0  0x00007754bdf17a74 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x25a74)
+                                                #1  0x00007754bdf14630 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x22630)
+                                                #2  0x00007754bdf15ee1 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x23ee1)
+                                                #3  0x00007754bdf14be8 n/a (/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2 + 0x22be8)
+                                                ELF object binary architecture: AMD x86-64
+--- firstboot/hotswap tail ---

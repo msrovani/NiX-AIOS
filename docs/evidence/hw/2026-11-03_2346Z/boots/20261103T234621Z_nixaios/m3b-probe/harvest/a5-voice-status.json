@@ -1,0 +1,45 @@
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "engines": [
+      "piper",
+      "espeak"
+    ],
+    "locale": {
+      "greeting": "Sistema Neural A I O S configurado em português. Cortex, Hermes e Jarbas online.",
+      "piper_json_url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json",
+      "piper_onnx_url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx",
+      "piper_voice": "pt_BR-faber-medium",
+      "raw_locale": "pt_BR.UTF-8",
+      "whisper_lang": "pt",
+      "whisper_model_file": "ggml-base.bin",
+      "whisper_model_url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+    },
+    "models": [
+      {
+        "label": "pt_BR-faber-medium.onnx",
+        "path": "/var/lib/nosd/models/pt_BR-faber-medium.onnx"
+      }
+    ],
+    "pipeline_stages": [
+      "mic",
+      "vad",
+      "wake",
+      "stt",
+      "handle",
+      "tts",
+      "out"
+    ],
+    "piper_cli": "/var/lib/nosd/models/piper/piper",
+    "piper_model": "/var/lib/nosd/models/pt_BR-faber-medium.onnx",
+    "posture": "Ready",
+    "selected_engine": "piper",
+    "selected_model": "pt_BR-faber-medium.onnx",
+    "stt_ready": true,
+    "tts_engine": "piper",
+    "tts_ready": true,
+    "whisper_cli": "/nix/store/52vb8ayvgdh5zqj9np17b4zc9v09hi33-whisper-cpp-1.9.5/bin/whisper-cli",
+    "whisper_model": "/var/lib/nosd/models/ggml-tiny.bin"
+  }
+}

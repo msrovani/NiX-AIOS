@@ -1,0 +1,6 @@
+{
+  "id": 1,
+  "ok": false,
+  "error": "io: No such file or directory (os error 2)",
+  "result": null
+}

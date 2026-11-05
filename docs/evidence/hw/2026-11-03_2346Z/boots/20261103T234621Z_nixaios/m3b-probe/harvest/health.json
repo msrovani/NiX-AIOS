@@ -1,0 +1,77 @@
+{
+  "id": 1,
+  "ok": true,
+  "result": {
+    "diag": [
+      "SMI · /nix/store/zcppqq5a5jyxgi3zrbrf64wy6l…",
+      "NGL 5 · CUDA 0",
+      "GPU · 4233/6144M · NVIDIA GeForce RT…",
+      "S2 · llama-server-http · fila 0",
+      "PORTA 8082 · a responder",
+      "SOUL · ok"
+    ],
+    "engine": "llama-server-http",
+    "engine_s2": "llama-server-http",
+    "fleet_machines": 2,
+    "fleet_verdict": "unknown",
+    "gpu": {
+      "cuda_visible": "0",
+      "ngl": "5",
+      "nvidia_smi": "/nix/store/zcppqq5a5jyxgi3zrbrf64wy6lh54142-nvidia-bin-elf-pf-w/bin/nvidia-smi"
+    },
+    "hermes": "running",
+    "hermes_ticks": 49,
+    "hub_loaded": 1,
+    "landlock": "Verified",
+    "llama_server": "managed+engine=llama-server-http",
+    "memory_records": 0,
+    "mesh": "[{\"local\":15864,\"peers\":0,\"tofu\":0,\"last_frag\":0,\"role\":\"Worker\",\"pending_fracks\":0}]",
+    "mesh_node_id": null,
+    "mesh_nodes": {
+      "local": {
+        "cpu": 4,
+        "id": 15864,
+        "last_frag": 0,
+        "local": true,
+        "mem_mib": 2048,
+        "net": 100,
+        "pending_fracks": 0,
+        "role": "Worker",
+        "tofu_peers": 0,
+        "tofu_settled": false
+      },
+      "machines": 2,
+      "peers": [],
+      "verdict": "unknown"
+    },
+    "mesh_peers": 0,
+    "mesh_pinned": 0,
+    "mesh_seeds": [],
+    "orb": {
+      "agitation": 0.20019575953483584,
+      "latent_tag": "emotion",
+      "links": 0.3499999940395355,
+      "particles": 140,
+      "pattern": "ring",
+      "rings": 3,
+      "sense": {
+        "audio_on": true,
+        "bass": 0.2593137323856354,
+        "level": 0.2451838254928589,
+        "mid": 0.1967371255159378,
+        "motion": 0.030591076239943504,
+        "treble": 0.008333333767950535,
+        "video_on": true
+      },
+      "size": 1.0,
+      "speed": 1.0,
+      "state": "speaking",
+      "vision_ready": false,
+      "vision_slot": "vision"
+    },
+    "orb_lab": "http://127.0.0.1:7701/",
+    "s1_backend": "keyword",
+    "s2_pending": 0,
+    "status": "ok"
+  }
+}

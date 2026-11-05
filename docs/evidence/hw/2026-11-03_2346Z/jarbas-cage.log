@@ -1,0 +1,155 @@
+=== jarbas-cinematic start 2026-11-03T23:47:18-03:00 uid=998 log=/var/lib/nosd/jarbas-cage.log ===
+jarbas: DRM=/dev/dri/card1 selected_mode=cinematic configured_mode=cinematic
+jarbas: chromium_env HOME=/var/lib/nosd/home DRM=/dev/dri/card1 mesa_egl=/nix/store/457mqa9dsvw9cnmi6pr06zjy1ib0iic4-mesa-26.2.5/share/glvnd/egl_vendor.d/50_mesa.json
+jarbas: XDG_RUNTIME_DIR=/run/nosd/user (nosd:nosd:700)
+jarbas: seatd sock=yes seatd=active
+total 0
+drwxr-xr-x   3 root root        140 nov  3 20:46 .
+drwxr-xr-x  23 root root       4140 nov  3 23:47 ..
+drwxr-xr-x   2 root root        140 nov  3 20:46 by-path
+crw-rw----+  1 root video  226,   0 nov  3 23:47 card0
+crw-rw----+  1 root video  226,   1 nov  3 23:47 card1
+crw-rw-rw-   1 root render 226, 128 nov  3 20:46 renderD128
+crw-rw-rw-   1 root render 226, 129 nov  3 20:46 renderD129
+orb_lab: OK
+jarbas: dbus session unix:path=/tmp/dbus-ru1lIjP0Wv,guid=11f48d90bc9a3e20fa510af66aea9cb6
+[0:01:17.508337183] [3007]  INFO Camera camera_manager.cpp:340 libcamera v0.7.2
+[0:01:17.508537671] [3052]  INFO IPAManager ipa_manager.cpp:148 libcamera is not installed. Adding '/nix/store/src/ipa' to the IPA search path
+[0:01:17.511862356] [3052] ERROR MediaDevice media_device.cpp:511 /dev/media0[]: Failed to open media device at /dev/media0: Operação não permitida
+[0:01:17.511880834] [3052]  INFO DeviceEnumerator device_enumerator.cpp:261 Unable to populate media device /dev/media0 (Operação não permitida), skipping
+[0:01:17.511887352] [3052]  WARN DeviceEnumerator device_enumerator_udev.cpp:196 Failed to add device for '/sys/devices/pci0000:00/0000:00:14.0/usb3/3-6/3-6:1.0/media0', skipping
+[0:01:17.512080011] [3052] ERROR DmaBufAllocator dma_buf_allocator.cpp:119 Could not open any dma-buf provider
+jarbas: pipewire socket=ok
+jarbas: alsa cards:
+**** List of PLAYBACK Hardware Devices ****
+card 0: NVidia [HDA NVidia], device 3: HDMI 0 [HDMI 0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 0: NVidia [HDA NVidia], device 7: HDMI 1 [HDMI 1]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 0: NVidia [HDA NVidia], device 8: HDMI 2 [HDMI 2]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 0: NVidia [HDA NVidia], device 9: HDMI 3 [HDMI 3]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: PCH [HDA Intel PCH], device 0: ALC3204 Analog [ALC3204 Analog]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: PCH [HDA Intel PCH], device 3: HDMI 0 [HDMI 0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: PCH [HDA Intel PCH], device 7: HDMI 1 [HDMI 1]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: PCH [HDA Intel PCH], device 8: HDMI 2 [HDMI 2]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: PCH [HDA Intel PCH], device 9: HDMI 3 [HDMI 3]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+jarbas: greeting scheduled (piper-then-espeak)
+jarbas-cinematic: launching Chromium JARBAS HUD
+jarbas: using system seatd.sock
+00:00:00.000 [INFO] [libseat] [libseat/libseat.c:62] Seat opened with backend 'seatd'
+00:00:00.000 [INFO] [libseat] [libseat/backend/seatd.c:218] Enabling seat
+00:00:00.000 [INFO] [backend/session/session.c:117] Successfully loaded libseat session
+00:00:00.000 [INFO] [backend/session/session.c:480] Opening fixed list of KMS devices from WLR_DRM_DEVICES: /dev/dri/card1
+00:00:00.000 [INFO] [backend/backend.c:248] Found 1 GPUs
+00:00:00.000 [INFO] [backend/drm/backend.c:225] Initializing DRM backend for /dev/dri/card1 (i915)
+00:00:00.000 [INFO] [backend/drm/drm.c:312] Found 4 DRM CRTCs
+00:00:00.000 [INFO] [backend/drm/drm.c:270] Found 24 DRM planes
+00:00:00.526 [INFO] [render/egl.c:205] Supported EGL client extensions: EGL_EXT_device_base EGL_EXT_device_enumeration EGL_EXT_device_query EGL_EXT_platform_base EGL_KHR_client_get_all_proc_addresses EGL_EXT_client_extensions EGL_KHR_debug EGL_EXT_platform_device EGL_EXT_explicit_device EGL_EXT_platform_wayland EGL_KHR_platform_wayland EGL_EXT_platform_x11 EGL_KHR_platform_x11 EGL_EXT_platform_xcb EGL_MESA_platform_gbm EGL_KHR_platform_gbm EGL_MESA_platform_surfaceless
+00:00:00.565 [INFO] [render/egl.c:369] Using EGL 1.5
+00:00:00.565 [INFO] [render/egl.c:370] Supported EGL display extensions: EGL_ANDROID_blob_cache EGL_ANDROID_native_fence_sync EGL_EXT_config_select_group EGL_EXT_create_context_robustness EGL_EXT_image_dma_buf_import EGL_EXT_image_dma_buf_import_modifiers EGL_EXT_query_reset_notification_strategy EGL_EXT_surface_compression EGL_IMG_context_priority EGL_KHR_cl_event2 EGL_KHR_config_attribs EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_create_context_no_error EGL_KHR_fence_sync EGL_KHR_get_all_proc_addresses EGL_KHR_gl_colorspace EGL_KHR_gl_renderbuffer_image EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_3D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_image_base EGL_KHR_no_config_context EGL_KHR_partial_update EGL_KHR_reusable_sync EGL_KHR_surfaceless_context EGL_EXT_pixel_format_float EGL_KHR_wait_sync EGL_MESA_configless_context EGL_MESA_gl_interop EGL_MESA_image_dma_buf_export EGL_MESA_query_driver EGL_MESA_x11_native_visual_id 
+00:00:00.565 [INFO] [render/egl.c:372] Supported EGL device extensions: EGL_EXT_device_drm EGL_EXT_device_drm_render_node EGL_EXT_device_query_name EGL_EXT_device_persistent_id
+00:00:00.565 [INFO] [render/egl.c:374] EGL vendor: Mesa Project
+00:00:00.565 [INFO] [render/egl.c:376] EGL driver name: iris
+00:00:00.568 [INFO] [render/gles2/renderer.c:538] Creating GLES2 renderer
+00:00:00.568 [INFO] [render/gles2/renderer.c:539] Using OpenGL ES 3.2 Mesa 26.2.5
+00:00:00.568 [INFO] [render/gles2/renderer.c:540] GL vendor: Intel
+00:00:00.568 [INFO] [render/gles2/renderer.c:541] GL renderer: Mesa Intel(R) Graphics (RPL-P)
+00:00:00.568 [INFO] [render/gles2/renderer.c:542] Supported GLES2 extensions: GL_EXT_blend_minmax GL_EXT_multi_draw_arrays GL_EXT_texture_filter_anisotropic GL_EXT_texture_compression_s3tc GL_EXT_texture_compression_dxt1 GL_EXT_texture_compression_rgtc GL_EXT_texture_format_BGRA8888 GL_OES_compressed_ETC1_RGB8_texture GL_OES_depth24 GL_OES_element_index_uint GL_OES_fbo_render_mipmap GL_OES_mapbuffer GL_OES_rgb8_rgba8 GL_OES_standard_derivatives GL_OES_stencil8 GL_OES_texture_3D GL_OES_texture_float GL_OES_texture_float_linear GL_OES_texture_half_float GL_OES_texture_half_float_linear GL_OES_texture_npot GL_OES_vertex_half_float GL_EXT_draw_instanced GL_EXT_texture_sRGB_decode GL_OES_EGL_image GL_OES_depth_texture GL_AMD_performance_monitor GL_OES_packed_depth_stencil GL_EXT_texture_type_2_10_10_10_REV GL_NV_conditional_render GL_OES_get_program_binary GL_APPLE_texture_max_level GL_EXT_discard_framebuffer GL_EXT_read_format_bgra GL_EXT_texture_storage GL_NV_pack_subimage GL_NV_texture_barrier GL_EXT_frag_depth GL_NV_fbo_color_attachments GL_OES_EGL_image_external GL_OES_EGL_sync GL_OES_vertex_array_object GL_OES_viewport_array GL_ANGLE_pack_reverse_row_order GL_ANGLE_texture_compression_dxt3 GL_ANGLE_texture_compression_dxt5 GL_EXT_occlusion_query_boolean GL_EXT_robustness GL_EXT_sRGB GL_EXT_texture_rg GL_EXT_unpack_subimage GL_NV_draw_buffers GL_NV_read_buffer GL_NV_read_depth GL_NV_read_depth_stencil GL_NV_read_stencil GL_APPLE_sync GL_EXT_draw_buffers GL_EXT_instanced_arrays GL_EXT_map_buffer_range GL_EXT_shadow_samplers GL_KHR_debug GL_KHR_robustness GL_KHR_texture_compression_astc_ldr GL_NV_generate_mipmap_sRGB GL_NV_pixel_buffer_object GL_OES_depth_texture_cube_map GL_OES_required_internalformat GL_OES_surfaceless_context GL_EXT_color_buffer_float GL_EXT_debug_label GL_EXT_sRGB_write_control GL_EXT_separate_shader_objects GL_EXT_shader_framebuffer_fetch GL_EXT_shader_group_vote GL_EXT_shader_implicit_conversions GL_EXT_shader_integer_mix GL_EXT_tessellation_point_size GL_EXT_tessellation_shader GL_INTEL_conservative_rasterization GL_INTEL_performance_query GL_ANDROID_extension_pack_es31a GL_EXT_base_instance GL_EXT_compressed_ETC1_RGB8_sub_texture GL_EXT_copy_image GL_EXT_draw_buffers_indexed GL_EXT_draw_elements_base_vertex GL_EXT_gpu_shader5 GL_EXT_multi_draw_indirect GL_EXT_polygon_offset_clamp GL_EXT_primitive_bounding_box GL_EXT_render_snorm GL_EXT_shader_io_blocks GL_EXT_texture_border_clamp GL_EXT_texture_buffer GL_EXT_texture_cube_map_array GL_EXT_texture_norm16 GL_EXT_texture_view GL_KHR_blend_equation_advanced GL_KHR_blend_equation_advanced_coherent GL_KHR_context_flush_control GL_KHR_robust_buffer_access_behavior GL_NV_image_formats GL_NV_shader_noperspective_interpolation GL_OES_copy_image GL_OES_draw_buffers_indexed GL_OES_draw_elements_base_vertex GL_OES_gpu_shader5 GL_OES_primitive_bounding_box GL_OES_sample_shading GL_OES_sample_variables GL_OES_shader_io_blocks GL_OES_shader_multisample_interpolation GL_OES_tessellation_point_size GL_OES_tessellation_shader GL_OES_texture_border_clamp GL_OES_texture_buffer GL_OES_texture_cube_map_array GL_OES_texture_stencil8 GL_OES_texture_storage_multisample_2d_array GL_OES_texture_view GL_EXT_blend_func_extended GL_EXT_buffer_storage GL_EXT_float_blend GL_EXT_geometry_point_size GL_EXT_geometry_shader GL_EXT_shader_samples_identical GL_EXT_texture_sRGB_R8 GL_KHR_no_error GL_KHR_texture_compression_astc_sliced_3d GL_NV_fragment_shader_interlock GL_OES_EGL_image_external_essl3 GL_OES_geometry_point_size GL_OES_geometry_shader GL_OES_shader_image_atomic GL_EXT_clear_texture GL_EXT_clip_cull_distance GL_EXT_conservative_depth GL_EXT_disjoint_timer_query GL_EXT_texture_compression_s3tc_srgb GL_MESA_shader_integer_functions GL_EXT_clip_control GL_EXT_color_buffer_half_float GL_EXT_memory_object GL_EXT_memory_object_fd GL_EXT_semaphore GL_EXT_semaphore_fd GL_EXT_texture_compression_bptc GL_EXT_texture_mirror_clamp_to_edge GL_KHR_parallel_shader_compile GL_NV_alpha_to_coverage_dither_control GL_EXT_EGL_image_storage GL_EXT_shader_framebuffer_fetch_non_coherent GL_EXT_texture_shadow_lod GL_INTEL_blackhole_render GL_MESA_framebuffer_flip_y GL_NV_compute_shader_derivatives GL_EXT_demote_to_helper_invocation GL_EXT_depth_clamp GL_EXT_texture_query_lod GL_KHR_shader_subgroup GL_MESA_sampler_objects GL_EXT_EGL_image_storage_compression GL_EXT_texture_storage_compression GL_MESA_bgra GL_MESA_texture_const_bandwidth GL_EXT_shader_clock 
+00:00:00.747 [INFO] [../seat.c:141] Input device USB OPTICAL MOUSE  cannot be mapped to an output device
+
+00:00:00.749 [INFO] [../seat.c:141] Input device USB OPTICAL MOUSE  Keyboard cannot be mapped to an output device
+
+00:00:00.749 [INFO] [../seat.c:141] Input device VEN_06CB:00 06CB:CE26 Mouse cannot be mapped to an output device
+
+00:00:00.749 [INFO] [../seat.c:141] Input device VEN_06CB:00 06CB:CE26 Touchpad cannot be mapped to an output device
+
+00:00:00.758 [INFO] [../seat.c:141] Input device PS/2 Generic Mouse cannot be mapped to an output device
+
+00:00:00.758 [INFO] [backend/drm/drm.c:1781] Scanning DRM connectors on /dev/dri/card1
+00:00:00.759 [INFO] [backend/drm/drm.c:1836] Found connector 'eDP-1'
+00:00:00.759 [INFO] [backend/drm/drm.c:1861] 'eDP-1' connected
+00:00:00.759 [INFO] [backend/drm/drm.c:1646] Detected modes:
+00:00:00.759 [INFO] [backend/drm/drm.c:1670]   2560x1600 @ 120.001 Hz (preferred)
+00:00:00.759 [INFO] [backend/drm/drm.c:1670]   2560x1600 @ 48.000 Hz 
+00:00:00.759 [INFO] [util/env.c:9] Loading WLR_NO_HARDWARE_CURSORS option: 1
+00:00:00.759 [INFO] [backend/drm/drm.c:1707] Physical size: 340x220
+00:00:00.759 [INFO] [backend/drm/drm.c:1836] Found connector 'DP-1'
+00:00:00.759 [INFO] [backend/drm/drm.c:1836] Found connector 'DP-2'
+00:00:00.759 [INFO] [backend/drm/drm.c:1836] Found connector 'DP-3'
+00:00:00.759 [INFO] [backend/drm/drm.c:1836] Found connector 'DP-4'
+00:00:00.759 [INFO] [backend/drm/drm.c:1895] connector eDP-1: Requesting modeset
+00:00:00.762 [INFO] [backend/drm/drm.c:980] connector eDP-1: Modesetting with 2560x1600 @ 120.001 Hz
+00:00:04.133 [INFO] [xwayland/server.c:108] Starting Xwayland on :0
+[3080:3080:1103/234724.914939:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+The XKEYBOARD keymap compiler (xkbcomp) reports:
+> Warning:          Multiple symbols for level 1/group 1 on key <FK23>
+>                   Using F23, ignoring XF86TouchpadOff
+> Warning:          Symbol map for key <FK23> redefined
+>                   Using last definition for conflicting fields
+> Warning:          Symbol map for key <FK24> redefined
+>                   Using last definition for conflicting fields
+> Warning:          Could not resolve keysym XF86ElectronicPrivacyScreenOn
+> Warning:          Could not resolve keysym XF86ElectronicPrivacyScreenOff
+> Warning:          Could not resolve keysym XF86ActionOnSelection
+> Warning:          Could not resolve keysym XF86ContextualInsert
+> Warning:          Could not resolve keysym XF86ContextualQuery
+Errors from xkbcomp are not fatal to the X server
+The XKEYBOARD keymap compiler (xkbcomp) reports:
+> Warning:          Unsupported maximum keycode 709, clipping.
+>                   X11 cannot support keycodes above 255.
+> Warning:          Virtual modifier Hyper multiply defined
+>                   Using 0, ignoring 0
+> Warning:          Virtual modifier ScrollLock multiply defined
+>                   Using 0, ignoring 0
+Errors from xkbcomp are not fatal to the X server
+[3230:3230:1103/234725.016649:ERROR:media/gpu/vaapi/vaapi_wrapper.cc:1801] vaInitialize failed: unknown libva error
+[3230:3230:1103/234725.017453:ERROR:ui/ozone/platform/wayland/gpu/wayland_surface_factory.cc:249] '--ozone-platform=wayland' is not compatible with Vulkan. Consider switching to '--ozone-platform=x11' or disabling Vulkan
+jarbas: piper greeting FAILED/timeout — fallback espeak
+[3080:3198:1103/234727.606946:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+[3080:3198:1103/234727.614513:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+[3080:3198:1103/234727.617725:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+00:00:14.422 [INFO] [xwayland/server.c:215] Restarting Xwayland (lazy)
+[3080:3198:1103/234753.893699:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+[3080:3198:1103/234843.144820:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+00:03:04.213 [INFO] [xwayland/server.c:108] Starting Xwayland on :0
+The XKEYBOARD keymap compiler (xkbcomp) reports:
+> Warning:          Multiple symbols for level 1/group 1 on key <FK23>
+>                   Using F23, ignoring XF86TouchpadOff
+> Warning:          Symbol map for key <FK23> redefined
+>                   Using last definition for conflicting fields
+> Warning:          Symbol map for key <FK24> redefined
+>                   Using last definition for conflicting fields
+> Warning:          Could not resolve keysym XF86ElectronicPrivacyScreenOn
+> Warning:          Could not resolve keysym XF86ElectronicPrivacyScreenOff
+> Warning:          Could not resolve keysym XF86ActionOnSelection
+> Warning:          Could not resolve keysym XF86ContextualInsert
+> Warning:          Could not resolve keysym XF86ContextualQuery
+Errors from xkbcomp are not fatal to the X server
+The XKEYBOARD keymap compiler (xkbcomp) reports:
+> Warning:          Unsupported maximum keycode 709, clipping.
+>                   X11 cannot support keycodes above 255.
+> Warning:          Virtual modifier Hyper multiply defined
+>                   Using 0, ignoring 0
+> Warning:          Virtual modifier ScrollLock multiply defined
+>                   Using 0, ignoring 0
+Errors from xkbcomp are not fatal to the X server
+[6296:6296:1103/235024.902346:ERROR:services/on_device_model/ml/gpu_blocklist.cc:120] Unable to get gpu adapter
+[6296:6310:1103/235024.903767:ERROR:services/on_device_model/ml/gpu_blocklist.cc:120] Unable to get gpu adapter
+[3080:3198:1103/235026.031915:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+00:03:14.322 [INFO] [xwayland/server.c:215] Restarting Xwayland (lazy)

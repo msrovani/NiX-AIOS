@@ -1,0 +1,11 @@
+=== model-seed 2026-11-03T23:46:10Z ===
+total 0
+drwxr-xr-x 2 nosd nosd 180 nov  3 20:46 .
+drwxrwxrwt 6 nosd nosd 120 nov  3 20:46 ..
+lrwxrwxrwx 1 root root  57 nov  3 20:46 ggml-tiny.bin -> /nix/store/3hxqscirmb90103r7v7lqhygaiqjlm1g-ggml-tiny.bin
+lrwxrwxrwx 1 root root  73 nov  3 20:46 piper -> /nix/store/a5m0yla3mz0fxjr33sfciq6k305kbxgf-piper-standalone-2023.11.14-2
+lrwxrwxrwx 1 root root  67 nov  3 20:46 pt_BR-faber-medium.onnx -> /nix/store/hwmd8nmfzdv4y1lv4nkcsmkv7bf3wx7i-pt_BR-faber-medium.onnx
+lrwxrwxrwx 1 root root  72 nov  3 20:46 pt_BR-faber-medium.onnx.json -> /nix/store/vq2zyqmp1n2wlakvhzlkkcvz2x5vcc9l-pt_BR-faber-medium.onnx.json
+lrwxrwxrwx 1 root root  93 nov  3 20:46 Qwen3.5-0.8B-Q4_K_M.gguf -> /nix/store/8wv2737hqv8wgxmmq2mkypymzav0sspj-Qwen3.5-0.8B-Weight-Space-Programming-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  93 nov  3 20:46 qwen3.5-0.8b-q4km.gguf -> /nix/store/8wv2737hqv8wgxmmq2mkypymzav0sspj-Qwen3.5-0.8B-Weight-Space-Programming-Q4_K_M.gguf
+lrwxrwxrwx 1 root root  64 nov  3 20:46 Qwen3.5-4B-Q6_K.gguf -> /nix/store/0cpj2dkknhvwnzw8lj6qap5mib2mkdv8-Qwen3.5-4B-Q6_K.gguf

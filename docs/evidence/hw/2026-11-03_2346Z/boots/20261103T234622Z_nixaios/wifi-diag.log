@@ -1,0 +1,25 @@
+=== wifi-diag 2026-11-03T20:46:29-03:00 ===
+0: phy0: Wireless LAN
+	Soft blocked: no
+	Hard blocked: no
+DEVICE          TYPE      STATE                    
+lo              loopback  conectado (externamente) 
+wlp3s0          wifi      desconectado             
+p2p-dev-wlp3s0  wifi-p2p  desconectado             
+enp4s0          ethernet  não disponível           
+SSID              SIGNAL  SECURITY  
+--                89      WPA1 WPA2 
+ROVANI            87      WPA1 WPA2 
+--                75      WPA1 WPA2 
+ROVANI            74      WPA1 WPA2 
+MarceloGotz_2.4G  65      WPA1 WPA2 
+--                60      WPA2      
+WILLIAM           57      WPA1 WPA2 
+Seraggio_2.4      55      WPA2      
+MarceloGotz_5G    39      WPA1 WPA2 
+Ivone             32      WPA2      
+TP-Link_3E79      27      WPA1 WPA2 
+Lucas 2.4         25      WPA1 WPA2 
+--                25      WPA2      
+Seraggio_5G       24      WPA2      
+WILLIAM_5G        17      WPA1 WPA2 

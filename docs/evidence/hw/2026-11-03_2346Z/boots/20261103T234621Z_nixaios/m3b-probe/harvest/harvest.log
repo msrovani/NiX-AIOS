@@ -1,0 +1,49 @@
+=== M3b harvest 2026-11-03T23:47:52-03:00 OUT=/mnt/nixaios-log/boots/20261103T234621Z_nixaios/m3b-probe/harvest XDG=/run/nosd/user SINCE=2026-11-03T23:47:52-03:00 ===
+--- units ---
+  UNIT LOAD ACTIVE SUB DESCRIPTION
+
+0 loaded units listed.
+ConditionResult=yes
+DeviceAllow=char-alsa rw
+DeviceAllow=char-video4linux rw
+DeviceAllow=char-tty rw
+DeviceAllow=char-input rw
+DeviceAllow=char-drm rw
+SupplementaryGroups=video audio render input seat tty
+--- A1 aplay -l ---
+A1=card_present
+--- A2 PipeWire / wpctl ---
+A2=pipewire_absent
+--- A4 arecord 2s ---
+A4=mic_ok bytes=32044
+--- A5/A6 nosctl voice ---
+--- journal ---
+--- mesh seeds (health) ---
+A1=card_present A2=pipewire_absent A4=mic_ok A6=play_ok=absent snd_denied=0
+=== DONE bundle=/mnt/nixaios-log/boots/20261103T234621Z_nixaios/m3b-probe/harvest ===
+total 112
+drwxrwxrwx 2 root root  4096 nov  3 23:48 .
+drwxrwxrwx 3 root root  4096 nov  3 23:47 ..
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a1-aplay-l.err
+-rwxrwxrwx 1 root root   978 nov  3 23:47 a1-aplay-l.txt
+-rwxrwxrwx 1 root root    53 nov  3 23:47 a2-pw-cli.err
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a2-pw-cli.txt
+-rwxrwxrwx 1 root root   821 nov  3 23:47 a2-runtime-dir.txt
+-rwxrwxrwx 1 root root    52 nov  3 23:47 a2-wpctl.err
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a2-wpctl.txt
+-rwxrwxrwx 1 root root   144 nov  3 23:47 a4-arecord.err
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a4-arecord.txt
+-rwxrwxrwx 1 root root 32044 nov  3 23:47 a4-mic.wav
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a5-voice-status.err
+-rwxrwxrwx 1 root root  1472 nov  3 23:47 a5-voice-status.json
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a5-voice-stt.err
+-rwxrwxrwx 1 root root    91 nov  3 23:47 a5-voice-stt.json
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a6-voice-tts.err
+-rwxrwxrwx 1 root root   104 nov  3 23:47 a6-voice-tts.json
+-rwxrwxrwx 1 root root     0 nov  3 23:47 a6-voice-turn.err
+-rwxrwxrwx 1 root root   762 nov  3 23:48 a6-voice-turn.json
+-rwxrwxrwx 1 root root   805 nov  3 23:48 harvest.log
+-rwxrwxrwx 1 root root     0 nov  3 23:48 health.err
+-rwxrwxrwx 1 root root  2033 nov  3 23:48 health.json
+-rwxrwxrwx 1 root root    17 nov  3 23:48 journal-log.txt
+-rwxrwxrwx 1 root root 22363 nov  3 23:48 journal.txt

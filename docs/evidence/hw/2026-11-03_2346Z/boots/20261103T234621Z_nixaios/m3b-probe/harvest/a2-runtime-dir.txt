@@ -1,0 +1,16 @@
+total 8
+drwx------  6 nosd nosd 300 nov  3 23:47 .
+drwxr-xr-x  3 nosd nosd  80 nov  3 20:46 ..
+-rw-r--r--  1 nosd nosd 978 nov  3 23:47 alsa-cards.txt
+drwx------  2 nosd nosd  40 nov  3 20:46 chromium-crash
+drwx------ 31 nosd nosd 780 nov  3 23:47 chromium-jarbas
+drwx------  3 nosd nosd  60 nov  3 23:47 dbus-1
+-rw-r--r--  1 nosd nosd   0 nov  3 23:47 espeak-greeting.log
+-rw-r--r--  1 nosd nosd 105 nov  3 23:47 piper-greeting.log
+srwxr-xr-x  1 nosd nosd   0 nov  3 23:47 pipewire-0
+-rw-r-----  1 nosd nosd   0 nov  3 23:47 pipewire-0.lock
+srwxr-xr-x  1 nosd nosd   0 nov  3 23:47 pipewire-0-manager
+-rw-r-----  1 nosd nosd   0 nov  3 23:47 pipewire-0-manager.lock
+drwx------  2 nosd nosd  80 nov  3 23:47 pulse
+srwxr-xr-x  1 nosd nosd   0 nov  3 23:47 wayland-0
+-rw-r-----  1 nosd nosd   0 nov  3 23:47 wayland-0.lock
