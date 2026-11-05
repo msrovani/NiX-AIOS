@@ -235,6 +235,43 @@ Resumo executavel; detalhe em
     listing da árvore extraída fala por si (compare store paths com os
     pins do `flake.nix`).
 
+53. **Pendrive `NIXAIOSLOG` sem letra lê-se no dispositivo cru, não com
+    `mount`**: a FAT32 do `.img` híbrido fica Offline/sem letra no Windows
+    (lição 45) e `mtools` com offset mente (lição 50). `Get-Partition` dá o
+    offset (`8323596288` no layout do `pack-hw-usb.sh`); abrir
+    `\\.\PhysicalDriveN` exige admin; com parser FAT32 próprio
+    (BPB→FAT→clusters, read-only) o bundle sai inteiro e com sha256. Foi
+    assim que a colheita de 3 Nov saiu de `AWAITING_HW` para
+    `docs/evidence/hw/2026-11-03_2346Z/` (41 ficheiros). Script:
+    `scripts/extract-usb-logs.py` → `logs/`.
+
+54. **`is_file()` não prova conteúdo — o temporário já existe antes do
+    escritor**: `tempfile` cria o ficheiro, logo `out.is_file()` é verdade
+    mesmo quando o sintetizador falhou; um WAV de 0 B passava por bom e o
+    fallback (espeak) nunca disparava. Validar tamanho/magic
+    (`len() > 44`), não existência — vale para qualquer ficheiro de saída.
+
+55. **`ok:true` com conteúdo vazio é o `0%` sem denominador da voz**: o
+    whisper devolve `Ok("")` quando não há fala e o handler respondia
+    `ok:true, text:""`; o ORB marcava STT pronto sem ter ouvido nada.
+    Vazio = erro explícito (`nos_voice::transcript_or_error`), com
+    `empty:true` no resultado.
+
+56. **Flag explícita anula heurística — e o restart esconde o estrago**:
+    `-ngl 99` desliga o `--fit on` que devia escolher o que cabe na VRAM;
+    num 4B Q6 em 6 GiB já ocupados deu `cudaMalloc: out of memory` e
+    `nosd-engine-s2.service: Failed with result 'exit-code'`, recuperado só
+    no restart (já com fit). Quem lê o `health` final vê "8082 a
+    responder" e não vê o arranque falhado: ler `journal-follow`, não o
+    retrato.
+
+57. **Instrumento honesto: PATH não é serviço, default não é formato**:
+    A2 dizia `pipewire_absent` só porque `wpctl` não estava no PATH do
+    probe, com `pipewire-0` no runtime dir; A4 gravava 8000 Hz (default do
+    ALSA) quando o whisper só aceita 16 kHz — dois falsos negativos sobre um
+    mic que funcionava (`32044 B`). Medir o objecto (socket/card) e, quando
+    o consumidor exige formato, o probe tem de o declarar (`-r 16000 -c 1`).
+
 ## Comandos
 
 HW (um só pendrive): `nix build .#iso-hw` -> `scripts/pack-hw-usb.sh <iso> <img>`
@@ -290,6 +327,7 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
   `BOOT_TO_JARBAS.md`: `nvidia-smi` SIGSEGV mesmo com `nvidia-bin-elf-pf-w`,
   `voice.tts` ENOENT, STT `ok` com texto vazio, peers=0. Extração
   reprodutível: `scripts/extract-usb-logs.py` → `logs/` (gitignored).
+  Memória: [`docs/memory/SESSION_20261105_USB_HARVEST_FIXES.md`](docs/memory/SESSION_20261105_USB_HARVEST_FIXES.md).
 - **Tranche 0.7.0-alpha.6 (in-tree, HUD C1–C6 + pendrive FAT 1 GiB)**:
   correcções do HUD `orb_lab.html` dirigidas às fotos do metal
   0.7.0-alpha.5 — C1 rede por `link_state` real (`nos-observe::

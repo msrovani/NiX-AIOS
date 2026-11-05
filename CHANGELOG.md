@@ -22,6 +22,10 @@ Versionamento [SemVer](https://semver.org/).
   - `scripts/extract-usb-logs.py`: extrai o bundle do pendrive `NIXAIOSLOG`
     (FAT32 lida no dispositivo cru, sem montar) para `logs/`, com filtro de
     `wifi.conf`/`firstboot.conf` e WAV, e `MANIFEST.txt` com sha256.
+  - Lições **53–57** no `AGENTS.md` (pendrive cru; `is_file()` não valida
+    conteúdo; `ok:true` vazio; `-ngl` anula `--fit`; PATH≠serviço e default≠
+    formato) e memória da sessão em
+    `docs/memory/SESSION_20261105_USB_HARVEST_FIXES.md`.
 
 ## [0.7.0-alpha.6] — HUD C1–C8 (correcções das fotos de metal) + pendrive FAT 1 GiB
 
