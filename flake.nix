@@ -190,6 +190,15 @@
           };
           # Binário rhasspy/piper release (libs+espeak-data). Evita pkgs.piper-tts
           # (dep pyopenjtalk-plus falha no check em nixpkgs actual).
+          #
+          # O tarball é um ELF de distro: PT_INTERP=/lib64/ld-linux-x86-64.so.2,
+          # que NÃO existe no NixOS. O ficheiro existe e passa `-x`, mas o
+          # execve devolve ENOENT — e o nos-voice via Command::new(piper)
+          # .spawn()? reportava "io: No such file or directory (os error 2)"
+          # (metal 2026-11-03, A6/D4: tts_ready=true e piper a falhar). Mesmo
+          # género da lição 59 (nvidia-smi): flags certas ≠ binário carrega.
+          # Fix: interpreter do store + wrapper com LD_LIBRARY_PATH (libc e
+          # onnxruntime do bundle não resolvem só por $ORIGIN).
           piper-standalone = pkgs.stdenvNoCC.mkDerivation {
             pname = "piper-standalone";
             version = "2023.11.14-2";
@@ -197,6 +206,7 @@
               url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz";
               hash = "sha256-pQy0XzVbevH211jBs2BxeHe6CjmMyMvm0qejom4iWZI=";
             };
+            nativeBuildInputs = [ pkgs.patchelf ];
             dontConfigure = true;
             dontBuild = true;
             dontFixup = true;
@@ -205,6 +215,21 @@
               # unpackPhase já entra em sourceRoot=piper/; conteúdo → $out
               # (L+ /var/lib/nosd/models/piper → $out/piper)
               cp -a . "$out/"
+              # 1) interpreter do NixOS (não /lib64) nos dois ELF do tarball
+              for b in piper piper_phonemize; do
+                ${pkgs.patchelf}/bin/patchelf \
+                  --set-interpreter ${pkgs.glibc.out}/lib/ld-linux-x86-64.so.2 \
+                  "$out/$b"
+              done
+              # 2) wrapper: LD_LIBRARY_PATH cobre libc do store + libs do bundle
+              #    (DT_RUNPATH não se propaga às dependências indirectas)
+              mv "$out/piper" "$out/piper.real"
+              cat > "$out/piper" <<EOF
+              #!${pkgs.bash}/bin/bash
+              export LD_LIBRARY_PATH="$out:${pkgs.glibc.out}/lib:${pkgs.stdenv.cc.cc.lib}/lib''${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+              exec "$out/piper.real" "\$@"
+              EOF
+              chmod 755 "$out/piper"
             '';
           };
         } // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {

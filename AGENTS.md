@@ -292,6 +292,25 @@ Resumo executavel; detalhe em
     rc=0 (host: original 139 → corrigido 0; `glibc` default output é `bin`
     e não traz o loader — usar `.out`). Check `nvidia-smi-loads`.
 
+60. **`Unable to get gpu adapter` não é a GPU do compositor**: no Chromium essa
+    linha vem de `services/on_device_model/ml/gpu_blocklist.cc` — o probe do
+    modelo on-device ("Gemini Nano") para features de IA que o kiosk não usa.
+    O render morreu por **Vulkan com `--ozone-platform=wayland`**
+    (`wayland_surface_factory.cc:249`) e o retry `--disable-gpu` escondeu-o.
+    Ler o ficheiro que emite a linha, não a substring (`adapter`). Kiosk:
+    desligar o que não se usa (on-device model/optimization hints) **e** a
+    telefonia (`--disable-background-networking`; o log tinha GCM a responder
+    `PHONE_REGISTRATION_ERROR`).
+
+61. **ELF de distro com `dontFixup` = ENOENT enganador**: o tarball do piper tem
+    `PT_INTERP=/lib64/ld-linux-x86-64.so.2`, que não existe no NixOS. O ficheiro
+    existe, passa `-x`, e `Command::new(x).spawn()?` devolve
+    `io: No such file or directory (os error 2)` — irmão da lição 59: `-x` não
+    prova que um ELF carrega. Fix: `patchelf --set-interpreter
+    ${glibc.out}/lib/ld-linux-x86-64.so.2` **e** wrapper com `LD_LIBRARY_PATH`
+    (`$out`, `<glibc>/lib`, `gcc cc.lib/lib`) — `DT_RUNPATH` não chega às
+    dependências indirectas. Prova = correr (`--help` rc=0 + uma síntese real).
+
 ## Comandos
 
 HW (um só pendrive): `nix build .#iso-hw` -> `scripts/pack-hw-usb.sh <iso> <img>`

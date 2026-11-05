@@ -305,6 +305,15 @@ let
     fi
     printf '%s\n' "$BOOTSTRAP" > "$BOOTSTRAP_FILE"
     echo "jarbas-cinematic: launching Chromium JARBAS HUD"
+    # Duas coisas que o metal 3 Nov mostrou e a leitura inicial confundiu:
+    # (1) `Unable to get gpu adapter` vinha de services/on_device_model/ml/
+    #     gpu_blocklist.cc — o probe do modelo on-device ("Gemini Nano"), não
+    #     o compositor. Uma feature que não usamos, a assustar o log.
+    # (2) o render morria por Vulkan: `--ozone-platform=wayland` não é
+    #     compatível com Vulkan (wayland_surface_factory.cc:249) e o retry caía
+    #     para `--disable-gpu`. Mesa/EGL é o que o wlroots serve.
+    # Kiosk também não telefona para casa: sem GCM, component updater, sync,
+    # pings nem relatórios de domínio — o HUD só fala com o bridge em loopback.
     run_chromium() {
       run_cage ${pkgs.chromium}/bin/chromium \
         --kiosk \
@@ -318,6 +327,13 @@ let
         --enable-features=WebRTCPipeWireCapturer \
         --enable-gpu \
         --ignore-gpu-blocklist \
+        --disable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan,OptimizationGuideModelDownloading,OptimizationHints,OptimizationHintsFetching,OptimizationTargetPrediction,OnDeviceModel,OptimizationGuideOnDeviceModel \
+        --disable-background-networking \
+        --disable-component-update \
+        --disable-sync \
+        --disable-domain-reliability \
+        --no-pings \
+        --metrics-recording-only \
         --ozone-platform=wayland \
         --user-data-dir="$XDG_RUNTIME_DIR/chromium-jarbas" \
         --crash-dumps-dir="$XDG_RUNTIME_DIR/chromium-crash" \

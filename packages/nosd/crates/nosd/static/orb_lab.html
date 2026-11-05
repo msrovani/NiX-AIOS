@@ -617,8 +617,14 @@ button{cursor:pointer}
   .e-main b{font-size:calc(16px * var(--fs))}
   #energySpark{height:18px;margin-top:2px}
   .energy-foot{font-size:calc(6px * var(--fs));gap:5px;margin-top:0}
-  #visionPanel{min-height:132px}
-  .vision-feed{width:min(100%,168px)}
+  /* 720p: feed empilhado a largura da coluna. Lado-a-lado, com 320px de
+     painel, o feed ficava nos 168px — e a queixa do metal era exactamente
+     "ficou muito pequena". A coluna direita tem folga na ATIVIDADES. */
+  #visionPanel{min-height:0}
+  .vision-body{flex-direction:column;gap:6px}
+  .vision-feed{width:100%;max-width:none;min-width:0;aspect-ratio:16/10}
+  .vision-meta{flex:0 0 auto;flex-direction:row;align-items:center;justify-content:space-between;gap:8px;min-height:22px}
+  .vision-meta .meter{display:none}
   #center{gap:8px}
   #activity{height:30px}
   #captions{min-height:78px;max-height:96px}

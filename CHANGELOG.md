@@ -5,6 +5,21 @@ Versionamento [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+- **Derrotas convertidas no host (2026-11-05)** — sem metal, três causas provadas:
+  - `piper` **nunca carregava**: o tarball tem `PT_INTERP=/lib64/ld-linux-x86-64.so.2`
+    (inexistente no NixOS) e a derivação tinha `dontFixup` → `execve` devolve ENOENT
+    e `voice.tts` reportava `io: No such file or directory` com `tts_ready: true`.
+    `piper-standalone` passa a `patchelf --set-interpreter` do store + wrapper com
+    `LD_LIBRARY_PATH`; no host `--help` rc=0 e síntese real (170 260 B, 22 050 Hz).
+  - **Chromium cinematic**: `Unable to get gpu adapter` era o probe do **modelo
+    on-device** (`services/on_device_model/ml/gpu_blocklist.cc`), não o compositor.
+    O render morria por **Vulkan com `--ozone-platform=wayland`**; o wrapper passa a
+    `--disable-features=Vulkan,…OnDeviceModel…` e desliga a telefonia
+    (`--disable-background-networking`; o log tinha GCM com `PHONE_REGISTRATION_ERROR`).
+  - **HUD**: `04 VISÃO` sobe para o topo da coluna direita e a 720p passa a feed
+    empilhado a toda a largura (168×126 → 297×185); artefacto
+    `docs/evidence/artifacts/orb_hud_vision_right_720p.png`.
+
 - **Correcções da colheita metal de 2026-11-03** (`docs/evidence/hw/2026-11-03_2346Z`):
   - `voice.stt` deixa de devolver `ok:true` com `text:""` — transcript vazio é
     erro explícito (`nos_voice::transcript_or_error`), a mesma doutrina de
