@@ -401,6 +401,66 @@ PY
               touch $out
             '';
 
+          # Comportamental — o que o check de flags NÃO prova: o `nvidia-smi`
+          # tem de *carregar*. Metal 2026-11-03 (bundle hw/2026-11-03_2346Z,
+          # D2): `segfault at 401488 ip … ld-linux … error 7`; 0x401488 =
+          # `.dynamic`(0x4013a0) + 0xe8 = `DT_DEBUG.d_ptr`, que o ld.so
+          # escreve ao arrancar num PT_LOAD que o patchelf deixou só PF_R
+          # (error 7 = escrita em página presente/user read-only). Host, com
+          # o glibc-2.44-57 do próprio flake: original rc=139, corrigido
+          # rc=0 + banner. Aqui verifica-se também quem ganha a colisão de
+          # `bin/nvidia-smi` no system-path (`ignoreCollisions = true`;
+          # nixpkgs dá priority 4 ao `nvidia_x11`): sem `lib.hiPrio` o perfil
+          # serve o binário por corrigir e o crash volta.
+          nvidia-smi-loads =
+            let
+              cfg = self.nixosConfigurations.nixaios-iso-hw-cuda.config;
+              isoPkgs = self.nixosConfigurations.nixaios-iso-hw-cuda.pkgs;
+              envList = cfg.systemd.services.nosd.serviceConfig.Environment;
+              envs = builtins.filter builtins.isString
+                (nixpkgs.lib.flatten
+                  (if builtins.isList envList then envList else [ envList ]));
+              smiLine = nixpkgs.lib.findFirst
+                (s: nixpkgs.lib.hasPrefix "NOSD_NVIDIA_SMI=" s)
+                null
+                envs;
+              smiPath = if smiLine == null then null
+                else nixpkgs.lib.removePrefix "NOSD_NVIDIA_SMI=" smiLine;
+              fixed = nixpkgs.lib.findFirst
+                (p: (p.name or "") == "nvidia-bin-elf-pf-w")
+                null
+                cfg.environment.systemPackages;
+              driver = nixpkgs.lib.findFirst
+                (p: nixpkgs.lib.hasPrefix "nvidia-x11-" (p.name or ""))
+                null
+                cfg.environment.systemPackages;
+              prio = p: if p == null then 99 else (p.meta.priority or 5);
+            in
+            pkgs.runCommand "test-nvidia-smi-loads" { } ''
+              # `glibc` tem o output `bin` como default e NÃO traz o loader:
+              # usar `${isoPkgs.glibc.out}` explicitamente.
+              loader=${isoPkgs.glibc.out}/lib/ld-linux-x86-64.so.2
+              test -x "$loader" || { echo "loader ausente: $loader" >&2; exit 1; }
+              echo "ld.so: $($loader --version | head -1)"
+              echo "priority: fixed=${toString (prio fixed)} driver=${toString (prio driver)}"
+              if [ ${toString (prio fixed)} -ge ${toString (prio driver)} ]; then
+                echo "nvidia-bin-elf-pf-w perde a colisão do system-path: o perfil fica com o nvidia-smi por corrigir" >&2
+                exit 1
+              fi
+              rc=0
+              text=$("$loader" --library-path ${isoPkgs.glibc.out}/lib:${cfg.hardware.nvidia.package.bin}/lib ${smiPath} --help 2>&1) || rc=$?
+              echo "$text" | head -3
+              if [ "$rc" -ne 0 ]; then
+                echo "nvidia-smi --help rc=$rc (139 = SIGSEGV no ld.so)" >&2
+                exit 1
+              fi
+              case "$text" in
+                *"System Management Interface"*) ;;
+                *) echo "saída sem banner do nvidia-smi" >&2; exit 1 ;;
+              esac
+              touch $out
+            '';
+
           # hw-cuda (metal/RTX 3050): DeviceAllow resolvem aliases por
           # /proc/devices (Linux-only, enforcement systemd/cgroup). `char-
           # nvidia` cobre /dev/nvidiaN + /dev/nvidiactl (major 195);

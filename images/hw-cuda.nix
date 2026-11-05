@@ -117,9 +117,16 @@ in
   ];
 
   # Pacote driver (libs) + binários ELF-fixed (nvidia-smi).
+  # `lib.hiPrio` é obrigatório: o nixpkgs entra com `[ nvidia_x11.bin ]`
+  # (meta.priority = 4, generic.nix) e o system-path usa
+  # `ignoreCollisions = true` — prioridade MENOR ganha a colisão de
+  # `bin/nvidia-smi`. Com priority 5 (default) o perfil ficava com o binário
+  # por corrigir e o fix de ELF existia só no store: metal 2026-11-03,
+  # `hw-info.log` executou `/run/current-system/sw/bin/nvidia-smi` e crashou
+  # em 0x401488 (DT_DEBUG).
   environment.systemPackages = lib.mkAfter [
     config.hardware.nvidia.package
-    nvidiaBinFixed
+    (lib.hiPrio nvidiaBinFixed)
   ];
 
   # S2/PRO: 4B no dGPU, porta 8082 (loopback). Sem `-c` nem `-ngl` fixos:

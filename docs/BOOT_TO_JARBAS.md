@@ -218,7 +218,7 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 | M3b cage + chat e2e | **VENCIDO (parcial)**: RTX 3050, 1 boot 2026-11-03 — cage active VT7, hotswap DONE, `voice.turn` correu STT→hermes→TTS | 3 boots + screenshot do HUD; 240H continua AWAITING_HW |
 | M3b cinematic Chromium | **DERROTA**: `Unable to get gpu adapter`, Xwayland a reiniciar; fallback Slint subiu e o HUD apareceu | provar GPU no cage (não só fallback) |
 | M3f voz A1–A6 | **DERROTA**: A1 cards ✓, A4 mic 32044 B ✓, A2 mede PATH, A6 `voice.tts` ENOENT, STT devolveu texto vazio com `ok:true` | corrigido in-tree (tts vazio = erro, `-ngl` sem fit, A2 por socket); falta re-correr no metal |
-| nvidia-smi | **DERROTA**: SIGSEGV (core dumped) mesmo com `nvidia-bin-elf-pf-w`; o fix de ELF não basta | backtrace do coredump + NVML alternative |
+| nvidia-smi | **CAUSA RAIZ PROVADA (host, 2026-11-05)**: fault `0x401488` = `.dynamic + 0xe8` = `DT_DEBUG.d_ptr` escrito pelo ld.so num `PT_LOAD` que o patchelf deixou só `PF_R` (error 7); o fix OR-PF_W carrega sob glibc 2.44 (original rc=139 → corrigido rc=0), mas o **perfil** servia o binário por corrigir (`nvidia_x11` priority 4 vs 5 do fix, `ignoreCollisions=true`) — é esse o caminho do `hw-info.log` | `lib.hiPrio` + check `nvidia-smi-loads`; falta re-boot no metal (`--query-gpu` real) |
 | M5 peers / mesh | **DERROTA**: `peers=0`, `mesh_seeds=[]` com Wi-Fi ligado (ROVANI) | seeds unicast + bind real |
 | HITL cards | **IMPLEMENTED** thin `ui.card` + `card:` prompt; Slint rich residual | widgets Slint |
 | AgentJev LOO load | honesty ScorerAbsent + blob_deliberate; load runtime residual | `NOSD_S1_BLOB` pós-HITL |

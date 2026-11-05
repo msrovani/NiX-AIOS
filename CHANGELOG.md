@@ -26,6 +26,17 @@ Versionamento [SemVer](https://semver.org/).
     conteúdo; `ok:true` vazio; `-ngl` anula `--fit`; PATH≠serviço e default≠
     formato) e memória da sessão em
     `docs/memory/SESSION_20261105_USB_HARVEST_FIXES.md`.
+  - **`nvidia-smi` SIGSEGV — causa raiz provada no host**: o fault `0x401488`
+    é `.dynamic(0x4013a0) + 0xe8` = `DT_DEBUG.d_ptr`, escrito pelo `ld.so`
+    num `PT_LOAD` que o patchelf deixou só `PF_R` (`error 7` = escrita em
+    página presente/user read-only); corrigido carrega sob glibc 2.44
+    (original rc=139 → corrigido rc=0). O metal crashava porque o **perfil**
+    servia o binário por corrigir: `buildEnv { ignoreCollisions = true }`
+    resolve por `meta.priority` e o `nvidia_x11` tem 4 contra 5 do fix.
+    `lib.hiPrio` nas duas imagens CUDA + check **comportamental**
+    `nvidia-smi-loads` (corre o ELF sob o `ld.so` do alvo, não só as flags).
+    Lições 58–59; memória
+    `docs/memory/SESSION_20261105_NVIDIA_SMI_SIGSEGV.md`.
 
 ## [0.7.0-alpha.6] — HUD C1–C8 (correcções das fotos de metal) + pendrive FAT 1 GiB
 

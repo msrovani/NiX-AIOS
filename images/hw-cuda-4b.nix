@@ -89,8 +89,12 @@ in
     "char-nvidia-caps rw"
   ];
 
+  # `lib.hiPrio`: nixpkgs entra com `[ nvidia_x11.bin ]` (priority 4) e o
+  # system-path usa `ignoreCollisions = true`; sem ganhar a colisão o
+  # `/run/current-system/sw/bin/nvidia-smi` é o ELF por corrigir (metal
+  # 2026-11-03: SIGSEGV 0x401488 no perfil, com o fix presente no store).
   environment.systemPackages = lib.mkAfter [
     config.hardware.nvidia.package
-    nvidiaBinFixed
+    (lib.hiPrio nvidiaBinFixed)
   ];
 }

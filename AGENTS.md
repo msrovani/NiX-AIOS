@@ -272,6 +272,26 @@ Resumo executavel; detalhe em
     mic que funcionava (`32044 B`). Medir o objecto (socket/card) e, quando
     o consumidor exige formato, o probe tem de o declarar (`-r 16000 -c 1`).
 
+58. **`ignoreCollisions = true` resolve por `meta.priority` — e o nixpkgs já
+    reservou 4 para o `nvidia_x11`**: `register_env`/`system-path` usa
+    `buildEnv { ignoreCollisions = true }`, prioridade **menor** ganha a
+    colisão de `bin/nvidia-smi`. O `nvidia-bin-elf-pf-w` (default 5) ficava
+    no store mas **perdia** o symlink do perfil, que continuava a ser o
+    binário por corrigir — o fix estava certo e o metal crashava na mesma
+    (2026-11-03: `hw-info.log` executou `/run/current-system/sw/bin/
+    nvidia-smi`). Quem substitui um binário de um pacote alheio tem de usar
+    `lib.hiPrio` (priority < 4) e provar que ganhou, não só existir no store.
+
+59. **Flags certas ≠ binário carrega**: `segfault at 401488 … error 7 in
+    ld-linux` é o `ld.so` a escrever `DT_DEBUG.d_ptr`
+    (`0x401488 = .dynamic(0x4013a0) + 0xe8`) num `PT_LOAD` só `PF_R` depois
+    do patchelf; `error 7` = escrita em página presente/user read-only. O
+    check que só inspecciona `p_flags` passou com o binário a crashar. A
+    prova é **correr** o ELF sob o `ld.so` do alvo:
+    `${glibc.out}/lib/ld-linux-x86-64.so.2 --library-path … --help` com
+    rc=0 (host: original 139 → corrigido 0; `glibc` default output é `bin`
+    e não traz o loader — usar `.out`). Check `nvidia-smi-loads`.
+
 ## Comandos
 
 HW (um só pendrive): `nix build .#iso-hw` -> `scripts/pack-hw-usb.sh <iso> <img>`
