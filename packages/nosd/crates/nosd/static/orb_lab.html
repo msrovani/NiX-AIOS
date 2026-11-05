@@ -241,9 +241,14 @@ button{cursor:pointer}
 #energyJ{margin-left:auto;color:var(--ink-dim);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* ---------- visão ---------- */
+/* VISÃO no topo da coluna direita: altura própria e feed largo. No fim da
+   rail esquerda (scroll vertical, coluna a 25vw) o painel ficava com
+   min-height 96px no kiosk 720p. `flex:0 0 auto` vence `.panel.grow` para
+   não roubar espaço à ATIVIDADES. */
+#visionPanel{flex:0 0 auto;min-height:170px}
 .vision-body{display:flex;gap:10px;min-height:0;flex:1}
 .vision-feed{
-  position:relative;width:min(28vw,168px);flex:none;aspect-ratio:4/3;overflow:hidden;
+  position:relative;width:min(100%,220px);min-width:132px;flex:none;aspect-ratio:4/3;overflow:hidden;
   border:1px solid var(--edge-strong);background:#030b13;
 }
 .vision-feed video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.78;filter:saturate(.7) contrast(1.15) brightness(.72)}
@@ -612,7 +617,8 @@ button{cursor:pointer}
   .e-main b{font-size:calc(16px * var(--fs))}
   #energySpark{height:18px;margin-top:2px}
   .energy-foot{font-size:calc(6px * var(--fs));gap:5px;margin-top:0}
-  #visionPanel{min-height:96px}
+  #visionPanel{min-height:132px}
+  .vision-feed{width:min(100%,168px)}
   #center{gap:8px}
   #activity{height:30px}
   #captions{min-height:78px;max-height:96px}
@@ -802,24 +808,6 @@ button{cursor:pointer}
         </div>
       </section>
 
-      <section class="panel grow" id="visionPanel">
-        <header class="panel-head"><span class="idx">04</span><h2>VISÃO</h2><span class="rule"></span><span class="tag" id="visionTag">OFF</span></header>
-        <div class="vision-body">
-          <div class="vision-feed off" id="visionFeed">
-            <video id="vid" playsinline muted autoplay></video>
-            <div class="vision-grid" aria-hidden="true"></div>
-            <div class="vision-reticle" aria-hidden="true"></div>
-            <div class="vision-off" id="visionOff">SEM SENSOR ÓPTICO</div>
-          </div>
-          <div class="vision-meta">
-            <div class="kv"><span>MIC</span><b id="micState">OFF</b></div>
-            <div class="kv"><span>CAM</span><b id="camState">OFF</b></div>
-            <div class="meter" title="Nível de áudio"><i id="micBar"></i></div>
-            <div class="meter motion" title="Movimento da câmara"><i id="motionBar"></i></div>
-            <button id="camBtn" class="mini" type="button" title="Reiniciar câmara">REINICIAR</button>
-          </div>
-        </div>
-      </section>
     </aside>
 
     <section id="center" aria-label="Núcleo JARBAS">
@@ -877,6 +865,27 @@ button{cursor:pointer}
     </section>
 
     <aside id="railRight" aria-label="Atividades e autorizações">
+      <!-- 04 VISÃO: topo da coluna direita. No fim da rail esquerda (com
+           scroll, 25vw) o feed colapsava para ~96px no kiosk 720p. -->
+      <section class="panel grow" id="visionPanel">
+        <header class="panel-head"><span class="idx">04</span><h2>VISÃO</h2><span class="rule"></span><span class="tag" id="visionTag">OFF</span></header>
+        <div class="vision-body">
+          <div class="vision-feed off" id="visionFeed">
+            <video id="vid" playsinline muted autoplay></video>
+            <div class="vision-grid" aria-hidden="true"></div>
+            <div class="vision-reticle" aria-hidden="true"></div>
+            <div class="vision-off" id="visionOff">SEM SENSOR ÓPTICO</div>
+          </div>
+          <div class="vision-meta">
+            <div class="kv"><span>MIC</span><b id="micState">OFF</b></div>
+            <div class="kv"><span>CAM</span><b id="camState">OFF</b></div>
+            <div class="meter" title="Nível de áudio"><i id="micBar"></i></div>
+            <div class="meter motion" title="Movimento da câmara"><i id="motionBar"></i></div>
+            <button id="camBtn" class="mini" type="button" title="Reiniciar câmara">REINICIAR</button>
+          </div>
+        </div>
+      </section>
+
       <section class="panel grow" id="streamPanel">
         <header class="panel-head"><span class="idx">05</span><h2>ATIVIDADES</h2><span class="rule"></span><span class="tag live">LIVE</span></header>
         <ol id="actionList" aria-live="polite"></ol>
