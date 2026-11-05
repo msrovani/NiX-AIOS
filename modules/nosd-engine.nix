@@ -30,6 +30,8 @@ let
     # escolhe o maior contexto/NGL que cabe na VRAM; `--reasoning off` evita
     # o orçamento gasto em raciocínio do Qwen3.x. Estava SÓ no spawn, o que
     # tornava `supervise=true` um motor diferente do resto do sistema.
+    # `-ngl` fixo ANULA o `--fit`: com 99 um 4B Q6 rebenta em 6 GiB
+    # (`cudaMalloc` OOM, metal 2026-11-03). Só passa quando configurado.
     exec ${cfg.llamaPackage}/bin/llama-server \
       --host 127.0.0.1 \
       --port "$PORT" \
@@ -38,7 +40,7 @@ let
       --fit-ctx ${toString cfg.fitCtx} \
       --reasoning ${cfg.reasoning} \
       --no-webui \
-      -ngl ${toString cfg.nGpuLayers} \
+      ${lib.optionalString (cfg.nGpuLayers > 0) "-ngl ${toString cfg.nGpuLayers}"} \
       ''${KEYFILE:-}
   '';
 in
@@ -56,7 +58,14 @@ in
     };
     nGpuLayers = lib.mkOption {
       type = lib.types.int;
-      default = 99;
+      default = 0;
+      description = ''
+        Camadas a offloadar. **0 = deixa `--fit on` decidir** (máximo que cabe
+        na VRAM). Valor fixo alto anula o fit: `-ngl 99` num 4B Q6 com 6 GiB já
+        parcialmente ocupados mata o arranque com `cudaMalloc: out of memory`
+        (metal 2026-11-03, `nosd-engine-s2.service: Failed with result
+        'exit-code'`; só recuperou num restart com NGL 5).
+      '';
     };
     cudaVisibleDevices = lib.mkOption {
       type = lib.types.str;
@@ -218,7 +227,7 @@ in
               --fit-ctx ${toString cfg.fitCtx} \
               --reasoning ${cfg.reasoning} \
               --no-webui \
-              -ngl ${toString cfg.nGpuLayers} \
+              ${lib.optionalString (cfg.nGpuLayers > 0) "-ngl ${toString cfg.nGpuLayers}"} \
               ${lib.optionalString (cfg.apiKeyFile != null) "--api-key-file=%d/llama-api-key"} \
               ${lib.concatStringsSep " " cfg.extraArgs}
           '';

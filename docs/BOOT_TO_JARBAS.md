@@ -215,10 +215,14 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 | Gap | Status | Próximo |
 |-----|--------|---------|
-| M3b cage + chat e2e | AWAITING_HW / live | journal cage+`nosctl chat` |
+| M3b cage + chat e2e | **VENCIDO (parcial)**: RTX 3050, 1 boot 2026-11-03 — cage active VT7, hotswap DONE, `voice.turn` correu STT→hermes→TTS | 3 boots + screenshot do HUD; 240H continua AWAITING_HW |
+| M3b cinematic Chromium | **DERROTA**: `Unable to get gpu adapter`, Xwayland a reiniciar; fallback Slint subiu e o HUD apareceu | provar GPU no cage (não só fallback) |
+| M3f voz A1–A6 | **DERROTA**: A1 cards ✓, A4 mic 32044 B ✓, A2 mede PATH, A6 `voice.tts` ENOENT, STT devolveu texto vazio com `ok:true` | corrigido in-tree (tts vazio = erro, `-ngl` sem fit, A2 por socket); falta re-correr no metal |
+| nvidia-smi | **DERROTA**: SIGSEGV (core dumped) mesmo com `nvidia-bin-elf-pf-w`; o fix de ELF não basta | backtrace do coredump + NVML alternative |
+| M5 peers / mesh | **DERROTA**: `peers=0`, `mesh_seeds=[]` com Wi-Fi ligado (ROVANI) | seeds unicast + bind real |
 | HITL cards | **IMPLEMENTED** thin `ui.card` + `card:` prompt; Slint rich residual | widgets Slint |
 | AgentJev LOO load | honesty ScorerAbsent + blob_deliberate; load runtime residual | `NOSD_S1_BLOB` pós-HITL |
-| M4 metal journal | AWAITING_HW | [`METAL_CAMPAIGN.md`](METAL_CAMPAIGN.md) |
+| M4 metal journal | **VENCIDO**: bundle em [`evidence/hw/2026-11-03_2346Z`](evidence/hw/2026-11-03_2346Z/) (journal-boot/follow, cage, firstboot, harvest) | repetir 3× para VERIFIED; 240H AWAITING_HW |
 | M5 0081 A/B peers | AWAITING_HW | [`FLEET_LAB.md`](FLEET_LAB.md) |
 | Trinity neural | REJECT bare / score_v0 OK | não BitNet hub |
 

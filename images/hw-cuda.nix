@@ -88,9 +88,11 @@ in
   systemd.services.nosd.serviceConfig.Environment = lib.mkAfter [
     "CUDA_VISIBLE_DEVICES=0"
     "NVIDIA_VISIBLE_DEVICES=0"
-    # S1: 0.8B na dGPU. Sem NOSD_LLAMA_CTX: --fit escolhe ctx/NGL.
-    # NGL=99 = offload máximo; --fit reduz se a VRAM não chegar.
-    "NOSD_LLAMA_NGL=99"
+    # S1: 0.8B na dGPU. Sem NOSD_LLAMA_CTX/NGL fixos: `--fit on` decide
+    # camadas+ctx que cabem. NÃO reintroduzir `NOSD_LLAMA_NGL=99`: força o
+    # offload no spawn managed e o fit deixa de poder cortar (metal
+    # 2026-11-03: S2 morreu com `cudaMalloc: out of memory` a alocar
+    # 3352 MiB num GPU de 6 GiB já ocupado; só recuperou depois a NGL 5).
     "NOSD_LLAMA_MODEL=/var/lib/nosd/models/Qwen3.5-0.8B-Q4_K_M.gguf"
     # S2/PRO: 4B Q6_K (tier alpha.2 para 6 GB) no llama-server 8082.
     "NOSD_LLAMA_SERVER_S2=http://127.0.0.1:8082"

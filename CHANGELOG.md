@@ -3,6 +3,26 @@
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/).  
 Versionamento [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+- **Correcções da colheita metal de 2026-11-03** (`docs/evidence/hw/2026-11-03_2346Z`):
+  - `voice.stt` deixa de devolver `ok:true` com `text:""` — transcript vazio é
+    erro explícito (`nos_voice::transcript_or_error`), a mesma doutrina de
+    `percent:null`.
+  - TTS: ficheiro temporário **vazio** (piper falhado) deixou de passar por
+    bom; `wav_ready()` (＞44 B) dispara o fallback espeak e o erro final nomeia
+    o caminho em vez de `io: No such file or directory`.
+  - `-ngl` fixo removido do caminho `--fit`: `services.nosdEngine.nGpuLayers`
+    default **0** (o fit decide) e `hw-cuda` deixa de forçar `NOSD_LLAMA_NGL=99`.
+    Com 99, um 4B Q6 em 6 GiB parcialmente ocupados morre em `cudaMalloc OOM`
+    (`nosd-engine-s2.service: Failed with result 'exit-code'`).
+  - Probe M3b: A2 passa a medir o **socket** do PipeWire (as ferramentas são
+    reportadas à parte) e A4 grava a **16 kHz mono**, o formato que o whisper
+    aceita — o A2/A4 anteriores mediam o PATH e a taxa default do ALSA.
+  - `scripts/extract-usb-logs.py`: extrai o bundle do pendrive `NIXAIOSLOG`
+    (FAT32 lida no dispositivo cru, sem montar) para `logs/`, com filtro de
+    `wifi.conf`/`firstboot.conf` e WAV, e `MANIFEST.txt` com sha256.
+
 ## [0.7.0-alpha.6] — HUD C1–C8 (correcções das fotos de metal) + pendrive FAT 1 GiB
 
 - **HUD `orb_lab` C1–C6** (commits `2fa3e61` código + `01fd4f4`/`e60e930`

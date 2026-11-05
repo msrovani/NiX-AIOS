@@ -30,6 +30,29 @@ pub fn probe_voice_engines() -> VoiceEnginePosture {
     }
 }
 
+/// `voice.stt`/`voice.turn` honesty: transcript vazio **não** é sucesso.
+///
+/// O whisper devolve stdout vazio quando não há fala (ou só ruído). Reportar
+/// `ok:true` com `text:""` faz o chamador acreditar que ouviu algo — o mesmo
+/// defeito que `percent:0` num denominador vazio. Sem observação ⇒ erro
+/// explícito (metal 2026-11-03: A5 devolveu `ok:true, text:""`).
+pub fn transcript_or_error(text: String) -> Result<String, VoiceError> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Err(VoiceError::Exec("stt empty transcript".into()));
+    }
+    Ok(trimmed.to_string())
+}
+
+/// WAV válido = header 44 B + pelo menos uma amostra.
+///
+/// `is_file()` sozinho mente: `tts_temp_path()` cria o ficheiro **antes** de
+/// qualquer sintetizador correr, portanto um piper que falha deixava um WAV
+/// de 0 B a passar por bom e o fallback espeak nunca disparava.
+fn wav_ready(path: &Path) -> bool {
+    fs::metadata(path).map(|m| m.len() > 44).unwrap_or(false)
+}
+
 #[derive(Debug, Error)]
 pub enum VoiceError {
     #[error("engine absent: {0}")]
@@ -680,7 +703,7 @@ impl VoicePipeline {
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped())
                 .output()?;
-            if !out.status.success() || !out_wav.is_file() {
+            if !out.status.success() || !wav_ready(&out_wav) {
                 warn!(
                     target: "nosd",
                     "audiocpp tts fail: {}",
@@ -707,14 +730,15 @@ impl VoicePipeline {
                 stdin.write_all(b"\n")?;
             }
             let output = child.wait_with_output()?;
-            if !output.status.success() || !out_wav.is_file() {
+            if !output.status.success() || !wav_ready(&out_wav) {
                 let err = String::from_utf8_lossy(&output.stderr);
                 warn!(target: "nosd", "piper fail: {}", err);
             }
         }
 
-        // Se o piper ainda não foi baixado, usa espeak-ng local no idioma selecionado (ex. pt-br)
-        if !out_wav.is_file() {
+        // Se o piper ainda não foi baixado (ou produziu WAV vazio), usa espeak-ng
+        // local no idioma selecionado (ex. pt-br).
+        if !wav_ready(&out_wav) {
             let espeak = find_espeak_cli().ok_or(VoiceError::EngineAbsent("piper/espeak-ng"))?;
             let voice_arg = match loc.whisper_lang.as_str() {
                 "pt" => "pt-br",
@@ -728,7 +752,7 @@ impl VoicePipeline {
                 .arg(&out_wav)
                 .arg(text)
                 .status()?;
-            if !st.success() || !out_wav.is_file() {
+            if !st.success() || !wav_ready(&out_wav) {
                 return Err(VoiceError::Exec("espeak-ng synthesis failed".into()));
             }
         }
@@ -747,7 +771,19 @@ impl VoicePipeline {
             }
         }
 
-        let bytes = fs::read(&out_wav)?;
+        // ENOENT aqui significa: nenhum backend escreveu o WAV. Nomear o
+        // caminho e o tamanho evita o "io: No such file or directory" opaco
+        // que apareceu no metal (voice.tts, 2026-11-03).
+        let bytes = fs::read(&out_wav).map_err(|e| {
+            VoiceError::Exec(format!(
+                "tts wav {} ({}): {e}",
+                out_wav.display(),
+                "nao escrito"
+            ))
+        })?;
+        if bytes.len() <= 44 {
+            return Err(VoiceError::Exec("tts: wav vazio (0 amostras)".into()));
+        }
         info!(
             target: "nosd",
             "tts locale={} bytes={} play={} play_ok={}",
@@ -921,6 +957,30 @@ mod tests {
         drop(b);
         assert!(!pa.exists(), "o guard apaga o WAV de A");
         assert!(!pb.exists(), "o guard apaga o WAV de B");
+    }
+
+    #[test]
+    fn empty_transcript_is_an_error() {
+        assert!(matches!(
+            transcript_or_error("   ".into()),
+            Err(VoiceError::Exec(_))
+        ));
+        assert!(matches!(
+            transcript_or_error("".into()),
+            Err(VoiceError::Exec(_))
+        ));
+        assert_eq!(transcript_or_error(" oi ".into()).unwrap(), "oi");
+    }
+
+    #[test]
+    fn empty_wav_is_not_ready() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("empty.wav");
+        std::fs::write(&p, b"RIFF").unwrap();
+        assert!(!wav_ready(&p), "ficheiro criado mas sem amostras nao conta");
+        std::fs::write(&p, vec![0u8; 45]).unwrap();
+        assert!(wav_ready(&p));
+        assert!(!wav_ready(&dir.path().join("nope.wav")));
     }
 
     #[test]

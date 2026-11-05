@@ -54,14 +54,29 @@ pub(crate) fn dispatch(state: &AppState, gate: &CapGate, req: Request) -> Option
                 }
             };
             match res {
-                Ok(text) => Response {
-                    id: req.id,
-                    ok: true,
-                    error: None,
-                    result: json!({
-                        "text": text,
-                        "locale": vp.status().locale.raw_locale,
-                    }),
+                // Honestidade: whisper sem fala devolve `Ok("")`. Isso não é
+                // sucesso — `ok:true, text:""` fazia o ORB marcar STT como
+                // bom sem ter ouvido nada (metal 2026-11-03, A5).
+                Ok(text) => match nos_voice::transcript_or_error(text) {
+                    Ok(text) => Response {
+                        id: req.id,
+                        ok: true,
+                        error: None,
+                        result: json!({
+                            "text": text,
+                            "locale": vp.status().locale.raw_locale,
+                        }),
+                    },
+                    Err(e) => Response {
+                        id: req.id,
+                        ok: false,
+                        error: Some(e.to_string()),
+                        result: json!({
+                            "text": "",
+                            "empty": true,
+                            "locale": vp.status().locale.raw_locale,
+                        }),
+                    },
                 },
                 Err(e) => Response {
                     id: req.id,

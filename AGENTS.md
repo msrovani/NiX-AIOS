@@ -280,6 +280,16 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **Colheita metal 2026-11-03 (OBSERVED, 1 boot)**: bundle do pendrive
+  `NIXAIOSLOG` lido read-only (sem montar) e versionado em
+  [`docs/evidence/hw/2026-11-03_2346Z/`](docs/evidence/hw/2026-11-03_2346Z/)
+  — journal-boot/follow, jarbas-cage, firstboot, hotswap e harvest M3b.
+  Provou: cage **active** em VT7, S2 carregou o 4B Q6_K (depois de um OOM no
+  1.º arranque), mic **32044 B** sob `DeviceAllow=char-alsa`, transmute a
+  recusar blobs (`blob_deliberate`). Derrotas registadas em
+  `BOOT_TO_JARBAS.md`: `nvidia-smi` SIGSEGV mesmo com `nvidia-bin-elf-pf-w`,
+  `voice.tts` ENOENT, STT `ok` com texto vazio, peers=0. Extração
+  reprodutível: `scripts/extract-usb-logs.py` → `logs/` (gitignored).
 - **Tranche 0.7.0-alpha.6 (in-tree, HUD C1–C6 + pendrive FAT 1 GiB)**:
   correcções do HUD `orb_lab.html` dirigidas às fotos do metal
   0.7.0-alpha.5 — C1 rede por `link_state` real (`nos-observe::

@@ -27,3 +27,6 @@ packages/nosd/vendor/
 
 # Logs/snippets ad hoc em evidence (evidência real sem underscore)
 /docs/evidence/_*
+
+# Logs locais extraídos do pendrive (podem ter SSIDs/áudio: nunca versionar)
+/logs/

@@ -53,18 +53,34 @@ run_as_nosd() {
 }
 
 echo "--- A2 PipeWire / wpctl ---"
-if run_as_nosd wpctl status >"$OUT/a2-wpctl.txt" 2>"$OUT/a2-wpctl.err"; then
-  A2=wpctl_ok
-  echo "A2=wpctl_ok"
+# Honestidade do instrumento: `wpctl`/`pw-cli` ausentes do PATH do probe NÃO
+# provam que o grafo PipeWire não existe (metal 2026-11-03: A2=pipewire_absent
+# com /run/nosd/user/pipewire-0 presente). A prova primária é o socket; as
+# ferramentas são reportadas à parte.
+A2_TOOLS=absent
+if [ -S "$XDG_NOSD/pipewire-0" ]; then
+  A2=pipewire_socket
+  echo "A2=pipewire_socket ($XDG_NOSD/pipewire-0)"
 else
   A2=pipewire_absent
-  echo "A2=pipewire_absent"
+  echo "A2=pipewire_absent (sem socket em $XDG_NOSD)"
 fi
+if run_as_nosd wpctl status >"$OUT/a2-wpctl.txt" 2>"$OUT/a2-wpctl.err"; then
+  A2_TOOLS=wpctl_ok
+elif run_as_nosd sh -c 'command -v wpctl >/dev/null 2>&1 || [ -x /run/current-system/sw/bin/wpctl ]' 2>/dev/null; then
+  A2_TOOLS=wpctl_present_failed
+else
+  A2_TOOLS=wpctl_absent_path
+fi
+echo "A2_TOOLS=${A2_TOOLS}"
 ls -la "$XDG_NOSD" >"$OUT/a2-runtime-dir.txt" 2>&1 || true
 run_as_nosd pw-cli info 0 >"$OUT/a2-pw-cli.txt" 2>"$OUT/a2-pw-cli.err" || true
 
 echo "--- A4 arecord 2s ---"
-if run_as_nosd arecord -d 2 -f S16_LE "$MIC_WAV" >"$OUT/a4-arecord.txt" 2>"$OUT/a4-arecord.err"; then
+# 16 kHz mono: é o formato que `nos-voice` grava e o que o whisper.cpp aceita.
+# Sem `-r 16000 -c 1` o ALSA usa 8000 Hz e o STT falha por taxa errada —
+# falso negativo do instrumento, não do microfone (NEXUS-0041 F8).
+if run_as_nosd arecord -q -f S16_LE -r 16000 -c 1 -d 2 "$MIC_WAV" >"$OUT/a4-arecord.txt" 2>"$OUT/a4-arecord.err"; then
   BYTES=$(wc -c <"$MIC_WAV" | tr -d ' ')
   if [ "${BYTES:-0}" -gt 44 ]; then
     A4=mic_ok
