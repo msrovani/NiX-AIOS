@@ -31,8 +31,39 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Lê o primeiro contador RAPL disponível (microjoules).
+/// Quantos packages (`intel-rapl:N`) vale a pena sondar.
+pub const RAPL_MAX_PACKAGES: u32 = 8;
+
+/// C7.1: soma dos packages presentes. `None` quando nenhum respondeu (o
+/// chamador segue para NVML/`absent` — nunca 0 J inventado).
+pub fn sum_rapl_packages(vals: &[Option<u64>]) -> Option<u64> {
+    let mut total = 0u64;
+    let mut any = false;
+    for v in vals.iter().flatten() {
+        total = total.saturating_add(*v);
+        any = true;
+    }
+    any.then_some(total)
+}
+
+/// Le os contadores RAPL (microjoules).
+///
+/// C7.1: `intel-rapl:0` e o **primeiro** package; num Xeon/HEDT so mede metade
+/// da maquina. Somar todos os packages e, se nenhum existir, cair nos
+/// candidatos alternativos (`amd-rapl`, subzonas).
 pub fn read_rapl_uj() -> Option<u64> {
+    let mut vals: Vec<Option<u64>> = Vec::with_capacity(RAPL_MAX_PACKAGES as usize);
+    for idx in 0..RAPL_MAX_PACKAGES {
+        let path = format!("/sys/class/powercap/intel-rapl:{idx}/energy_uj");
+        vals.push(
+            std::fs::read_to_string(&path)
+                .ok()
+                .and_then(|t| t.trim().parse::<u64>().ok()),
+        );
+    }
+    if let Some(total) = sum_rapl_packages(&vals) {
+        return Some(total);
+    }
     for path in RAPL_CANDIDATES {
         if let Ok(text) = std::fs::read_to_string(path) {
             if let Ok(v) = text.trim().parse::<u64>() {
@@ -674,5 +705,19 @@ mod tests {
         assert_eq!(thermal_hint(Some(50.0), Some(60.0)), "fan_less");
         assert_eq!(thermal_hint(Some(79.0), Some(40.0)), "fan_more");
         assert_eq!(thermal_hint(Some(90.0), Some(100.0)), "fan_more_critical");
+    }
+}
+
+#[cfg(test)]
+mod f7_tests {
+    use super::*;
+
+    #[test]
+    fn rapl_sums_every_package() {
+        assert_eq!(sum_rapl_packages(&[Some(10), Some(5)]), Some(15));
+        assert_eq!(sum_rapl_packages(&[Some(10), None, Some(5)]), Some(15));
+        // Nenhum package: ausencia, nao zero.
+        assert_eq!(sum_rapl_packages(&[None, None]), None);
+        assert_eq!(sum_rapl_packages(&[]), None);
     }
 }
