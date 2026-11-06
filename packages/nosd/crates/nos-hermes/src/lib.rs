@@ -679,9 +679,17 @@ impl HermesEngine {
     fn plan_slot(&self, decision: RouteDecision) -> ModelSlot {
         let cap = CapacityProber::probe();
         let try_load = |slot: ModelSlot| -> bool {
-            let need = self.hub.need_mb(slot);
-            self.hub
-                .ensure_loaded_fit(slot, need, cap.ram_avail_mb, cap.vram_free_mb)
+            // C2.2: need = ficheiro + KV (source="estimate"). C2.1: VRAM e RAM
+            // separadas — S1/CPU pode fazer spill declarado, S2/CUDA nao.
+            let need = self.hub.need_estimate(slot);
+            self.hub.ensure_loaded_fit(
+                slot,
+                need.need_vram_mb,
+                need.need_ram_mb,
+                cap.ram_avail_mb,
+                cap.vram_free_mb,
+                true,
+            )
         };
         let chosen = if try_load(decision.slot) {
             decision.slot

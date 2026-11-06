@@ -230,7 +230,7 @@ async fn main() -> anyhow::Result<()> {
     let suggest_ngl = nos_cortex::plan_n_gpu_layers(32, 80, cap.vram_free_mb, 256, 128, 256);
     info!(
         target: "nosd",
-        "capacity ram_avail_mb={} vendor={} cards={:?} render={:?} igpu={:?} dgpu={:?} vram_free_mb={} posture={} suggest_ngl={} (hint only — --fit decides; set NOSD_LLAMA_NGL in the unit to override)",
+        "capacity ram_avail_mb={} vendor={} cards={:?} render={:?} igpu={:?} dgpu={:?} vram_free_mb={} vram_total_mb={} posture={} suggest_ngl={} (hint only — --fit decides; set NOSD_LLAMA_NGL in the unit to override)",
         cap.ram_avail_mb,
         cap.vendor_hint,
         cap.dri_cards,
@@ -238,6 +238,7 @@ async fn main() -> anyhow::Result<()> {
         cap.igpu_card,
         cap.dgpu_card,
         cap.vram_free_mb,
+        cap.vram_free_total_mb,
         posture,
         suggest_ngl
     );

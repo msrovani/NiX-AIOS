@@ -11,7 +11,12 @@ use std::time::{Duration, Instant};
 pub struct NodeCapacity {
     pub ram_total_mb: u64,
     pub ram_avail_mb: u64,
+    /// VRAM livre da **maior** placa (o fit usa este valor — um modelo cabe
+    /// numa placa, nao na soma).
     pub vram_free_mb: u64,
+    /// Soma de todas as placas — so relatorio (C2.4).
+    #[serde(default)]
+    pub vram_free_total_mb: u64,
     pub dri_cards: Vec<String>,
     pub dri_render: Vec<String>,
     pub vendor_hint: String,
@@ -47,7 +52,10 @@ impl CapacityProber {
             c.vendor_hint = "nvidia".into();
         }
         // Best-effort: nvidia-smi (WSL/host) sem linkar NVML — honesty 0113.
-        c.vram_free_mb = probe_nvidia_smi_free_mb().unwrap_or(0);
+        // C2.4: somar 2x6 GiB nao da 12 GiB uteis.
+        let (max_card, total) = probe_nvidia_smi_free_mb().unwrap_or((0, 0));
+        c.vram_free_mb = max_card;
+        c.vram_free_total_mb = total;
         if c.vram_free_mb > 0 && c.vendor_hint == "cpu" {
             c.vendor_hint = "nvidia".into();
         }
@@ -141,9 +149,9 @@ fn drm_vendor_id(card: &str) -> Option<String> {
 /// `nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits`
 /// Cache 20 s (positivo ou negativo) — evita coredump spam no HUD.
 /// Cache de `nvidia-smi` (instante da leitura + valor), 20 s.
-type SmiCache = Mutex<Option<(Instant, Option<u64>)>>;
+type SmiCache = Mutex<Option<(Instant, Option<(u64, u64)>)>>;
 
-fn probe_nvidia_smi_free_mb() -> Option<u64> {
+fn probe_nvidia_smi_free_mb() -> Option<(u64, u64)> {
     static CACHE: OnceLock<SmiCache> = OnceLock::new();
     let cell = CACHE.get_or_init(|| Mutex::new(None));
     if let Ok(guard) = cell.lock() {
@@ -160,7 +168,7 @@ fn probe_nvidia_smi_free_mb() -> Option<u64> {
     result
 }
 
-fn probe_nvidia_smi_free_mb_uncached() -> Option<u64> {
+fn probe_nvidia_smi_free_mb_uncached() -> Option<(u64, u64)> {
     let smi = nos_core::nvidia_smi_path()?;
     let out = Command::new(smi)
         .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"])
@@ -170,7 +178,8 @@ fn probe_nvidia_smi_free_mb_uncached() -> Option<u64> {
         return None;
     }
     let s = String::from_utf8_lossy(&out.stdout);
-    // multi-GPU: soma free (hint; offload real exige build CUDA)
+    // C2.4: devolve (maximo por placa, total). O fit usa o maximo.
+    let mut max_card = 0u64;
     let mut total = 0u64;
     let mut any = false;
     for line in s.lines() {
@@ -179,11 +188,12 @@ fn probe_nvidia_smi_free_mb_uncached() -> Option<u64> {
             continue;
         }
         if let Ok(v) = t.parse::<u64>() {
+            max_card = max_card.max(v);
             total = total.saturating_add(v);
             any = true;
         }
     }
-    any.then_some(total)
+    any.then_some((max_card, total))
 }
 
 fn read_meminfo_kb(key: &str) -> Option<u64> {
@@ -287,6 +297,19 @@ mod tests {
         let c = NodeCapacity::default();
         let a = detect_accel_backends(&c);
         assert!(a.contains(&"cpu".into()) || !a.is_empty());
+    }
+
+    #[test]
+    fn vram_max_per_card_is_not_the_sum() {
+        // Fixture de 2 placas: o relatorio soma, o fit le a maior.
+        let c = NodeCapacity {
+            vram_free_mb: 6000,
+            vram_free_total_mb: 12_000,
+            ..Default::default()
+        };
+        assert_eq!(c.vram_free_mb, 6000);
+        assert_eq!(c.vram_free_total_mb, 12_000);
+        assert_eq!(CapacityProber::vram_posture(&c), "nvidia_smi");
     }
 
     #[test]

@@ -44,7 +44,8 @@ pub fn plan_airllm(
     avail_vram_mb: u64,
     n_layers: u32,
 ) -> AirLlmPlan {
-    let fit = fit_model(need_mb, avail_ram_mb, avail_vram_mb);
+    // C2.1: o stream por camadas e o caso de spill (CPU/offload parcial).
+    let fit = fit_model(need_mb, 0, avail_ram_mb, avail_vram_mb, true);
     let avail_mb = avail_ram_mb.saturating_add(avail_vram_mb);
     let n_layers = n_layers.max(1);
     match fit.verdict {

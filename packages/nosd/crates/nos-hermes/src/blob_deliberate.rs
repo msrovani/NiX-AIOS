@@ -54,19 +54,24 @@ pub fn deliberate_blob_fetch(
     scorer_absent: bool,
 ) -> BlobDeliberation {
     let suggest = suggest_for_capacity(cap);
+    // C2.1: VRAM (pesos) separada da RAM (KV/overhead); o download pode
+    // fazer spill declarado — o `basis` diz onde o veredicto se apoia.
     let fit_rep = fit_model(
         need.estimated_mb.max(1),
+        256,
         cap.ram_avail_mb.max(1),
         cap.vram_free_mb,
+        true,
     );
     let cortex_plan = format!(
-        "kind={:?} src={} est_mb={} quant={} ngl={} fit={:?} airllm={}",
+        "kind={:?} src={} est_mb={} quant={} ngl={} fit={:?} basis={:?} airllm={}",
         need.kind,
         need.source,
         need.estimated_mb,
         suggest.quant,
         suggest.suggest_ngl,
         fit_rep.verdict,
+        fit_rep.basis,
         fit_rep.suggest_airllm
     );
 
