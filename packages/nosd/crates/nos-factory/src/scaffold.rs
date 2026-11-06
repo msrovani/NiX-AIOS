@@ -34,16 +34,30 @@ impl Lang {
 
     /// Linguagem pedida no intent; default Rust (o AIOS é Rust-first).
     pub fn detect(intent: &str) -> Self {
+        // C5.3: `Self::parse(&s)` recebia a frase inteira e nunca casava (o
+        // parse espera um token). Procurar o token no texto; o primeiro
+        // explicito ganha, e sem nenhum o default continua a ser Rust.
         let s = intent.to_lowercase();
-        match Self::parse(&s) {
-            Some(l) => l,
-            None => {
-                if s.contains("python") || s.contains("script python") || s.contains(".py") {
+        let toks: Vec<&str> = s
+            .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+            .filter(|t| !t.is_empty())
+            .collect();
+        let python_at = toks
+            .iter()
+            .position(|t| matches!(*t, "python" | "python3" | "py"));
+        let rust_at = toks
+            .iter()
+            .position(|t| matches!(*t, "rust" | "rustc" | "cargo" | "rs"));
+        match (python_at, rust_at) {
+            (Some(p), Some(r)) => {
+                if p < r {
                     Self::Python
                 } else {
                     Self::Rust
                 }
             }
+            (Some(_), None) => Self::Python,
+            _ => Self::Rust,
         }
     }
 }
@@ -426,6 +440,19 @@ pub fn write(plan: &ScaffoldPlan, root: &Path) -> Result<PathBuf, ScaffoldError>
             )));
         }
     }
+    // C5.2: reescrever por cima apagava trabalho do utilizador sem aviso. Se o
+    // destino ja tem ficheiros, recusar — quem chamou tem de pedir overwrite.
+    if dir.is_dir() {
+        let existing = std::fs::read_dir(&dir)
+            .map(|rd| rd.flatten().count())
+            .unwrap_or(0);
+        if existing > 0 {
+            return Err(ScaffoldError::Exists(format!(
+                "{} ja tem {existing} ficheiro(s) (recusado sem overwrite)",
+                dir.display()
+            )));
+        }
+    }
     std::fs::create_dir_all(&dir).map_err(|e| ScaffoldError::Io(e.to_string()))?;
     for f in &plan.files {
         // Sem `..` nem absolutos: o plano é server-authored, mas não confiamos.
@@ -535,6 +562,11 @@ fn truncate(s: &mut String, cap: usize) {
 /// `rustc -O`; Python: `python3 app.py`.
 pub fn build_and_run(plan: &ScaffoldPlan, dir: &Path) -> RunOutcome {
     const LIMIT: Duration = Duration::from_secs(120);
+    // C5.1: a app nasce com `flake.nix`; construir pelo PATH ignorava-o. Se o
+    // nix responde, construir a derivacao e correr `out/bin/<name>`.
+    if let Some(outcome) = nix_build_outcome(plan, dir, LIMIT) {
+        return outcome;
+    }
     match plan.lang {
         Lang::Rust => {
             let arg = "hello";
@@ -565,6 +597,49 @@ pub fn build_and_run(plan: &ScaffoldPlan, dir: &Path) -> RunOutcome {
             None => absent("python3"),
         },
     }
+}
+
+/// C5.1: `nix build --no-link --print-out-paths` sobre o `flake.nix` gerado.
+/// `None` = nix ausente ou daemon sem resposta (cai para o PATH, declarado).
+/// Sem `trusted-users`, o `nosd` nao escreve no store: `nix store ping` falha
+/// e o caminho antigo fica — honesto, nao um `ok` inventado.
+fn nix_build_outcome(plan: &ScaffoldPlan, dir: &Path, limit: Duration) -> Option<RunOutcome> {
+    let nix = which("nix")?;
+    let ping = run_cmd(dir, &nix, &["store", "ping"], Duration::from_secs(20));
+    if ping.status != "ok" {
+        return None;
+    }
+    let build = run_cmd(
+        dir,
+        &nix,
+        &["build", "--no-link", "--print-out-paths"],
+        limit,
+    );
+    if build.status != "ok" {
+        return Some(RunOutcome {
+            status: "build_failed".into(),
+            note: format!("nix build: {}", first_line(&build.stderr)),
+            ..build
+        });
+    }
+    let out_path = build
+        .stdout
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("")
+        .to_string();
+    let bin = Path::new(&out_path).join("bin").join(&plan.name);
+    if out_path.is_empty() || !bin.is_file() {
+        return Some(RunOutcome {
+            status: "build_failed".into(),
+            note: format!("nix out sem bin/{}: {out_path}", plan.name),
+            ..build
+        });
+    }
+    let mut o = run_cmd(dir, &bin, &["hello"], limit);
+    o.note = format!("nix:{out_path}");
+    Some(o)
 }
 
 fn first_line(s: &str) -> String {
@@ -665,5 +740,37 @@ mod tests {
             "engine_absent" => {}
             other => panic!("estado inesperado: {other} — {}", out.stderr),
         }
+    }
+}
+
+#[cfg(test)]
+mod f5_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn detect_finds_the_language_token_in_a_phrase() {
+        assert_eq!(Lang::detect("gerar app py de saudacao"), Lang::Python);
+        assert_eq!(Lang::detect("quero um cargo project"), Lang::Rust);
+        // O primeiro token explicito ganha.
+        assert_eq!(
+            Lang::detect("script em python que chama rust"),
+            Lang::Python
+        );
+        // Sem token, o default honesto continua Rust.
+        assert_eq!(Lang::detect("monitor de rede"), Lang::Rust);
+    }
+
+    #[test]
+    fn write_refuses_to_overwrite_an_existing_app() {
+        let d = tempdir().unwrap();
+        let p = plan("app python de saudacao", Some(Lang::Python));
+        let dir = write(&p, d.path()).unwrap();
+        assert!(dir.join("app.py").is_file());
+        let second = write(&p, d.path());
+        assert!(
+            matches!(second, Err(ScaffoldError::Exists(_))),
+            "{second:?}"
+        );
     }
 }
