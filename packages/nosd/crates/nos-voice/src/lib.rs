@@ -299,6 +299,18 @@ pub struct VoiceModelInfo {
     pub sha256: Option<String>,
 }
 
+/// C4.1: o basename do `.onnx` tem de comecar pelo idioma primario do locale
+/// (`pt`, `pt_BR` e `pt-br` casam com `pt`; `en_US` nao).
+pub fn piper_model_matches_lang(file_stem: &str, lang: &str) -> bool {
+    let stem = file_stem.to_ascii_lowercase();
+    let lang = lang.to_ascii_lowercase();
+    let primary = lang.split(['_', '-']).next().unwrap_or("").to_string();
+    if primary.is_empty() {
+        return false;
+    }
+    stem.starts_with(&primary)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceStatus {
     pub locale: LocaleVoiceSpec,
@@ -325,6 +337,9 @@ pub struct VoiceStatus {
     /// Rótulo curto para HUD: piper|espeak|absent.
     #[serde(default)]
     pub tts_engine: String,
+    /// C4.2: porque este modelo STT (base > tiny), declarado em vez de implicito.
+    #[serde(default)]
+    pub stt_model_reason: String,
 }
 
 #[derive(Clone)]
@@ -393,9 +408,20 @@ impl VoicePipeline {
         } else {
             "EngineAbsent".into()
         };
+        let stt_model_reason = match w_model
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .and_then(|f| f.to_str())
+        {
+            Some("ggml-tiny.bin") => "tiny (embutido; base ausente - precisao menor)".to_string(),
+            Some(name) if name.contains("base") => "base (preferido sobre tiny)".to_string(),
+            Some(name) => format!("{name} (declarado pelo locale)"),
+            None => "absent".to_string(),
+        };
         VoiceStatus {
             stt_ready,
             tts_ready,
+            stt_model_reason,
             locale,
             whisper_cli: w_cli.map(|p| p.display().to_string()),
             whisper_model: w_model.map(|p| p.display().to_string()),
@@ -467,12 +493,14 @@ impl VoicePipeline {
     }
 
     fn find_whisper_model(&self, loc: &LocaleVoiceSpec) -> Option<PathBuf> {
-        // Preferir tiny (embutido na iso-hw); base/small só se existirem.
+        // C4.2: o tiny vinha primeiro por estar na ISO, e transcreve mal em fala
+        // real. Ordem: modelo do locale, base, small e so no fim o tiny
+        // embutido — a razao vai declarada em `stt_model_reason`.
         [
-            self.models_dir.join("ggml-tiny.bin"),
             self.models_dir.join(&loc.whisper_model_file),
-            self.models_dir.join("ggml-small.bin"),
             self.models_dir.join("ggml-base.bin"),
+            self.models_dir.join("ggml-small.bin"),
+            self.models_dir.join("ggml-tiny.bin"),
         ]
         .into_iter()
         .find(|cand| cand.is_file())
@@ -483,15 +511,23 @@ impl VoicePipeline {
         if preferred.is_file() {
             return Some(preferred);
         }
+        // C4.1: cair no primeiro `.onnx` punha uma voz estrangeira a falar em
+        // silencio. So vale um modelo cujo basename seja do idioma pedido.
+        let mut accepted: Vec<PathBuf> = Vec::new();
         if let Ok(rd) = fs::read_dir(&self.models_dir) {
             for e in rd.flatten() {
                 let p = e.path();
-                if p.extension().and_then(|s| s.to_str()) == Some("onnx") {
-                    return Some(p);
+                if p.extension().and_then(|s| s.to_str()) != Some("onnx") {
+                    continue;
+                }
+                let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if piper_model_matches_lang(stem, &loc.whisper_lang) {
+                    accepted.push(p);
                 }
             }
         }
-        None
+        accepted.sort();
+        accepted.into_iter().next()
     }
 
     pub fn wake_word_poll(&self, pcm: &[i16]) -> bool {
@@ -712,33 +748,40 @@ impl VoicePipeline {
             }
         }
 
-        if let (Some(cli), Some(model)) = (find_piper_cli(), self.find_piper_model(&loc)) {
-            let mut child = Command::new(&cli)
-                .args([
-                    "--model",
-                    &model.display().to_string(),
-                    "--output_file",
-                    &out_wav.display().to_string(),
-                ])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::null())
-                .stderr(Stdio::piped())
-                .spawn()?;
+        // C4.3: se o audio.cpp ja escreveu um WAV valido, o piper nao corre —
+        // dois escritores no mesmo ficheiro truncavam o bom resultado.
+        if !wav_ready(&out_wav) {
+            if let (Some(cli), Some(model)) = (find_piper_cli(), self.find_piper_model(&loc)) {
+                let mut child = Command::new(&cli)
+                    .args([
+                        "--model",
+                        &model.display().to_string(),
+                        "--output_file",
+                        &out_wav.display().to_string(),
+                    ])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::piped())
+                    .spawn()?;
 
-            if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(text.as_bytes())?;
-                stdin.write_all(b"\n")?;
-            }
-            let output = child.wait_with_output()?;
-            if !output.status.success() || !wav_ready(&out_wav) {
-                let err = String::from_utf8_lossy(&output.stderr);
-                warn!(target: "nosd", "piper fail: {}", err);
+                if let Some(mut stdin) = child.stdin.take() {
+                    stdin.write_all(text.as_bytes())?;
+                    stdin.write_all(b"\n")?;
+                }
+                let output = child.wait_with_output()?;
+                if !output.status.success() || !wav_ready(&out_wav) {
+                    let err = String::from_utf8_lossy(&output.stderr);
+                    warn!(target: "nosd", "piper fail: {}", err);
+                }
             }
         }
 
         // Se o piper ainda não foi baixado (ou produziu WAV vazio), usa espeak-ng
         // local no idioma selecionado (ex. pt-br).
         if !wav_ready(&out_wav) {
+            // C4.3: um WAV meio escrito passava por bom e o espeak escrevia por
+            // cima; apagar primeiro garante um so autor por ficheiro.
+            let _ = fs::remove_file(&out_wav);
             let espeak = find_espeak_cli().ok_or(VoiceError::EngineAbsent("piper/espeak-ng"))?;
             let voice_arg = match loc.whisper_lang.as_str() {
                 "pt" => "pt-br",
@@ -837,14 +880,21 @@ fn play_wav_file(path: &Path) -> Result<(), VoiceError> {
         warn!(target: "nosd", "pw-play exit={st:?}; fallback aplay");
     }
     let aplay = which(&["aplay"]).ok_or(VoiceError::EngineAbsent("pw-play/aplay"))?;
-    // Ordem: default → pipewire plugin → primeira placa analógica comum.
-    for args in [
-        vec!["-q"],
-        vec!["-q", "-D", "pipewire"],
-        vec!["-q", "-D", "default"],
-        vec!["-q", "-D", "plughw:0,0"],
-        vec!["-q", "-D", "hw:0,0"],
-    ] {
+    // C4.4: devices fixos (`plughw:0,0`) falham quando o cartao 0 esta ocupado
+    // ou e um HDMI mudo. Descobrir os cartoes reais do host e tentar todos.
+    let mut tries: Vec<Vec<String>> = vec![
+        vec!["-q".to_string()],
+        vec!["-q".to_string(), "-D".to_string(), "pipewire".to_string()],
+        vec!["-q".to_string(), "-D".to_string(), "default".to_string()],
+    ];
+    for (card, device) in aplay_cards(&aplay) {
+        tries.push(vec![
+            "-q".to_string(),
+            "-D".to_string(),
+            format!("plughw:{card},{device}"),
+        ]);
+    }
+    for args in tries {
         let mut cmd = Command::new(&aplay);
         cmd.args(&args).arg(path);
         match cmd.status() {
@@ -857,6 +907,42 @@ fn play_wav_file(path: &Path) -> Result<(), VoiceError> {
         }
     }
     Err(VoiceError::Exec("aplay: todos os devices falharam".into()))
+}
+
+/// Cartoes/device ALSA reais (`aplay -l`), na ordem do kernel (C4.4).
+fn aplay_cards(aplay: &Path) -> Vec<(u32, u32)> {
+    match Command::new(aplay).arg("-l").output() {
+        Ok(out) => parse_aplay_cards(&String::from_utf8_lossy(&out.stdout)),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Parser puro de `aplay -l` (testavel sem placa de som).
+fn parse_aplay_cards(text: &str) -> Vec<(u32, u32)> {
+    let mut cards: Vec<(u32, u32)> = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("card ") else {
+            continue;
+        };
+        let Some((card_part, dev_part)) = rest.split_once(", device ") else {
+            continue;
+        };
+        let card = card_part
+            .split(':')
+            .next()
+            .and_then(|n| n.trim().parse::<u32>().ok());
+        let device = dev_part
+            .split(':')
+            .next()
+            .and_then(|n| n.trim().parse::<u32>().ok());
+        if let (Some(c), Some(d)) = (card, device) {
+            if !cards.contains(&(c, d)) {
+                cards.push((c, d));
+            }
+        }
+    }
+    cards
 }
 
 fn write_wav_16k_mono(path: &Path, pcm: &[i16]) -> std::io::Result<()> {
@@ -1014,5 +1100,26 @@ mod tests {
         let en = LocaleVoiceSpec::from_locale_str("en_US.UTF-8");
         assert_eq!(en.whisper_lang, "en");
         assert_eq!(en.piper_voice, "en_US-lessac-medium");
+    }
+}
+
+#[cfg(test)]
+mod f4_tests {
+    use super::*;
+
+    #[test]
+    fn piper_model_must_match_the_language() {
+        assert!(piper_model_matches_lang("pt_BR-faber-low", "pt"));
+        assert!(piper_model_matches_lang("pt-br-faber", "pt_BR"));
+        assert!(!piper_model_matches_lang("en_US-amy-low", "pt"));
+        assert!(!piper_model_matches_lang("en_US-amy-low", "pt_BR"));
+        assert!(!piper_model_matches_lang("pt_BR-faber", ""));
+    }
+
+    #[test]
+    fn aplay_list_parses_real_cards() {
+        let sample = "**** List of PLAYBACK Hardware Devices ****\ncard 0: PCH [HDA Intel PCH], device 0: ALC257 Analog [ALC257 Analog]\n  Subdevices: 1/1\ncard 0: PCH [HDA Intel PCH], device 3: HDMI 0 [HDMI 0]\ncard 1: Headset [Logitech Headset], device 0: USB Audio [USB Audio]\n";
+        assert_eq!(parse_aplay_cards(sample), vec![(0, 0), (0, 3), (1, 0)]);
+        assert!(parse_aplay_cards("").is_empty());
     }
 }
