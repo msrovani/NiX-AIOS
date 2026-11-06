@@ -82,6 +82,15 @@ impl SandboxPolicy {
     }
 }
 
+/// C6.1: `max_pages` estava declarado na policy e nunca aplicado — o limite
+/// real era so `heap_bytes`. O limite de memoria passa a ser o menor dos dois
+/// (uma pagina Wasm = 64 KiB), com piso de uma pagina.
+pub fn effective_memory_bytes(heap_bytes: usize, max_pages: u32) -> usize {
+    const WASM_PAGE: usize = 65_536;
+    let pages_bytes = (max_pages as usize).saturating_mul(WASM_PAGE);
+    heap_bytes.min(pages_bytes).max(WASM_PAGE)
+}
+
 impl Default for SandboxPolicy {
     fn default() -> Self {
         Self::frugal()
@@ -211,7 +220,7 @@ pub struct HostState {
 impl HostState {
     pub fn with_policy(grants: Grants, gen: u64, policy: &SandboxPolicy) -> Self {
         let limits = StoreLimitsBuilder::new()
-            .memory_size(policy.heap_bytes)
+            .memory_size(effective_memory_bytes(policy.heap_bytes, policy.max_pages))
             .memories(1)
             .tables(1)
             .table_elements(policy.max_table_elements)
@@ -867,5 +876,20 @@ mod tests {
         let r = run_fleet_identity(128);
         assert_eq!(r.ok, 128, "{r:?}");
         assert_eq!(r.heap_budget_kib, 256 * 128);
+    }
+}
+
+#[cfg(test)]
+mod f6_tests {
+    use super::*;
+
+    #[test]
+    fn memory_limit_uses_the_smaller_of_heap_and_pages() {
+        // frugal: 256 KiB de heap e 4 paginas (256 KiB) -> 256 KiB.
+        assert_eq!(effective_memory_bytes(256 * 1024, 4), 256 * 1024);
+        // app: 1 MiB e 16 paginas (1 MiB) -> 1 MiB.
+        assert_eq!(effective_memory_bytes(1024 * 1024, 16), 1024 * 1024);
+        // policy apertada: 1 MiB de heap mas 1 pagina -> 64 KiB (o max_pages manda).
+        assert_eq!(effective_memory_bytes(1024 * 1024, 1), 65_536);
     }
 }
