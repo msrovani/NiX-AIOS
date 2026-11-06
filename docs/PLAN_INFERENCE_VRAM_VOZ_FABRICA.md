@@ -349,3 +349,23 @@ Uma fase fecha quando: (a) o gate completo passa; (b) a prova da tabela está
 gravada em `docs/evidence/` (comando + saída); (c) o commit tem `Tested:` e
 `Not-tested:` com o que faltou (metal, som audível, GPU no cage); (d) nenhuma
 linha deste plano fica "feita" só porque o teste unitário passou.
+
+---
+
+## Estado de execução — 2026-11-06
+
+| Fase | Estado | Prova |
+|---|---|---|
+| F1 (C1.1–C1.4, C3.2, C3.3) | HOST OBSERVED | `INFERENCE_F1_2026-11-06.md`; 1021 testes |
+| F2 (C2.1–C2.5) | HOST OBSERVED | `INFERENCE_F2_F7_2026-11-06.md`; 1029 testes |
+| F3 (C3.1) | HOST OBSERVED | idem; 1031 testes |
+| F4 (C4.1–C4.4) | HOST OBSERVED, metal pendente | idem; 1037 testes no conjunto |
+| F5 (C5.2, C5.3) | HOST OBSERVED | idem |
+| F5 (C5.1) | **PARCIAL** — código pronto, infra em falta | `nix build` como `nosd` pede `nix-daemon` + `trusted-users`; sem isso cai no PATH de propósito |
+| F6 (C6.1) | HOST OBSERVED | `effective_memory_bytes` |
+| F7 (C7.1) | HOST OBSERVED, wrap ainda global | soma de packages; wrap por contador é residual |
+
+Fica dito sem rodeios: **nenhuma** fase tem QEMU nem metal. O que este host
+prova é o gate (fmt/clippy/testes) e as funções puras; o argv do motor, a
+segunda cópia do 4B, o som no `aplay` e a VRAM real de `nvidia-smi` continuam
+`AWAITING_HW`.
