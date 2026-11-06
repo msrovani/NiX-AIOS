@@ -242,8 +242,19 @@ impl LlamaServerBackend {
         if let Some(key) = &self.api_key {
             req = req.set("Authorization", &format!("Bearer {key}"));
         }
-        req.send_string(&body.to_string())
-            .map_err(|_| SwapError::Infer("llama-server http"))
+        match req.send_string(&body.to_string()) {
+            Ok(resp) => Ok(resp),
+            // ureq 2.x devolve `Err(Status)` em 4xx/5xx: sem este braco o
+            // retry do 400 era codigo morto e o corpo do erro perdia-se.
+            Err(ureq::Error::Status(code, resp)) => {
+                let raw = resp.into_string().unwrap_or_default();
+                Err(SwapError::Http {
+                    code,
+                    body: nos_core::trim_diagnostic(&raw, true),
+                })
+            }
+            Err(ureq::Error::Transport(_)) => Err(SwapError::Infer("llama-server transport")),
+        }
     }
 }
 
@@ -264,6 +275,12 @@ fn n_predict_from_env() -> u32 {
         // 64 era pouco: com raciocínio o modelo gastava tudo a pensar e o
         // utilizador via só `<think>`. 192 dá resposta curta + folga.
         .unwrap_or(DEFAULT_N_PREDICT)
+}
+
+/// Builds antigos recusam campos extra do template de chat: so esses merecem
+/// a segunda tentativa minima. Um 500 nao se repete (era so carga).
+fn retry_without_template(code: u16) -> bool {
+    matches!(code, 400 | 422)
 }
 
 /// Prazo de `/health` depois do spawn (default 120 s).
@@ -387,24 +404,28 @@ impl InferenceBackend for LlamaServerBackend {
         let agent = ureq::AgentBuilder::new()
             .timeout_read(Duration::from_secs(120))
             .build();
-        let mut resp = self.post_chat(&agent, &url, &body)?;
-        if !(200..300).contains(&resp.status()) {
-            // Build antigo do llama-server pode recusar campos extra (400).
-            // Repetir sem `chat_template_kwargs`/sampling em vez de morrer.
-            warn!(
-                target: "nosd",
-                "llama-server chat status {} — a repetir sem chat_template_kwargs",
-                resp.status()
-            );
-            let minimal = serde_json::json!({
-                "messages": body.get("messages").cloned().unwrap_or_default(),
-                "max_tokens": self.n_predict,
-                "stream": true,
-            });
-            resp = self.post_chat(&agent, &url, &minimal)?;
-            if !(200..300).contains(&resp.status()) {
-                return Err(SwapError::Infer("llama-server bad status"));
+        let resp = match self.post_chat(&agent, &url, &body) {
+            Ok(r) => r,
+            // Build antigo do llama-server recusa campos extra (400/422):
+            // repetir **uma** vez sem `chat_template_kwargs`/sampling, levando
+            // o codigo e o corpo (redigido) para o log.
+            Err(SwapError::Http { code, body: diag }) if retry_without_template(code) => {
+                warn!(
+                    target: "nosd",
+                    "llama-server chat http={code} — a repetir sem chat_template_kwargs: {}",
+                    diag.chars().take(160).collect::<String>()
+                );
+                let minimal = serde_json::json!({
+                    "messages": body.get("messages").cloned().unwrap_or_default(),
+                    "max_tokens": self.n_predict,
+                    "stream": true,
+                });
+                self.post_chat(&agent, &url, &minimal)?
             }
+            Err(e) => return Err(e),
+        };
+        if !(200..300).contains(&resp.status()) {
+            return Err(SwapError::Infer("llama-server bad status"));
         }
         let mut reader = BufReader::new(resp.into_reader());
         let mut line = String::new();
@@ -489,6 +510,26 @@ mod tests {
         std::env::set_var("NOSD_LLAMA_HEALTH_TIMEOUT_SECS", "1");
         assert_eq!(health_timeout_secs(), 5);
         std::env::remove_var("NOSD_LLAMA_HEALTH_TIMEOUT_SECS");
+    }
+
+    #[test]
+    fn only_client_rejections_are_retried() {
+        assert!(retry_without_template(400));
+        assert!(retry_without_template(422));
+        assert!(!retry_without_template(500));
+        assert!(!retry_without_template(503));
+        assert!(!retry_without_template(200));
+    }
+
+    #[test]
+    fn http_error_keeps_code_and_body() {
+        let e = SwapError::Http {
+            code: 400,
+            body: "unknown field chat_template_kwargs".into(),
+        };
+        let s = e.to_string();
+        assert!(s.contains("400"), "{s}");
+        assert!(s.contains("chat_template_kwargs"), "{s}");
     }
 
     #[test]

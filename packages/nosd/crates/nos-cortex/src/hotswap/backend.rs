@@ -23,6 +23,12 @@ pub enum SwapError {
     /// degradar para um motor pior (llama-cli) sem o saber (C1.4).
     Boot(&'static str),
     Infer(&'static str),
+    /// Resposta HTTP nao-2xx com o codigo e o corpo (diagnostico), em vez de
+    /// um `Infer("http")` que perdia ambos (C3.1).
+    Http {
+        code: u16,
+        body: String,
+    },
     Io(std::io::Error),
 }
 
@@ -32,6 +38,7 @@ impl fmt::Display for SwapError {
             Self::EngineAbsent(s) => write!(f, "engine absent: {s}"),
             Self::Boot(s) => write!(f, "engine boot: {s}"),
             Self::Infer(s) => write!(f, "infer: {s}"),
+            Self::Http { code, body } => write!(f, "http {code}: {body}"),
             Self::Io(e) => write!(f, "io: {e}"),
         }
     }
