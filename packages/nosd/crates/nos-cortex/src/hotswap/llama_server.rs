@@ -3,6 +3,7 @@
 //! Stream SSE drenado; cancel via `Drop` + `AtomicBool`. E2E runtime NOT verificado aqui.
 
 use super::backend::{validate_gguf, InferenceBackend, SwapError};
+use super::{apply_thermal_cap, thermal_ngl_cap, DEFAULT_N_PREDICT};
 use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -126,7 +127,11 @@ impl LlamaServerBackend {
         validate_gguf(&model)?;
         let bin = find_bin().ok_or(SwapError::EngineAbsent("llama-server bin"))?;
         let port = pick_port()?;
-        let ngl = ngl_from_env();
+        // C1.1/C3.3: o cap termico vem do processo (`AtomicU32`), nunca do env.
+        // Escrever `NOSD_LLAMA_NGL` depois do spawn nao afecta o motor vivo e
+        // envenenava o spawn seguinte; sem `-ngl` explicito quem decide e o
+        // `--fit`, e o cap fica so no log.
+        let (ngl, thermal_cap) = apply_thermal_cap(ngl_from_env(), thermal_ngl_cap());
         let api_key =
             api_key_from_env().unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string());
         let mut cmd = Command::new(&bin);
@@ -173,7 +178,11 @@ impl LlamaServerBackend {
         let mut child = cmd.spawn().map_err(SwapError::Io)?;
         let base = format!("http://127.0.0.1:{port}");
         let auth = format!("Bearer {api_key}");
-        let deadline = Instant::now() + Duration::from_secs(30);
+        // 4B Q6 a frio pode passar dos 30 s antigos (metal 2026-10-31: OOM no
+        // 1.o arranque e recuperacao so no restart). Prazo configuravel.
+        let health_secs = health_timeout_secs();
+        let started = Instant::now();
+        let deadline = started + Duration::from_secs(health_secs);
         loop {
             if let Ok(resp) = ureq::get(&format!("{base}/health"))
                 .set("Authorization", &auth)
@@ -187,17 +196,24 @@ impl LlamaServerBackend {
             if Instant::now() > deadline {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(SwapError::EngineAbsent("llama-server health timeout"));
+                warn!(
+                    target: "nosd",
+                    "llama-server health timeout after {}s (NOSD_LLAMA_HEALTH_TIMEOUT_SECS={})",
+                    started.elapsed().as_secs(),
+                    health_secs
+                );
+                return Err(SwapError::Boot("llama-server health timeout"));
             }
             std::thread::sleep(Duration::from_millis(250));
         }
         info!(
             target: "nosd",
-            "llama-server spawned pid={:?} base={} model={} ngl={} api_key=set",
+            "llama-server spawned pid={:?} base={} model={} ngl={} thermal_cap={:?} api_key=set",
             child.id(),
             base,
             model.display(),
-            ngl
+            ngl,
+            thermal_cap
         );
         Ok(Self {
             base,
@@ -247,7 +263,16 @@ fn n_predict_from_env() -> u32 {
         .and_then(|s| s.parse().ok())
         // 64 era pouco: com raciocínio o modelo gastava tudo a pensar e o
         // utilizador via só `<think>`. 192 dá resposta curta + folga.
-        .unwrap_or(192)
+        .unwrap_or(DEFAULT_N_PREDICT)
+}
+
+/// Prazo de `/health` depois do spawn (default 120 s).
+fn health_timeout_secs() -> u64 {
+    std::env::var("NOSD_LLAMA_HEALTH_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(|s| s.clamp(5, 1800))
+        .unwrap_or(120)
 }
 
 fn ngl_from_env() -> u32 {
@@ -453,6 +478,17 @@ mod tests {
     #[test]
     fn sse_done() {
         assert_eq!(sse_data_chunk("data: [DONE]"), Some(SseChunk::Done));
+    }
+
+    #[test]
+    fn health_timeout_is_configurable_and_bounded() {
+        std::env::remove_var("NOSD_LLAMA_HEALTH_TIMEOUT_SECS");
+        assert_eq!(health_timeout_secs(), 120);
+        std::env::set_var("NOSD_LLAMA_HEALTH_TIMEOUT_SECS", "600");
+        assert_eq!(health_timeout_secs(), 600);
+        std::env::set_var("NOSD_LLAMA_HEALTH_TIMEOUT_SECS", "1");
+        assert_eq!(health_timeout_secs(), 5);
+        std::env::remove_var("NOSD_LLAMA_HEALTH_TIMEOUT_SECS");
     }
 
     #[test]

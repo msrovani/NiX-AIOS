@@ -10,8 +10,59 @@ pub use llama_server::{
     llama_server_base, llama_server_posture, sse_data_chunk, LlamaServerBackend, SseChunk,
 };
 
+/// C1.3: `ensure_model_loaded` deixa de devolver um booleano mudo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoadOutcome {
+    /// O modelo pedido ja estava activo (sem unload, sem spawn).
+    Reused,
+    /// Houve unload + attach (o motor anterior foi substituido).
+    Swapped,
+}
+
+impl LoadOutcome {
+    pub fn swapped(self) -> bool {
+        matches!(self, Self::Swapped)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Reused => "reused",
+            Self::Swapped => "swapped",
+        }
+    }
+}
+
+/// Orcamento de tokens por resposta — um so valor para servidor **e** CLI.
+/// C3.2: 64 no CLI contra 192 no servidor fazia o fallback responder a meio.
+pub const DEFAULT_N_PREDICT: u32 = 192;
+
+/// Cap de camadas pedido pelo observador (termico/presenca).
+/// `u32::MAX` = sem cap. Antes vivia em `NOSD_LLAMA_NGL` (env), o que anulava
+/// o `--fit` no spawn seguinte e nunca voltava a subir (C1.1/C3.3).
+static THERMAL_NGL_CAP: AtomicU32 = AtomicU32::new(u32::MAX);
+
+pub fn set_thermal_ngl_cap(cap: Option<u32>) {
+    THERMAL_NGL_CAP.store(cap.unwrap_or(u32::MAX), Ordering::Relaxed);
+}
+
+pub fn thermal_ngl_cap() -> Option<u32> {
+    let v = THERMAL_NGL_CAP.load(Ordering::Relaxed);
+    (v != u32::MAX).then_some(v)
+}
+
+/// Aplica o cap **so** a um `-ngl` explicito: sem `-ngl` quem decide e o
+/// `--fit`, e o cap fica so no log. Devolve `(ngl_efectivo, cap_visto)`.
+pub fn apply_thermal_cap(requested: u32, cap: Option<u32>) -> (u32, Option<u32>) {
+    match cap {
+        Some(c) if requested > 0 => (requested.min(c), Some(c)),
+        Some(c) => (0, Some(c)),
+        None => (requested, None),
+    }
+}
+
 use parking_lot::Mutex;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tracing::{info, warn};
 
@@ -36,14 +87,16 @@ impl HotSwapController {
     }
 
     /// MoE LOO: garante que o GGUF do slot roteado está ativo na dGPU/llama-cli.
-    pub fn ensure_model_loaded(&self, model: PathBuf) -> Result<bool, SwapError> {
+    /// C1.3: devolve o que aconteceu (`Reused` vs `Swapped`) — o booleano antigo
+    /// era `true` quando havia substituicao e o log lia-o como "carregado".
+    pub fn ensure_model_loaded(&self, model: PathBuf) -> Result<LoadOutcome, SwapError> {
         if self.current_path.lock().as_ref() == Some(&model)
             && *self.kind.lock() == EngineKind::LlamaGguf
         {
-            return Ok(false);
+            return Ok(LoadOutcome::Reused);
         }
         self.hot_load_llama(model)?;
-        Ok(true)
+        Ok(LoadOutcome::Swapped)
     }
 
     pub fn kind(&self) -> EngineKind {
@@ -85,13 +138,18 @@ impl HotSwapController {
         } else {
             match LlamaServerBackend::spawn(model.clone()) {
                 Ok(b) => Arc::new(b),
-                Err(e) => {
+                // Binario ausente: o CLI e um downgrade legitimo e declarado.
+                Err(e @ SwapError::EngineAbsent(_)) => {
                     info!(
                         target: "nosd",
                         "llama-server spawn unavailable ({e}) - llama-cli fallback"
                     );
                     Arc::new(LlamaCliBackend::try_new(model.clone())?)
                 }
+                // Arrancou e nao ficou saudavel (health timeout): nao trocar por
+                // um motor com metade do orcamento de tokens atras das costas de
+                // quem chamou (C1.4) — quem chamou decide (S1 -> cpu-echo).
+                Err(e) => return Err(e),
             }
         };
         info!(target: "nosd", "hotswap attach {}", backend.name());
@@ -176,6 +234,32 @@ mod tests {
         let r = hs.try_attach_llama(PathBuf::from("/no/such/model.gguf"));
         assert!(r.is_err());
         assert_eq!(hs.kind(), EngineKind::CpuEcho);
+    }
+
+    #[test]
+    fn thermal_cap_only_applies_to_explicit_ngl() {
+        // Sem `-ngl`, o `--fit` decide: o cap nao inventa um valor.
+        assert_eq!(apply_thermal_cap(0, Some(16)), (0, Some(16)));
+        assert_eq!(apply_thermal_cap(99, Some(16)), (16, Some(16)));
+        assert_eq!(apply_thermal_cap(12, Some(16)), (12, Some(16)));
+        assert_eq!(apply_thermal_cap(99, Some(0)), (0, Some(0)));
+        assert_eq!(apply_thermal_cap(99, None), (99, None));
+    }
+
+    #[test]
+    fn thermal_cap_rises_and_falls() {
+        set_thermal_ngl_cap(Some(16));
+        assert_eq!(thermal_ngl_cap(), Some(16));
+        // Arrefeceu: o cap liberta-se (antes ficava colado para sempre).
+        set_thermal_ngl_cap(None);
+        assert_eq!(thermal_ngl_cap(), None);
+    }
+
+    #[test]
+    fn load_outcome_reports_substitution() {
+        assert!(LoadOutcome::Swapped.swapped());
+        assert!(!LoadOutcome::Reused.swapped());
+        assert_eq!(LoadOutcome::Reused.as_str(), "reused");
     }
 
     #[test]

@@ -283,16 +283,11 @@ pub(crate) fn dispatch(state: &AppState, _gate: &CapGate, req: Request) -> Optio
                 nos_observe::TOPIC_OBSERVE_SNAPSHOT,
                 nos_observe::snapshot_bus_payload(&snap),
             );
-            // NX.5: thermal/presence ? env ngl cap (não força llama; hint Continuous).
-            if snap.suggest_ngl_cap < 99 {
-                let cur = std::env::var("NOSD_LLAMA_NGL")
-                    .ok()
-                    .and_then(|s| s.parse::<u32>().ok())
-                    .unwrap_or(99);
-                if snap.suggest_ngl_cap < cur {
-                    std::env::set_var("NOSD_LLAMA_NGL", snap.suggest_ngl_cap.to_string());
-                }
-            }
+            // NX.5: cap no processo (C1.1/C3.3) — 99 = sem restricao. Nao se
+            // escreve no env: isso nao afecta o motor vivo e anula o `--fit` do
+            // proximo spawn.
+            let thermal = (snap.suggest_ngl_cap < 99).then_some(snap.suggest_ngl_cap);
+            nos_cortex::set_thermal_ngl_cap(thermal);
             Response {
                 id: req.id,
                 ok: true,

@@ -18,6 +18,10 @@ pub enum EngineKind {
 #[derive(Debug)]
 pub enum SwapError {
     EngineAbsent(&'static str),
+    /// Arrancou mas nao ficou saudavel (ex.: health timeout do llama-server).
+    /// Distinto de `EngineAbsent` de proposito: quem chama **nao** deve
+    /// degradar para um motor pior (llama-cli) sem o saber (C1.4).
+    Boot(&'static str),
     Infer(&'static str),
     Io(std::io::Error),
 }
@@ -26,6 +30,7 @@ impl fmt::Display for SwapError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EngineAbsent(s) => write!(f, "engine absent: {s}"),
+            Self::Boot(s) => write!(f, "engine boot: {s}"),
             Self::Infer(s) => write!(f, "infer: {s}"),
             Self::Io(e) => write!(f, "io: {e}"),
         }

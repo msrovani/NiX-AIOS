@@ -32,8 +32,9 @@ pub use fetch::{
 };
 pub use header_scan::{scan_path, ModelMeta};
 pub use hotswap::{
-    find_llama_cli, llama_server_base, llama_server_posture, EngineKind, HotSwapController,
-    InferenceBackend, LlamaCliBackend, LlamaServerBackend, SwapError,
+    apply_thermal_cap, find_llama_cli, llama_server_base, llama_server_posture,
+    set_thermal_ngl_cap, thermal_ngl_cap, EngineKind, HotSwapController, InferenceBackend,
+    LlamaCliBackend, LlamaServerBackend, LoadOutcome, SwapError, DEFAULT_N_PREDICT,
 };
 pub use hub::ModelHub;
 pub use offload::plan_n_gpu_layers;

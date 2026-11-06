@@ -332,11 +332,18 @@ pub fn execute_transmute(
         );
     }
 
-    // 2. Configurar dGPU offload se houver GPU dedicada / VRAM
+    // 2. Capacidade medida (hint). C1.1: NAO escrever `NOSD_LLAMA_NGL` — um
+    // `-ngl` explicito anula o `--fit on` (classe de OOM do metal de 3 Nov).
+    // O quant/ngl sugeridos vao na deliberacao e no status, nunca no env.
     let cap = CapacityProber::probe();
     let suggest = suggest_for_capacity(&cap);
     if suggest.suggest_ngl > 0 {
-        std::env::set_var("NOSD_LLAMA_NGL", suggest.suggest_ngl.to_string());
+        tracing::info!(
+            target: "nosd",
+            "transmute offload hint quant={} suggest_ngl={} (--fit decides)",
+            suggest.quant,
+            suggest.suggest_ngl
+        );
     }
 
     // 3. Baixar modelos (Whisper STT + Piper TTS no idioma + MoE GGUF)

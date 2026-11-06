@@ -230,7 +230,7 @@ async fn main() -> anyhow::Result<()> {
     let suggest_ngl = nos_cortex::plan_n_gpu_layers(32, 80, cap.vram_free_mb, 256, 128, 256);
     info!(
         target: "nosd",
-        "capacity ram_avail_mb={} vendor={} cards={:?} render={:?} igpu={:?} dgpu={:?} vram_free_mb={} posture={} suggest_ngl={} (CUDA llama only; NOSD_LLAMA_NGL overrides)",
+        "capacity ram_avail_mb={} vendor={} cards={:?} render={:?} igpu={:?} dgpu={:?} vram_free_mb={} posture={} suggest_ngl={} (hint only — --fit decides; set NOSD_LLAMA_NGL in the unit to override)",
         cap.ram_avail_mb,
         cap.vendor_hint,
         cap.dri_cards,
@@ -242,9 +242,10 @@ async fn main() -> anyhow::Result<()> {
         suggest_ngl
     );
 
-    if suggest_ngl > 0 && std::env::var("NOSD_LLAMA_NGL").is_err() {
-        std::env::set_var("NOSD_LLAMA_NGL", suggest_ngl.to_string());
-    }
+    // C1.1: NAO escrever `NOSD_LLAMA_NGL` a partir da heuristica — um `-ngl`
+    // explicito anula o `--fit on` e foi a classe de OOM do metal de 3 Nov.
+    // `suggest_ngl` fica como hint no log; o operador continua a poder fixar
+    // `-ngl` no unit quando quer mandar (images/hw-cuda*.nix dizem-no).
 
     // node-id: CLI explícito > env > hash estável de machine-id (frota-3 sem 15/15/15).
     let node_id = resolve_node_id(args.node_id);
@@ -692,22 +693,20 @@ async fn hermes_runtime_loop(
                 nos_observe::TOPIC_OBSERVE_SNAPSHOT,
                 nos_observe::snapshot_bus_payload(&snap),
             );
-            if snap.presence.prefer_vram_release() || snap.ngl_reduce {
-                let cap = snap.suggest_ngl_cap;
-                let cur = std::env::var("NOSD_LLAMA_NGL")
-                    .ok()
-                    .and_then(|s| s.parse::<u32>().ok())
-                    .unwrap_or(99);
-                if cap < cur {
-                    std::env::set_var("NOSD_LLAMA_NGL", cap.to_string());
-                    tracing::info!(
-                        target: "nosd",
-                        "NX.5 ngl cap={} presence={:?} thermal={}",
-                        cap,
-                        snap.presence,
-                        snap.ngl_reduce
-                    );
-                }
+            // C1.1/C3.3: o cap vive no processo (`AtomicU32`), nao no env.
+            // `NOSD_LLAMA_NGL` escrito aqui nao afecta o motor ja a correr e
+            // envenenava o spawn seguinte; 99 = sem restricao (sobe e desce).
+            let thermal = (snap.suggest_ngl_cap < 99).then_some(snap.suggest_ngl_cap);
+            if nos_cortex::thermal_ngl_cap() != thermal {
+                nos_cortex::set_thermal_ngl_cap(thermal);
+                tracing::info!(
+                    target: "nosd",
+                    "NX.5 thermal_cap={:?} presence={:?} thermal={} presence_release={}",
+                    thermal,
+                    snap.presence,
+                    snap.ngl_reduce,
+                    snap.presence.prefer_vram_release()
+                );
             }
         }
         // Drain S2 results prontos (fire-and-forget) → EventBus

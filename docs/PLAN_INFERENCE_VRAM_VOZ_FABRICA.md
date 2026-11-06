@@ -36,7 +36,7 @@ a prova; tudo o que não for observado fica `Not-tested` no corpo do commit
 
 É a única fase que muda o arranque em metal. **Primeira, e sozinha no commit.**
 
-### C1.1 — Remover o `-ngl` derivado de heurísticas (dois sítios)
+### C1.1 — Remover o `-ngl` derivado de heurísticas (três sítios)
 
 - **Achado A (boot):** `packages/nosd/crates/nosd/src/main.rs:245-246` faz
   `set_var("NOSD_LLAMA_NGL", suggest_ngl)` a partir de
@@ -44,6 +44,9 @@ a prova; tudo o que não for observado fica `Not-tested` no corpo do commit
 - **Achado B (runtime):** `main.rs:689-706` baixa a **mesma** variável quando
   `suggest_ngl_cap` desce por calor (85 °C → 16) ou presença `drowsy/sleep`
   (32/0), com `cur` a ler o env e a default **99**.
+- **Achado C (terceiro sítio, escapou à revisão):** o handler
+  `observe.snapshot` (`crates/nosd/src/rpc/health.rs:289-298`) repete o mesmo
+  `set_var` — quem abre o painel de observação no HUD reescrevia o env.
 - **Porque é P0 nos dois:** `hotswap/llama_server.rs` (`ngl_from_env`) e
   `llama_cli.rs` leem a variável e passam `-ngl`, o que **anula a escolha de
   camadas do `--fit`** — a classe de OOM do metal de 3 Nov. No caso B há dois
@@ -52,10 +55,11 @@ a prova; tudo o que não for observado fica `Not-tested` no corpo do commit
   (ii) o valor só desce e **nunca é reposto** (`cap < cur`, e `cur` lê o que
   acabámos de escrever) — depois de um pico térmico, o próximo spawn leva
   `-ngl 16` para sempre.
-- **Mudança:** apagar os dois `set_var`. Boot: log `suggest_ngl=N (hint; fit
-  decide)`. Runtime: emitir `EventBus`/log `thermal_cap=N` e guardar num
-  `AtomicU32` **consumido no próximo spawn** (ver C3.3), nunca no env.
-  `NOSD_LLAMA_NGL` continua aceite se o operador a definir no unit.
+- **Mudança:** apagar os **três** `set_var`. Boot: log `suggest_ngl=N (hint;
+  fit decide)`. Runtime: um `thermal_ngl_cap: AtomicU32` em `nos-cortex`
+  (`u32::MAX` = sem cap), escrito pelo tick e pelo `observe.snapshot`, e
+  consumido no spawn (C3.3). `NOSD_LLAMA_NGL` continua aceite se o operador a
+  definir no unit.
 - **Ficheiros:** `crates/nosd/src/main.rs`; comentário no `modules/hw-cuda*.nix`
   a apontar que uma `-ngl` explícita desliga o fit.
 - **Aceite:** journal do arranque sem `-ngl` no argv do motor; log do `nosd` com

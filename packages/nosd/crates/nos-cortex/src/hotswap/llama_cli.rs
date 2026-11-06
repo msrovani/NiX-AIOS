@@ -3,6 +3,7 @@
 //! nixpkgs `llama-cpp` default = CPU (`system_info` sem CUDA) — slog `cuda_engine_absent`.
 
 use super::backend::{validate_gguf, InferenceBackend, SwapError};
+use super::{apply_thermal_cap, thermal_ngl_cap, DEFAULT_N_PREDICT};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::{info, warn};
@@ -50,7 +51,7 @@ fn n_predict_from_env() -> u32 {
     std::env::var("NOSD_LLAMA_N_PREDICT")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(64)
+        .unwrap_or(DEFAULT_N_PREDICT)
 }
 
 pub struct LlamaCliBackend {
@@ -67,7 +68,7 @@ impl LlamaCliBackend {
         }
         validate_gguf(&model)?;
         let cli = find_llama_cli().ok_or(SwapError::EngineAbsent("llama-cli"))?;
-        let ngl = ngl_from_env();
+        let (ngl, _cap) = apply_thermal_cap(ngl_from_env(), thermal_ngl_cap());
         let n_predict = n_predict_from_env();
         info!(
             target: "nosd",
@@ -258,6 +259,12 @@ mod tests {
         let out = clean_completion(dirty, "Once upon a time");
         assert!(!out.contains("common_perf"));
         assert!(!out.contains("sampler chain"));
+    }
+
+    #[test]
+    fn n_predict_default_matches_server() {
+        std::env::remove_var("NOSD_LLAMA_N_PREDICT");
+        assert_eq!(n_predict_from_env(), DEFAULT_N_PREDICT);
     }
 
     #[test]

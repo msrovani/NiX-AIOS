@@ -19,6 +19,8 @@ mod skill_observer;
 mod window_broker;
 mod www;
 
+use nos_cortex::hotswap::LoadOutcome;
+
 pub use agency::{AgencyFleet, AgentManifest, ScheduleKind};
 pub use autolearn::{plan_from_seek, plan_learn, LearnAction, LearnPlan};
 pub use blob_deliberate::{
@@ -471,8 +473,20 @@ impl HermesEngine {
             }),
         );
 
-        // Plan — LOO no slot preferido; fallback Active se niche vazio
-        let slot = self.plan_slot(decision);
+        // Plan — LOO no slot preferido; fallback Active se niche vazio.
+        // C1.2: a lane S2 ja tem este GGUF servido pelo motor do S2; hot-loadar
+        // aqui punha duas copias do 4B em VRAM/RAM (metal 2026-11-03, 6 GiB).
+        let route = self.plan_route(prompt, true);
+        let slot = if Self::should_hot_load(&route.backend, self.hotswap_s2.is_some()) {
+            self.plan_slot(decision)
+        } else {
+            info!(
+                target: "nosd",
+                "hermes slot {} served by s2 - no hot_load",
+                decision.slot.name()
+            );
+            decision.slot
+        };
 
         // Act — S1 no HotSwap (thread chat); S2 na worker dedicada (tick não partilha)
         info!(
@@ -486,7 +500,7 @@ impl HermesEngine {
         );
         // Classificar a intenção no prompt do utilizador — NÃO no model_prompt
         // (SOUL+memória >280 chars ⇒ S2Deep sempre; metal 2026-10-31).
-        let reply = if self.plan_route(prompt, true).backend == nos_core::Backend::S2 {
+        let reply = if route.backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -583,10 +597,16 @@ impl HermesEngine {
             }));
         }
         let decision = route_intent(prompt);
-        let slot = self.plan_slot(decision);
+        // Ver chat(): route no prompt do user, nao no SOUL-augmented; e C1.2 —
+        // a lane S2 nao hot-loada o mesmo modelo no backend gerido.
+        let route = self.plan_route(prompt, false);
+        let slot = if Self::should_hot_load(&route.backend, self.hotswap_s2.is_some()) {
+            self.plan_slot(decision)
+        } else {
+            decision.slot
+        };
         let model_prompt = self.build_model_prompt(prompt);
-        // Ver chat(): route no prompt do user, não no SOUL-augmented.
-        if self.plan_route(prompt, false).backend == nos_core::Backend::S2 {
+        if route.backend == nos_core::Backend::S2 {
             self.bus.publish(
                 "HERMES_S2_OFFLOAD",
                 json!({
@@ -649,6 +669,13 @@ impl HermesEngine {
         })
     }
 
+    /// C1.2 — decidir **antes** de mexer no motor se o hot-load faz sentido.
+    /// A lane S2 e servida por um `llama-server` proprio (`hotswap_s2`): carregar
+    /// o mesmo GGUF no backend gerido duplicava o modelo em VRAM/RAM.
+    pub fn should_hot_load(backend: &nos_core::Backend, has_s2: bool) -> bool {
+        !(has_s2 && *backend == nos_core::Backend::S2)
+    }
+
     fn plan_slot(&self, decision: RouteDecision) -> ModelSlot {
         let cap = CapacityProber::probe();
         let try_load = |slot: ModelSlot| -> bool {
@@ -670,15 +697,22 @@ impl HermesEngine {
             return decision.slot;
         };
         if let Some(path) = self.hub.path_of(chosen) {
-            if let Ok(swapped) = self.hotswap.ensure_model_loaded(path.clone()) {
-                if swapped {
-                    info!(
-                        target: "nosd",
-                        "hermes MoE LOO hot-loaded slot={} path={}",
-                        chosen.name(),
-                        path.display()
-                    );
+            match self.hotswap.ensure_model_loaded(path.clone()) {
+                Ok(LoadOutcome::Swapped) => info!(
+                    target: "nosd",
+                    "hermes MoE LOO hot-loaded slot={} path={}",
+                    chosen.name(),
+                    path.display()
+                ),
+                Ok(LoadOutcome::Reused) => {
+                    info!(target: "nosd", "hermes slot={} reused", chosen.name())
                 }
+                Err(e) => warn!(
+                    target: "nosd",
+                    "hermes hot-load falhou slot={} ({e}) — engine={}",
+                    chosen.name(),
+                    self.hotswap.engine_name()
+                ),
             }
         }
         chosen
@@ -1454,5 +1488,20 @@ mod tests {
         let last = t.eng.opar_trace(1);
         assert_eq!(last.len(), 1);
         assert_eq!(last[0]["phases"]["verify_len"], 3); // "v69"
+    }
+}
+
+#[cfg(test)]
+mod load_path_tests {
+    use super::*;
+
+    #[test]
+    fn s2_lane_does_not_hot_load_when_s2_engine_exists() {
+        // C1.2: lane S2 + motor S2 presente -> nao mexer no backend gerido.
+        assert!(!HermesEngine::should_hot_load(&nos_core::Backend::S2, true));
+        // Sem motor S2, a lane S2 cai no S1: hot-load e legitimo.
+        assert!(HermesEngine::should_hot_load(&nos_core::Backend::S2, false));
+        // Lane S1 com motor S2 presente nao colide (modelos diferentes).
+        assert!(HermesEngine::should_hot_load(&nos_core::Backend::S1, true));
     }
 }
