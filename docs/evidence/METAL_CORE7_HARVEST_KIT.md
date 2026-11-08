@@ -12,6 +12,45 @@ QEMU/host:
 Honesty ADR-0113: isto prepara e julga a prova; **não** promove nada a VERIFIED.
 O bundle diz o que mediu, o doc diz o que ainda falta.
 
+## Artefacto construído (host, 2026-11-08)
+
+`nix build .#iso-hw-cuda` a partir de `main` (`8298694`), out-link
+`~/nixaios-out/result-iso-hw-cuda`:
+
+| Artefacto | Bytes | sha256 |
+|---|---|---|
+| ISO | `8 323 596 288` | `df1000aa618f966bf6cb1f11cbb6cf33b518c728d51d4f52912b571d949e90d9` |
+| `.img` (um pendrive) | `9 397 338 112` | `ff10bae0dfe680f866d35515824e4a17c5992fe5d43f085cc737fa000ae50ebd` |
+
+Repack (o `mkfs.vfat` não está no PATH do WSL):
+
+```bash
+nix shell nixpkgs#dosfstools nixpkgs#util-linux --command \
+  bash -c 'FAT_MB=1024 bash scripts/pack-hw-usb.sh "$ISO" ~/nixaios-hw-cuda-logfat.img'
+```
+
+Layout do `.img` (`sfdisk -l`): `1` Empty 0→16 257 023 (7,8 G, a ISO híbrida),
+`2` EFI 3 M, `3` W95 FAT32 (LBA) 1 G em `NIXAIOSLOG`.
+
+**Integridade do embed:** `cmp -n 8322547712 -i 1048576:1048576 img iso` →
+idêntico; a MBR difere no **byte 480** (entrada de partição que o `sfdisk`
+reescreve). `tail -c $ISO_SIZE img | sha256sum` **não** é prova válida — o ISO
+está no offset 0 e o que muda é o cabeçalho (lição 68).
+
+**Conteúdo do squashfs** (`xorriso -extract /nix-store.squashfs` +
+`unsquashfs -l`, 363 708 linhas):
+
+```
+1  Qwen3.5-0.8B-Weight-Space-Programming-Q4_K_M.gguf   (S1)
+1  Qwen3.5-4B-Q6_K.gguf                                (S2 / PRO)
+3  nosd-engine-s2.service
+11 llama-server
+506 piper|whisper
+```
+
+Ou seja: a ISO que vai ao pendrive **contém** o 4B e o unit do S2 — o harvest
+mede o que corre, não o que devia estar lá.
+
 ## O que o harvest mede
 
 | Critério | Como é medido | PASS |

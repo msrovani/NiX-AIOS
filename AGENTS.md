@@ -356,6 +356,13 @@ Resumo executavel; detalhe em
     segundo `connect` dá `Transport endpoint is not connected` e os comandos
     são ecoados sem executar), e **`quit` no monitor fecha a VM** — um
     `screendump` seguido de `quit` mata o guest e a captura seguinte não existe.
+68. **`tail -c <ISO_SIZE> img | sha256sum` não é prova do embed**: no `.img`
+    híbrido o ISO fica no **offset 0** e o `sfdisk` acrescenta a FAT no fim,
+    reescrevendo a MBR (differ no byte 480 — entrada de partição). O tail pega
+    só a cauda do próprio ISO, e o hash nunca bate por razão nenhuma. A prova é
+    `cmp -n $((ISO_SIZE-1MiB)) -i 1048576:1048576 img iso` (idêntico), mais
+    `sfdisk -l` para o layout. Para empacotar no WSL, `mkfs.vfat` não está no
+    PATH: `nix shell nixpkgs#dosfstools nixpkgs#util-linux --command bash -c …`.
 
 ## Comandos
 
