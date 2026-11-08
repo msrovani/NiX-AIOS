@@ -342,6 +342,20 @@ Resumo executavel; detalhe em
     conflict keep=`, `spawned … ngl=0 thermal_cap=None`) e contar flags em
     `/proc/<pid>/cmdline` com `tr '\0' '\n' | grep -c '^-ngl$'` — nunca por
     substring (lição 30).
+67. **`inactive (dead)` com `-- No entries --` é `ConditionPathExists`, não GPU**:
+    o `jarbas-cage` só arranca depois de `/var/lib/nosd/gui-start` (hotswap
+    pós-Q5 / persist-check), e num guest com auto-login em `ttyS0` esse fluxo
+    nunca corre — o unit é saltado em silêncio (zero linhas de journal, seatd
+    active, `/dev/dri` presente). Diagnóstico: `systemctl show -p ConditionResult`,
+    `ls /var/lib/nosd/{gui-start,firstboot.done,aios-mode}` e o journal a dar
+    `-- No entries --`. Para provar a UI sem o firstboot: `touch gui-start` +
+    `systemctl start jarbas-cage`. Sem GPU o wlroots cai em **pixman** (EGL
+    "Software rendering detected", Vulkan `ERROR_INITIALIZATION_FAILED`) e
+    desenha na mesma no conector `Virtual-1` — provado por `screendump`.
+    Duas armadilhas do bancada: a série em socket aceita **um** cliente (o
+    segundo `connect` dá `Transport endpoint is not connected` e os comandos
+    são ecoados sem executar), e **`quit` no monitor fecha a VM** — um
+    `screendump` seguido de `quit` mata o guest e a captura seguinte não existe.
 
 ## Comandos
 
