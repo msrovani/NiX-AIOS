@@ -211,6 +211,22 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 **claim:** `Ring3_Linux/qemu` OBSERVED ≠ `Ring3_Linux/metal` VERIFIED.
 
+### Cegueira do log em ISOs com auto-login (2026-11-06)
+
+A `iso-hw` faz auto-login em `ttyS0` (`nixos login: nixos (início de sessão
+automático)`) e o shell toma a consola **antes** de o systemd imprimir
+`Started Neural-OS Daemon`. O gate `--stage MQEMU` (que só lê o log de série)
+dá `PASS` nos marcadores de kernel e `SKIP detail=nosd start status unclear`.
+As ISOs de release (sem auto-login) continuam a dar `nosd_start_ok`.
+
+Para ouvir o daemon nesta ISO: arrancar com
+`-serial unix:$HOME/ser.sock,server,nowait -display none -monitor none` e um
+cliente Python que fala com o socket (`systemctl is-active nosd`,
+`journalctl -b -u nosd`, `ps -o args`). Sem o grupo `kvm` o QEMU corre em TCG
+(~6–10 min) e `is-active` lido cedo mente. Não acrescentar linhas ao log para
+o gate passar. Prova: `docs/evidence/QEMU_INFERENCE_2026-11-06.md`; lições
+62–66 do `AGENTS.md`.
+
 ## Residuais pós-playbook (honestidade)
 
 | Gap | Status | Próximo |

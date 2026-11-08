@@ -5,6 +5,28 @@ Versionamento [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+- **Inferência/VRAM/voz/fábrica — plano `docs/PLAN_INFERENCE_VRAM_VOZ_FABRICA.md`
+  (2026-11-06)**: sete fases implementadas e publicadas em `main` (`8f08cbd`,
+  `d7b7884`, `575095a`, `7a62319`, `9ddfac7`, `c3ce2a4`, `d175b0c`; docs
+  `b54a5f9`/`86e09b2`), gate host com **1037** testes, e ISO `iso-hw`
+  reconstruída de `main` (`dbe9d0e5…`) para a prova QEMU.
+  - F1: o `nosd` deixa de escrever `NOSD_LLAMA_NGL` (**quatro** sítios: boot,
+    tick, `observe.snapshot` e transmute) e o cap térmico passa a `AtomicU32` do
+    processo, aplicado só a `-ngl` explícito; `SwapError::Boot` acaba com o
+    fallback silencioso para `llama-cli`.
+  - F2: `fit_model` com `basis: vram|spill|cpu` (RAM só paga VRAM com
+    `allow_spill`), `need_estimate`/`kv_est_mb`, `hub.evict`, `vram_free_mb` por
+    placa, `register_path` com `conflict`/`candidates`.
+  - F3: `ureq::Error::Status` → `SwapError::Http{code,body}`; retry só 400/422.
+  - F4 voz (modelo do idioma, base antes de tiny, um backend por WAV, `aplay -l`);
+    F5 fábrica (`nix build` pelo flake, `write` recusa dir preenchido,
+    `Lang::detect`); F6 wasm (`max_pages` aplicado); F7 energia (RAPL soma todos
+    os `intel-rapl:N`).
+  - Prova QEMU/TCG (`docs/evidence/QEMU_INFERENCE_2026-11-06.md`): `nosd`
+    `active`, `llama-server` sem `-ngl` e **uma** cópia; gate MQEMU `fails=0`
+    com `SKIP` no `nosd` porque o auto-login em `ttyS0` cega o log de série
+    (lição 62 do `AGENTS.md`). Metal **AWAITING_HW**.
+
 - **Derrotas convertidas no host (2026-11-05)** — sem metal, três causas provadas:
   - `piper` **nunca carregava**: o tarball tem `PT_INTERP=/lib64/ld-linux-x86-64.so.2`
     (inexistente no NixOS) e a derivação tinha `dontFixup` → `execve` devolve ENOENT

@@ -311,6 +311,38 @@ Resumo executavel; detalhe em
     (`$out`, `<glibc>/lib`, `gcc cc.lib/lib`) — `DT_RUNPATH` não chega às
     dependências indirectas. Prova = correr (`--help` rc=0 + uma síntese real).
 
+62. **Auto-login em `ttyS0` cega o gate MQEMU**: na `iso-hw` o `nixos login:
+    nixos (início de sessão automático)` toma a consola **antes** de o systemd
+    imprimir `Started Neural-OS Daemon`; o gate só lê o log de série, logo dá
+    `PASS` nos marcadores de kernel e `SKIP detail=nosd start status unclear`.
+    As ISOs de release (sem auto-login) continuam a dar `nosd_start_ok` — a
+    cegueira é da ISO, não do produto. Quem ler isto vai ao `journalctl -b -u
+    nosd` (lição 63). **Nunca** acrescentar a linha ao log para o gate passar:
+    é o mesmo pecado do `grep NixOS` que casa o menu.
+63. **`run-iso-qemu-wsl.sh` liga a série a `stdio`**: com `nohup`/pipeline o
+    stdio é `/dev/null` e o guest fica **inaudível** (não há por onde perguntar).
+    Para interrogar: `-serial unix:$HOME/ser.sock,server,nowait -display none
+    -monitor none` + cliente Python que faz `connect` ao socket e envia
+    comandos. Foi assim que saíram `systemctl is-active nosd`, o journal e
+    `/proc/<pid>/cmdline` de dentro da imagem.
+64. **Sem grupo `kvm` o QEMU cai em TCG e `is-active` cedo mente**: `/dev/kvm` é
+    `root:kvm`; sem o grupo o script escolhe `-cpu qemu64` e um boot de ISO
+    leva ~6–10 min. E a primeira leitura deu `inactive` para um daemon que
+    minutos depois estava `active (running) since 22:53:07` (ExecStartPre +
+    firstboot atrasam). Ler `status` com timestamps, nunca um retrato — a
+    doutrina do `journal-follow` (lição 56) também vale para o guest.
+65. **O host de 7 GiB mete tecto no que o guest pode provar**: guest de 4 GiB e
+    o 4B Q6_K tem 5,4 GB — prova de modelo grande **não** sai do QEMU neste
+    portátil. Duas provas, dois sítios: imagem (marcadores + argv do 0.8B no
+    guest) e processo real (binário novo + GGUF real no host). Não forçar o 4B
+    num guest que não o segura; dizê-lo no `Not-tested`.
+66. **Prova de que a correcção está na imagem = string que só o código novo
+    emite**: boots de builds diferentes parecem iguais. Ancorar em marcadores
+    únicos (`suggest_ngl=0 (hint only — --fit decides`, `hub slot=active
+    conflict keep=`, `spawned … ngl=0 thermal_cap=None`) e contar flags em
+    `/proc/<pid>/cmdline` com `tr '\0' '\n' | grep -c '^-ngl$'` — nunca por
+    substring (lição 30).
+
 ## Comandos
 
 HW (um só pendrive): `nix build .#iso-hw` -> `scripts/pack-hw-usb.sh <iso> <img>`
@@ -356,6 +388,15 @@ NIXAIOS_QEMU_LOG=/tmp/nixaios-qemu.log bash scripts/gate-boot-to-jarbas.sh --sta
 
 ## Estado conhecido (não fingir que está pronto)
 
+- **Tranche inferência/VRAM/voz/fábrica (2026-11-06, in-tree, publicada)**: plano
+  `docs/PLAN_INFERENCE_VRAM_VOZ_FABRICA.md` fases 1–7 feitas — `8f08cbd` F1,
+  `d7b7884` F2, `575095a` F3, `7a62319` F4, `9ddfac7` F5, `c3ce2a4` F6,
+  `d175b0c` F7, docs `b54a5f9`/`86e09b2`; gate host **1037** testes.
+  QEMU **OBSERVED** (`docs/evidence/QEMU_INFERENCE_2026-11-06.md`): ISO
+  `iso-hw` de `main` sha `dbe9d0e5…`, `nosd` active, `llama-server` **sem
+  `-ngl`** e uma só cópia; gate MQEMU `fails=0` mas `SKIP` no `nosd` (auto-login
+  em ttyS0, lição 62). Residual: C5.1 parcial (nix-daemon/`trusted-users`),
+  metal e lane S2/CUDA AWAITING_HW, retry do 400 provado só na função pura.
 - **Colheita metal 2026-11-03 (OBSERVED, 1 boot)**: bundle do pendrive
   `NIXAIOSLOG` lido read-only (sem montar) e versionado em
   [`docs/evidence/hw/2026-11-03_2346Z/`](docs/evidence/hw/2026-11-03_2346Z/)
