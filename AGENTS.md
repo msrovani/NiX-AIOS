@@ -373,6 +373,16 @@ Resumo executavel; detalhe em
     `argv` que vai para o bundle sai com `<redacted>`, senão o pendrive leva a
     chave (ainda que de loopback). Provado no host com o binário pinado:
     `props_http=200`, `n_ctx=262144`, `0` ocorrências da chave no bundle.
+70. **Voz não se mede com um `ps` parado — e `comm` mente sobre wrappers**:
+    piper/whisper nascem **dentro** do pedido (`voice.tts`/`voice.stt`), logo
+    "uma só cópia" mede-se amostrando o spawn durante a RPC (10 ms) e lendo
+    `/proc/<pid>/cmdline`, nunca um retrato do `ps`. O `piper` da ISO é um
+    script que faz `exec "$out/piper.real"` — mesmo PID, argv novo, `comm`
+    errado: classificar por **basename do argv** (`piper`/`piper.real`). Só
+    contam descendentes do `nosd`, senão um piper alheio (ORB a falar a meio
+    da colheita) passa por segunda cópia. Spawn não observado = `na`, nunca
+    PASS; e `TTS_BYTES=44` é o mesmo "ficheiro criado antes do escritor" da
+    lição 54.
 
 ## Comandos
 

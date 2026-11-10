@@ -11,7 +11,9 @@ QEMU/host:
 3. **dispositivo por motor** — cada motor que declara `CUDA_VISIBLE_DEVICES`
    tem mesmo `/dev/nvidiaN` aberto (apanha o fallback silencioso para CPU);
 4. **contexto escolhido pelo `--fit`** — lido do `/props` de cada motor, não do
-   log (`n_ctx` real, sem `-c` fixo).
+   log (`n_ctx` real, sem `-c` fixo);
+5. **voz: uma só cópia e argv de piper/whisper** — medido no spawn real de
+   `voice.tts`/`voice.stt` (W1–W4), não num `ps` parado.
 
 Honesty ADR-0113: isto prepara e julga a prova; **não** promove nada a VERIFIED.
 O bundle diz o que mediu, o doc diz o que ainda falta.
@@ -91,6 +93,40 @@ Máquina: Core 7 240H tem iGPU Intel + dGPU (RTX 3050 6 GB). Pôr o S1 na iGPU
 exigiria `llama.cpp` com Vulkan (o pin é `llama-cpp-cuda`), por isso não é o
 caso hoje — fica registado como lacuna, não como prova.
 
+## Voz: piper e whisper (W1–W4)
+
+O piper e o whisper **não são serviços**: nascem e morrem dentro de
+`voice.tts`/`voice.stt` (`nos-voice/src/lib.rs`), portanto um `ps` tirado de
+fora não prova cópia nenhuma. O kit amostra `/proc` a cada **10 ms enquanto a
+RPC corre** e lê o argv exacto de `/proc/<pid>/cmdline`.
+
+| Critério | Como é medido | PASS |
+|---|---|---|
+| **W1** uma só cópia | resolução replicada de `find_piper_cli`/`find_piper_model` (1 binário, 1 `.onnx` do idioma + sidecar `.onnx.json`) e concorrência observada ≤ 1 por motor | `1/1`, `PIPER_ONNX_MATCHING=1`, `MAX_PARALLEL_*=1` |
+| **W2** argv | contrato real do código: piper `--model … --output_file …` (texto no stdin); whisper `-m … -l … -f … --no-timestamps` | `PIPER_ARGV=pass`, `WHISPER_ARGV=pass` |
+| **W3** TTS corre | `voice.tts --no-play` devolve `bytes` > 44 | `TTS_BYTES>44` |
+| **W4** STT corre | `voice-stt --wav-path` num WAV **16 kHz** gravado com `arecord -r 16000 -c 1` | `STT_RC=0` |
+
+Três armadilhas que o instrumento evita:
+
+1. **`comm` mente sobre wrappers.** O `piper` da ISO é
+   `<piper-standalone>/piper`, um *script* bash que faz
+   `export LD_LIBRARY_PATH=…; exec "$out/piper.real" "$@"` (lição 61). O
+   processo mantém o PID e passa a chamar-se `piper.real`. Por isso a
+   classificação é pelo **basename do argv** (`piper`/`piper.real`), nunca por
+   `comm` — e o wrapper não conta como segunda cópia.
+2. **Só descendentes do `nosd` contam.** Se o ORB estiver a falar durante a
+   colheita, existe um piper alheio; a cadeia de `ppid` até ao `nosd` filtra-o.
+   `MAX_PARALLEL=2` passa a significar "dois motores no **mesmo** pedido".
+3. **Spawn curto pode escapar à amostragem.** Se `SPAWNS_PIPER=0`, então W2/W3
+   ficam `na` — nunca PASS inventado. O piper real leva centenas de ms (load do
+   ONNX) e o whisper ~1 s, muito acima do intervalo de 10 ms.
+
+Ficheiros: `voice-spawn.tsv` (`engine pid ppid argv`), `voice-mic.wav`,
+`tts.{out,err,rc}`, `stt.{out,err,rc}`, e em `verdict.txt` as chaves
+`PIPER_*`, `WHISPER_*`, `SPAWNS_*`, `MAX_PARALLEL_*`, `TTS_*`, `STT_*`, `W1–W4`,
+`VOICE`.
+
 ### `--fit-ctx` é mínimo, não teto
 
 Texto do binário pinado (`llama-server --version` → build 11429, commit
@@ -165,7 +201,8 @@ O script escreve: `units.txt`, `models.txt`, `engines.tsv`, `engine-<pid>.argv`
 loopback não viaja para o pendrive), `devices.tsv` (env vs `/dev/nvidia*` por
 PID), `fit-props.tsv` (porta, HTTP, `n_ctx`, mínimo do fit, `-c`), `holders.txt`,
 `nvidia-smi.txt`, `nvidia-compute-apps.txt`, `journal.txt`, `markers.txt`,
-`verdict.txt`, `harvest.log`.
+`voice-spawn.tsv`, `voice-mic.wav`, `tts.*`, `stt.*`, `verdict.txt`,
+`harvest.log`.
 
 ## 3. Verificar (host, sem o metal)
 
@@ -173,9 +210,11 @@ PID), `fit-props.tsv` (porta, HTTP, `n_ctx`, mínimo do fit, `-c`), `holders.txt
 bash scripts/metal-core7-harvest.sh --verify /caminho/do/bundle
 ```
 
-Imprime `V1..V6` e `RESULT=PASS|FAIL` (rc 1 em FAIL; **rc 2 = N/A** quando não
-há motores, i.e. `EngineAbsent`), com os PIDs infractores. Lê o `verdict.txt`
-por **chave exacta** (`s/^CHAVE=//`), nunca por substring (lição 30).
+Imprime `V1..V6` + `W1..W4` e `RESULT=PASS|FAIL` (rc 1 em FAIL; **rc 2 = N/A**
+quando não há motores, i.e. `EngineAbsent`), com os PIDs infractores. Um
+`VOICE=fail` dá **FAIL** mesmo com os motores LLM em `N/A` — uma falha medida
+não se esconde atrás de um inaplicável. Lê o `verdict.txt` por **chave
+exacta** (`s/^CHAVE=//`), nunca por substring (lição 30).
 
 Trazer o bundle do pendrive híbrido sem letra no Windows: `scripts/extract-usb-logs.py`
 (lição 53) — lê a FAT32 no dispositivo cru, por offset.
@@ -193,6 +232,12 @@ Trazer o bundle do pendrive híbrido sem letra no Windows: `scripts/extract-usb-
 | `FIT_OK=fail` | há `-c` fixo num motor, ou `--fit on` ausente, ou `/props` não respondeu / `n_ctx` abaixo do mínimo | `fit-props.tsv` (colunas `http`, `n_ctx`, `fit_min`, `fixed_ctx`); `engine-<pid>.argv` |
 | `DISTINCT_GPUS=1` | normal nesta imagem: S1 e S2 partilham a dGPU 0 | `devices.tsv` (coluna `cvd`); não é falha |
 | `CTX_4B=none` | não houve motor com o 4B para ler `/props` | `engines.tsv`; ver a linha `4B_PROCESSES=0` |
+| `PIPER_ONNX_MATCHING=2` | duas vozes do mesmo idioma: `find_piper_model` escolhe a 1.ª por ordem alfabética | `ls /var/lib/nosd/models/*.onnx`; C4.1 |
+| `TTS_BYTES=44` | o piper correu mas não escreveu amostras (o ficheiro existe antes do escritor, lição 54) | `tts.err`; `voice-spawn.tsv` |
+| `PIPER_ARGV=fail` | o spawn não trouxe `--model`/`--output_file` | `voice-spawn.tsv` (coluna `argv`) |
+| `STT_RC≠0` | WAV não é 16 kHz (lição 57) ou modelo `ggml-*.bin` ausente | `stt.err`; `stat -c %s voice-mic.wav` |
+| `MAX_PARALLEL_*=2` | dois motores no **mesmo** pedido (UI e chat a falar ao mesmo tempo) | `voice-spawn.tsv`: dois PIDs distintos |
+| `VOICE=na` | nada medido: sem `nosctl`/motor ou spawn mais curto que a amostragem | `verdict.txt`; nunca ler como PASS |
 
 `EngineAbsent` (sem GGUF/binário) é **honestidade**, não falha deste kit — mas
 torna V1–V6 inaplicáveis e o resultado tem de ser registado como tal, nunca

@@ -88,7 +88,8 @@ No hardware, verificar:
 
 - **`iso-hw-cuda`: uma só cópia do 4B e argv sem `-ngl`** — kit em
   [`docs/evidence/METAL_CORE7_HARVEST_KIT.md`](evidence/METAL_CORE7_HARVEST_KIT.md)
-  (`scripts/metal-core7-harvest.sh`, veredicto V1–V4 + `--verify` no host);
+  (`scripts/metal-core7-harvest.sh`, veredicto V1–V6 + W1–W4 para a voz
+  piper/whisper, com `--verify` no host);
 - cage/HUD no iGPU real (não `pixman`/`llvmpipe` de QEMU) e VT/teclado físicos;
 - firstboot/transmute/hotswap;
 - Wi-Fi/áudio/câmara, se aplicável;
