@@ -363,6 +363,16 @@ Resumo executavel; detalhe em
     `cmp -n $((ISO_SIZE-1MiB)) -i 1048576:1048576 img iso` (idêntico), mais
     `sfdisk -l` para o layout. Para empacotar no WSL, `mkfs.vfat` não está no
     PATH: `nix shell nixpkgs#dosfstools nixpkgs#util-linux --command bash -c …`.
+69. **`--fit-ctx` é o piso do `--fit`, não o tecto — e o contexto prova-se no
+    `/props`**: o help do build 11429 diz `minimum ctx size that can be set by
+    --fit option, default: 4096`; um `n_ctx` acima disso (o nativo do modelo)
+    não é violação do cap. Não julgar contexto por linha de log nem por
+    substring: `GET /props` do **próprio motor** é a fonte do valor efectivo.
+    No S1 managed a porta é dinâmica (`pick_port`) e o `/props` exige
+    `Authorization: Bearer <--api-key do argv>` — a chave fica em memória e o
+    `argv` que vai para o bundle sai com `<redacted>`, senão o pendrive leva a
+    chave (ainda que de loopback). Provado no host com o binário pinado:
+    `props_http=200`, `n_ctx=262144`, `0` ocorrências da chave no bundle.
 
 ## Comandos
 

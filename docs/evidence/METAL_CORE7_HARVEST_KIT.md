@@ -7,7 +7,11 @@ QEMU/host:
    `Qwen3.5-4B-Q6_K.gguf` (a duplicação do hub era o defeito do metal de 31 Out);
 2. **argv sem `-ngl`** — nenhum token `-ngl` em nenhum motor, porque flag
    explícita anula o `--fit on` e foi a classe de `cudaMalloc: out of memory`
-   (lição 56).
+   (lição 56);
+3. **dispositivo por motor** — cada motor que declara `CUDA_VISIBLE_DEVICES`
+   tem mesmo `/dev/nvidiaN` aberto (apanha o fallback silencioso para CPU);
+4. **contexto escolhido pelo `--fit`** — lido do `/props` de cada motor, não do
+   log (`n_ctx` real, sem `-c` fixo).
 
 Honesty ADR-0113: isto prepara e julga a prova; **não** promove nada a VERIFIED.
 O bundle diz o que mediu, o doc diz o que ainda falta.
@@ -59,9 +63,47 @@ mede o que corre, não o que devia estar lá.
 | **V2** sem `-ngl` | contagem do **token exacto** `-ngl` (nunca substring, lição 30) em todos os argv | `NGL_TOKENS=0` |
 | **V3** 4B realmente carregado | quantos processos têm o GGUF aberto em `/proc/<pid>/fd` | `GGUF_HOLDERS=1` |
 | **V4** o fit decide | `--fit on` no argv do processo do 4B | `4B_FIT=on` |
+| **V5** dispositivo por motor | `CUDA_VISIBLE_DEVICES` em `/proc/<pid>/environ` **vs** `/dev/nvidia*` aberto em `/proc/<pid>/fd`; `nvidia-smi --query-compute-apps` como segunda opinião | `DEVICE_MATCH=pass` (0 motores que declaram GPU sem a abrir) |
+| **V6** contexto escolhido | `GET /props` (HTTP/1.0 por `bash /dev/tcp`, sem `curl`/`python`) no `--port` do próprio motor, com `Authorization: Bearer` quando o argv traz `--api-key` | `n_ctx>0`, sem token `-c`, `--fit on`, e `n_ctx ≥ --fit-ctx` |
+
+`DISTINCT_GPUS` é **reportado, não exigido** — ver a secção seguinte, porque na
+`iso-hw-cuda` os dois motores usam a **mesma** dGPU.
 
 No `iso-hw-cuda` são **esperados dois motores** (S1 = 0.8B, S2 = 4B) — a
 cópia única é do **4B**, não do `llama-server` em geral.
+
+### S1 e S2 não usam GPUs distintas (e o kit não finge que usam)
+
+O `images/hw-cuda.nix` põe **os dois** na dGPU 0:
+
+- `systemd.services.nosd…Environment = [ "CUDA_VISIBLE_DEVICES=0" "NVIDIA_VISIBLE_DEVICES=0" ]`
+  (o S1 é spawn do `nosd`, herda este env);
+- `systemd.services.nosd-engine-s2…Environment = [ "CUDA_VISIBLE_DEVICES=0" ]`.
+
+Logo `DISTINCT_GPUS=1` é o resultado **correcto** no Core 7; um critério "duas
+GPUs distintas" seria **falso por desenho** e um teste que o exigisse falhava
+sempre. O que V5 mede é a propriedade que realmente importa e que já falhou em
+metal: **o motor que diz usar a GPU abriu mesmo `/dev/nvidiaN`** — se o CUDA
+recusar o device (`Permission denied`/`ENODEV`, lição 41) o `llama-server` cai
+para CPU em silêncio e o `n_ctx`/VRAM denunciam-no.
+
+Máquina: Core 7 240H tem iGPU Intel + dGPU (RTX 3050 6 GB). Pôr o S1 na iGPU
+exigiria `llama.cpp` com Vulkan (o pin é `llama-cpp-cuda`), por isso não é o
+caso hoje — fica registado como lacuna, não como prova.
+
+### `--fit-ctx` é mínimo, não teto
+
+Texto do binário pinado (`llama-server --version` → build 11429, commit
+d812350):
+
+```
+-fitc, --fit-ctx N   minimum ctx size that can be set by --fit option, default: 4096
+```
+
+Ou seja `--fit-ctx 2048` é o **piso** que o `--fit` respeita, não o máximo —
+por isso V6 exige `n_ctx ≥ fit_min`, e o valor alto (ex.: `n_ctx=262144` do
+modelo nativo) não é falha. O que prova que o fit (e não uma flag) decidiu é a
+**ausência** do token `-c` mais o `--fit on`.
 
 Contexto (não é critério): `nvidia-smi` (nome/driver/VRAM), compute apps,
 marcadores do journal que só o código novo emite (lição 66):
@@ -109,8 +151,11 @@ sudo bash scripts/metal-core7-harvest.sh
 ```
 
 O script escreve: `units.txt`, `models.txt`, `engines.tsv`, `engine-<pid>.argv`
-(um token por linha), `holders.txt`, `nvidia-smi.txt`, `nvidia-compute-apps.txt`,
-`journal.txt`, `markers.txt`, `verdict.txt`, `harvest.log`.
+(um token por linha, com o valor de `--api-key` **redigido** — a chave de
+loopback não viaja para o pendrive), `devices.tsv` (env vs `/dev/nvidia*` por
+PID), `fit-props.tsv` (porta, HTTP, `n_ctx`, mínimo do fit, `-c`), `holders.txt`,
+`nvidia-smi.txt`, `nvidia-compute-apps.txt`, `journal.txt`, `markers.txt`,
+`verdict.txt`, `harvest.log`.
 
 ## 3. Verificar (host, sem o metal)
 
@@ -118,7 +163,9 @@ O script escreve: `units.txt`, `models.txt`, `engines.tsv`, `engine-<pid>.argv`
 bash scripts/metal-core7-harvest.sh --verify /caminho/do/bundle
 ```
 
-Imprime `V1..V4` e `RESULT=PASS|FAIL` (rc 1 em FAIL), com os PIDs infractores.
+Imprime `V1..V6` e `RESULT=PASS|FAIL` (rc 1 em FAIL; **rc 2 = N/A** quando não
+há motores, i.e. `EngineAbsent`), com os PIDs infractores. Lê o `verdict.txt`
+por **chave exacta** (`s/^CHAVE=//`), nunca por substring (lição 30).
 
 Trazer o bundle do pendrive híbrido sem letra no Windows: `scripts/extract-usb-logs.py`
 (lição 53) — lê a FAT32 no dispositivo cru, por offset.
@@ -132,9 +179,14 @@ Trazer o bundle do pendrive híbrido sem letra no Windows: `scripts/extract-usb-
 | `GGUF_HOLDERS=2` com `4B_PROCESSES=1` | processo órfão de um arranque anterior ainda com o ficheiro aberto | `holders.txt` + `ps -o lstart=` |
 | `4B_PROCESSES=0` | o S2 não subiu | `units.txt` (nosd-engine-s2), `journal.txt` (`EngineAbsent`, `cudaMalloc`, health timeout) |
 | `4B_FIT=off` | flag `-c`/`-ngl` ou `--fit` ausente no argv | `engine-<pid>.argv` |
+| `DEVICE_MATCH=fail` | um motor declara `CUDA_VISIBLE_DEVICES` mas não abriu `/dev/nvidia*` (fallback silencioso para CPU) | `devices.tsv`; `journal.txt` (`Permission denied`, `ENODEV`, `unable to get gpu adapter`); `checks.hw-cuda-deviceallow` (lição 41) |
+| `FIT_OK=fail` | há `-c` fixo num motor, ou `--fit on` ausente, ou `/props` não respondeu / `n_ctx` abaixo do mínimo | `fit-props.tsv` (colunas `http`, `n_ctx`, `fit_min`, `fixed_ctx`); `engine-<pid>.argv` |
+| `DISTINCT_GPUS=1` | normal nesta imagem: S1 e S2 partilham a dGPU 0 | `devices.tsv` (coluna `cvd`); não é falha |
+| `CTX_4B=none` | não houve motor com o 4B para ler `/props` | `engines.tsv`; ver a linha `4B_PROCESSES=0` |
 
 `EngineAbsent` (sem GGUF/binário) é **honestidade**, não falha deste kit — mas
-torna V1 inaplicável e o resultado tem de ser registado como tal, nunca como PASS.
+torna V1–V6 inaplicáveis e o resultado tem de ser registado como tal, nunca
+como PASS (`--verify` sai com **rc 2** e imprime `RESULT=N/A`).
 
 ## 5. Registar a evidência
 
@@ -142,8 +194,9 @@ Bundle → `docs/evidence/hw/<YYYY-MM-DD_HHMMZ>/` (como
 `docs/evidence/hw/2026-11-03_2346Z/`), e um `README.md` com:
 
 - sha256 do ISO e do `.img` gravado, e o host (Core 7 240H, GPU);
-- saída de `--verify` (PASS/FAIL por critério);
-- `engines.tsv` + `holders.txt` citados literalmente;
+- saída de `--verify` (PASS/FAIL/N/A por critério);
+- `engines.tsv` + `holders.txt` + `devices.tsv` + `fit-props.tsv` citados
+  literalmente (o `argv` já vai com a `--api-key` redigida);
 - o que **não** foi provado (ex.: voz, mesh, CUDA real se `nvidia-smi` falhar).
 
 Só depois o item passa de `AWAITING_HW` para `OBSERVED`, e só com repetição
