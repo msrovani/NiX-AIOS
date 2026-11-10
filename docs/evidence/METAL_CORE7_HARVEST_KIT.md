@@ -143,12 +143,22 @@ Opcional no pendrive: `NIXAIOSLOG/models/` com o GGUF e `NIXAIOSLOG/wifi.conf`
 
 1. Arrancar pelo pendrive, responder Q1–Q5 no tty1 (Wi-Fi/keymap/TZ).
 2. Esperar o HUD ORB e o badge `S2 · llama-server-http` (não `ausente`).
-3. Terminal (tty2 ou SSH local) como root:
+3. **O script não vai dentro da ISO** (só o M3b é embutido, via
+   `modules/m3b-metal-probe.nix`). Copiar `scripts/metal-core7-harvest.sh`
+   para a raiz do `NIXAIOSLOG` — no Windows, depois de gravar, o pendrive
+   aparece com letra; no guest a mesma FAT está em `/mnt/nixaios-log`
+   (`nixaios-log-mount`).
+4. Terminal (tty2 ou SSH local) como root:
 
 ```bash
-sudo bash scripts/metal-core7-harvest.sh
+sudo bash /mnt/nixaios-log/metal-core7-harvest.sh
 # bundle: /mnt/nixaios-log/harvest/<UTC>/   (FAT, legível no Windows)
 ```
+
+Depende só de `bash` + `coreutils` + `awk`: o `/props` é lido por
+`bash /dev/tcp`, sem `curl`/`python`, que a ISO minimal não traz. Daí o bundle
+cair em `/var/lib/nosd/harvest-*` quando a FAT não estiver escrevível (o script
+diz `WARN` alto).
 
 O script escreve: `units.txt`, `models.txt`, `engines.tsv`, `engine-<pid>.argv`
 (um token por linha, com o valor de `--api-key` **redigido** — a chave de
